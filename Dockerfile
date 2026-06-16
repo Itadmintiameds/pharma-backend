@@ -8,7 +8,7 @@ FROM amazoncorretto:21
 WORKDIR /pharma
 
 # Copy the JAR file from the host machine to the container
-COPY target/pharma.jar pharma.jar
+COPY target/pharma-backend-0.0.1-SNAPSHOT.jar pharma.jar
 
 # Expose the application port (default Spring Boot port)
 # another port 8080 is exposed
