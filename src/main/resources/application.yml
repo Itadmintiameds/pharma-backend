@@ -2,6 +2,9 @@ spring:
   application:
     name: pharma-backend
 
+  profiles:
+    active: dev
+
 server:
   port: 8080
   servlet:

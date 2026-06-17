@@ -15,18 +15,4 @@ spring:
 
   flyway:
     enabled: true
-    locations: classpath:db/migrationspring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/pharma
-    username: postgres
-    password: root
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-
-  flyway:
-    enabled: true
     locations: classpath:db/migration
