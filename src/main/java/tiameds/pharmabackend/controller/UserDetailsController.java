@@ -25,4 +25,13 @@ public class UserDetailsController {
                 .status(HttpStatus.CREATED)
                 .body(response);
     }
+
+    @DeleteMapping("/delete/{pharmacyRegistrationId}")
+    public ResponseEntity<String> deleteUser(
+            @PathVariable String pharmacyRegistrationId) {
+
+        userDetailsService.deleteUserByPharmacyRegistrationId(pharmacyRegistrationId);
+
+        return ResponseEntity.ok("User deleted successfully.");
+    }
 }

@@ -3,6 +3,7 @@ package tiameds.pharmabackend.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.entity.PharmaRoles;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -14,6 +15,7 @@ import tiameds.pharmabackend.service.UserDetailsService;
 import java.time.LocalDateTime;
 
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
 
@@ -44,5 +46,18 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 userDetailsRepository.save(user);
 
         return userDetailsMapper.toDto(savedUser);
+    }
+
+
+    @Override
+    public void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId) {
+
+        UserDetails user = userDetailsRepository
+                .findByPharmacyRegistrationId(pharmacyRegistrationId)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found with Pharmacy Registration Id : "
+                                + pharmacyRegistrationId));
+
+        userDetailsRepository.delete(user);
     }
 }
