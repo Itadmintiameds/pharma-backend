@@ -9,7 +9,8 @@ import tiameds.pharmabackend.entity.UserDetails;
 @Component
 public class UserDetailsMapper {
 
-    public UserDetails toEntity(UserDetailsDto dto, PharmaRoles role) {
+
+    public UserDetails toEntity(UserDetailsDto dto) {
 
         UserDetails user = new UserDetails();
 
@@ -22,6 +23,13 @@ public class UserDetailsMapper {
         user.setCreatedAt(dto.getCreatedAt());
         user.setModifiedBy(dto.getModifiedBy());
         user.setModifiedAt(dto.getModifiedAt());
+
+        return user;
+    }
+
+    public UserDetails toEntity(UserDetailsDto dto, PharmaRoles role) {
+
+        UserDetails user = toEntity(dto);
         user.setRole(role);
 
         return user;

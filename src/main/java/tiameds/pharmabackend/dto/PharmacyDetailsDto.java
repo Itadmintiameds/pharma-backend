@@ -15,16 +15,20 @@ public class PharmacyDetailsDto {
     private String pharmacyType;
     private String pharmacyEmail;
     private Long pharmacyPhone;
-    private String pharmacyDlno;
-    private String pharmacyGstno;
-    private String pharmacyPan;
-    private String pharmacyBusinessRegistrationNo;
-    private LocalDateTime pharmacyDlExpiryDate;
-    private String pharmacyAddress;
+    private String pharmacyBuildingNo;
+    private String pharmacyStreet;
+    private String pharmacyCity;
+    private String pharmacyTaluka;
+    private String pharmacyDistricts;
+    private Long pharmacyPincode;
+    private String pharmacyLandmark;
+    private String pharmacyState;
     private String pharmacyLogo;
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;
     private LocalDateTime modifiedAt;
     private List<UserDetailsDto> users;
+    private List<PharmaDocumentsDto> documents;
+
 }

@@ -66,4 +66,9 @@ public class UserDetails {
             orphanRemoval = true)
     @JsonIgnore
     private List<PharmaOtp> pharmaOtps = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
+    @JsonIgnore
+    private PharmacyOrganization organization;
 }

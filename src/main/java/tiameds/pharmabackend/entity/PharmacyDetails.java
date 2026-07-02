@@ -37,23 +37,29 @@ public class PharmacyDetails {
     @Column(name = "pharmacy_phone")
     private Long pharmacyPhone;
 
-    @Column(name = "pharmacy_dlno")
-    private String pharmacyDlno;
+    @Column(name = "pharmacy_building_no")
+    private String pharmacyBuildingNo;
 
-    @Column(name = "pharmacy_gstno")
-    private String pharmacyGstno;
+    @Column(name = "pharmacy_street")
+    private String pharmacyStreet;
 
-    @Column(name = "pharmacy_pan")
-    private String pharmacyPan;
+    @Column(name = "pharmacy_city")
+    private String pharmacyCity;
 
-    @Column(name = "pharmacy_business_registration_no")
-    private String pharmacyBusinessRegistrationNo;
+    @Column(name = "pharmacy_taluka")
+    private String pharmacyTaluka;
 
-    @Column(name = "pharmacy_dl_expiry_date")
-    private LocalDateTime pharmacyDlExpiryDate;
+    @Column(name = "pharmacy_districts")
+    private String pharmacyDistricts;
 
-    @Column(name = "pharmacy_address")
-    private String pharmacyAddress;
+    @Column(name = "pharmacy_pincode")
+    private Long pharmacyPincode;
+
+    @Column(name = "pharmacy_landmark")
+    private String pharmacyLandmark;
+
+    @Column(name = "pharmacy_state")
+    private String pharmacyState;
 
     @Column(name = "pharmacy_logo")
     private String pharmacyLogo;
@@ -77,4 +83,17 @@ public class PharmacyDetails {
     )
     @JsonIgnore
     private List<UserDetails> users;
+
+    @OneToMany(
+            mappedBy = "pharmacy",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    @JsonIgnore
+    private List<PharmaDocuments> documents;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
+    private PharmacyOrganization organization;
 }
