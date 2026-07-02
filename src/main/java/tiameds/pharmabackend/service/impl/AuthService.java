@@ -34,9 +34,9 @@ public class AuthService {
 
         UserDetails user =
                 userRepository
-                        .findByUserName(
-                                request.getUserName())
-                        .orElseThrow(() -> new RuntimeException("User not found"));
+                        .findByUserEmail(
+                                request.getUserEmail())
+                        .orElseThrow();
 
         if(!passwordEncoder.matches(
                 request.getPassword(),
@@ -77,8 +77,8 @@ public class AuthService {
 
         UserDetails user =
                 userRepository
-                        .findByUserName(
-                                request.getUserName())
+                        .findByUserEmail(
+                                request.getUserEmail())
                         .orElseThrow(() ->
                                 new RuntimeException("User not found"));
 

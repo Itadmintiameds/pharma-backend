@@ -13,5 +13,7 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, Long> 
 
     Optional<UserDetails> findByPharmacyRegistrationId(String pharmacyRegistrationId);
 
+    Optional<UserDetails> findByUserEmail(String email);
+
 
 }

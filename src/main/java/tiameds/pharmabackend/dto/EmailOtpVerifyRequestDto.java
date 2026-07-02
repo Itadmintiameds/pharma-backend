@@ -3,8 +3,8 @@ package tiameds.pharmabackend.dto;
 import lombok.Data;
 
 @Data
-public class OtpVerifyRequestDto {
+public class EmailOtpVerifyRequestDto {
 
-    private String userEmail;
+    private String email;
     private String otp;
 }
