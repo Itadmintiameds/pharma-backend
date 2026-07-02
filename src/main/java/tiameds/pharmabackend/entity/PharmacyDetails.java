@@ -37,6 +37,9 @@ public class PharmacyDetails {
     @Column(name = "pharmacy_phone")
     private Long pharmacyPhone;
 
+    @Column(name = "pharmacy_branch")
+    private String pharmacyBranch;
+
     @Column(name = "pharmacy_building_no")
     private String pharmacyBuildingNo;
 

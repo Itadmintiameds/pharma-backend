@@ -2,7 +2,10 @@ package tiameds.pharmabackend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -21,15 +24,12 @@ public class UserDetails {
     @Column(name = "user_id")
     private Long userId;
 
-    @Column(name = "pharmacy_registration_id")
-    private String pharmacyRegistrationId;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
     @JsonIgnore
     private PharmacyDetails pharmacy;
 
-    @Column(name = "user_name")
+    @Column(name = "user_name", unique = true)
     private String userName;
 
     @Column(name = "password")
@@ -43,8 +43,14 @@ public class UserDetails {
     @JsonIgnore
     private PharmaRoles role;
 
+    @Column(name = "last_login")
+    private LocalDateTime lastLogin;
+
+    @Column(name = "is_rejected", columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean isRejected;
+
     @Column(name = "user_status")
-    private Boolean userStatus;
+    private String userStatus;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

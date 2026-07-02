@@ -15,6 +15,7 @@ public class PharmacyDetailsDto {
     private String pharmacyType;
     private String pharmacyEmail;
     private Long pharmacyPhone;
+    private String pharmacyBranch;
     private String pharmacyBuildingNo;
     private String pharmacyStreet;
     private String pharmacyCity;
@@ -24,6 +25,7 @@ public class PharmacyDetailsDto {
     private String pharmacyLandmark;
     private String pharmacyState;
     private String pharmacyLogo;
+    private Long createdByUserId;
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;

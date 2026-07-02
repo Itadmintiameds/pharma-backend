@@ -32,6 +32,7 @@ public class PharmacyDetailsMapper {
         pharmacy.setPharmacyType(dto.getPharmacyType());
         pharmacy.setPharmacyEmail(dto.getPharmacyEmail());
         pharmacy.setPharmacyPhone(dto.getPharmacyPhone());
+        pharmacy.setPharmacyBranch(dto.getPharmacyBranch());
         pharmacy.setPharmacyBuildingNo(dto.getPharmacyBuildingNo());
         pharmacy.setPharmacyStreet(dto.getPharmacyStreet());
         pharmacy.setPharmacyCity(dto.getPharmacyCity());

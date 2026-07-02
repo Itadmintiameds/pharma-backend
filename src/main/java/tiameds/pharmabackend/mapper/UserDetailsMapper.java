@@ -15,14 +15,9 @@ public class UserDetailsMapper {
         UserDetails user = new UserDetails();
 
         user.setUserId(dto.getUserId());
-        user.setPharmacyRegistrationId(dto.getPharmacyRegistrationId());
         user.setUserName(dto.getUserName());
         user.setPassword(dto.getPassword());
         user.setUserEmail(dto.getUserEmail());
-        user.setUserStatus(dto.getUserStatus());
-        user.setCreatedAt(dto.getCreatedAt());
-        user.setModifiedBy(dto.getModifiedBy());
-        user.setModifiedAt(dto.getModifiedAt());
 
         return user;
     }
@@ -40,7 +35,6 @@ public class UserDetailsMapper {
         UserDetailsDto dto = new UserDetailsDto();
 
         dto.setUserId(user.getUserId());
-        dto.setPharmacyRegistrationId(user.getPharmacyRegistrationId());
         dto.setUserName(user.getUserName());
         dto.setUserEmail(user.getUserEmail());
         dto.setUserStatus(user.getUserStatus());

@@ -40,7 +40,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         );
 
         user.setCreatedAt(LocalDateTime.now());
-        user.setUserStatus(Boolean.TRUE);
+        user.setUserStatus("ACTIVE");
 
         UserDetails savedUser =
                 userDetailsRepository.save(user);

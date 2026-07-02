@@ -15,7 +15,7 @@ public class UserDetailsDto {
     private String password;
     private String userEmail;
     private PharmaRolesDto pharmaRolesDto;
-    private Boolean userStatus;
+    private String userStatus;
     private LocalDateTime createdAt;
     private String modifiedBy;
     private LocalDateTime modifiedAt;

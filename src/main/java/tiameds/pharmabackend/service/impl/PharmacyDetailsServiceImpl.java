@@ -4,8 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.mapper.PharmacyDetailsMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.PharmacyDetailsService;
 
 import java.time.LocalDateTime;
@@ -17,6 +19,7 @@ public class PharmacyDetailsServiceImpl
 
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
     private final PharmacyDetailsMapper pharmacyDetailsMapper;
+    private final UserDetailsRepository userDetailsRepository;
 
     @Override
     public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto) {
@@ -35,9 +38,19 @@ public class PharmacyDetailsServiceImpl
         if (pharmacy.getUsers() != null) {
             pharmacy.getUsers().forEach(user -> {
                 user.setPharmacy(pharmacy);
-                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
             });
         }
+
+        UserDetails userDetails = userDetailsRepository.findById(pharmacyDetailsDto.getCreatedByUserId())
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "User not found with ID: " + pharmacyDetailsDto.getCreatedByUserId()));
+
+        userDetails.setPharmacy(pharmacy);
+        userDetails.setModifiedAt(LocalDateTime.now());
+        userDetailsRepository.save(userDetails);
+
+        pharmacy.setCreatedBy(userDetails.getUserName());
 
         // Set pharmacy reference for all documents
         if (pharmacy.getDocuments() != null) {

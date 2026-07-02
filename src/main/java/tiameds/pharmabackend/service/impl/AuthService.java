@@ -36,7 +36,7 @@ public class AuthService {
                 userRepository
                         .findByUserName(
                                 request.getUserName())
-                        .orElseThrow();
+                        .orElseThrow(() -> new RuntimeException("User not found"));
 
         if(!passwordEncoder.matches(
                 request.getPassword(),
