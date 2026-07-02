@@ -33,3 +33,6 @@ spring:
 
   flyway:
     enabled: false
+
+server:
+  port: 8081
