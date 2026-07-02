@@ -24,4 +24,18 @@ public class MailService {
 
         mailSender.send(message);
     }
+
+    public void sendVerificationOtp(String to,String otp){
+
+        SimpleMailMessage message =
+                new SimpleMailMessage();
+
+        message.setTo(to);
+        message.setSubject("Email Verification OTP");
+        message.setText(
+                "Your email verification OTP is : " + otp +
+                        "\nValid for 5 minutes");
+
+        mailSender.send(message);
+    }
 }

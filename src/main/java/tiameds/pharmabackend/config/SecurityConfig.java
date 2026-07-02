@@ -26,6 +26,7 @@ public class SecurityConfig {
                         .requestMatchers("/user/**").permitAll()
                         .requestMatchers("/pharmacy/**").permitAll()
                         .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/verification/**").permitAll()
                         .anyRequest().authenticated()
                 );
 
