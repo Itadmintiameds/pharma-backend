@@ -12,6 +12,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleRuntimeException(RuntimeException ex) {
 
         System.out.println("EXCEPTION HANDLER HIT");
+        ex.printStackTrace();
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
