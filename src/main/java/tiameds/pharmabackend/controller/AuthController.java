@@ -3,6 +3,8 @@ package tiameds.pharmabackend.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,6 +32,17 @@ public class AuthController {
                 authService.login(request));
     }
 
+    private ResponseCookie buildCookie(String name, String value, long maxAge) {
+        return ResponseCookie.from(name, value)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("None")
+                .domain("tiameds.ai")
+                .path("/")
+                .maxAge(maxAge)
+                .build();
+    }
+
     @PostMapping("/verifyOtp")
     public ResponseEntity<String> verifyOtp(
             @RequestBody OtpVerifyRequestDto request,
@@ -38,32 +51,23 @@ public class AuthController {
         LoginResponse loginResponse =
                 authService.verifyOtp(request);
 
-        Cookie accessTokenCookie =
-                new Cookie(
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                buildCookie(
                         "access_token",
-                        loginResponse.getAccessToken());
+                        loginResponse.getAccessToken(),
+                        30 * 60
+                ).toString());
 
-        accessTokenCookie.setHttpOnly(true);
-        accessTokenCookie.setSecure(true); // HTTPS only
-        accessTokenCookie.setPath("/");
-        accessTokenCookie.setMaxAge(30 * 60); // 30 mins
-
-        response.addCookie(accessTokenCookie);
-
-        Cookie refreshTokenCookie =
-                new Cookie(
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                buildCookie(
                         "refresh_token",
-                        loginResponse.getRefreshToken());
+                        loginResponse.getRefreshToken(),
+                        7 * 24 * 60 * 60
+                ).toString());
 
-        refreshTokenCookie.setHttpOnly(true);
-        refreshTokenCookie.setSecure(true);
-        refreshTokenCookie.setPath("/");
-        refreshTokenCookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
-
-        response.addCookie(refreshTokenCookie);
-
-        return ResponseEntity.ok(
-                "Login successful");
+        return ResponseEntity.ok("Login successful");
     }
 
 
@@ -74,88 +78,72 @@ public class AuthController {
 
         String refreshToken = null;
 
-        Cookie[] cookies =
-                request.getCookies();
+        Cookie[] cookies = request.getCookies();
 
-        if(cookies != null){
-
-            for(Cookie cookie : cookies){
-
-                if("refresh_token".equals(
-                        cookie.getName())){
-
-                    refreshToken =
-                            cookie.getValue();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("refresh_token".equals(cookie.getName())) {
+                    refreshToken = cookie.getValue();
+                    break;
                 }
             }
         }
 
-        if(refreshToken == null){
-            throw new RuntimeException(
-                    "Refresh Token Missing");
+        if (refreshToken == null) {
+            throw new RuntimeException("Refresh Token Missing");
         }
 
         LoginResponse loginResponse =
-                authService.refreshToken(
-                        refreshToken);
+                authService.refreshToken(refreshToken);
 
-        Cookie accessCookie =
-                new Cookie(
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                buildCookie(
                         "access_token",
-                        loginResponse.getAccessToken());
+                        loginResponse.getAccessToken(),
+                        30 * 60
+                ).toString());
 
-        accessCookie.setHttpOnly(true);
-        accessCookie.setSecure(true);
-        accessCookie.setPath("/");
-        accessCookie.setMaxAge(1800);
-
-        response.addCookie(accessCookie);
-
-        return ResponseEntity.ok(
-                "Access Token Refreshed");
+        return ResponseEntity.ok("Access Token Refreshed");
     }
 
     @PostMapping("/logout")
     public ResponseEntity<String> logout(
             HttpServletRequest request,
-            HttpServletResponse response){
+            HttpServletResponse response) {
 
         String refreshToken = null;
 
-        Cookie[] cookies =
-                request.getCookies();
+        Cookie[] cookies = request.getCookies();
 
-        if(cookies != null){
-
-            for(Cookie cookie : cookies){
-
-                if("refresh_token".equals(
-                        cookie.getName())){
-
-                    refreshToken =
-                            cookie.getValue();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("refresh_token".equals(cookie.getName())) {
+                    refreshToken = cookie.getValue();
+                    break;
                 }
             }
         }
 
-        authService.logout(refreshToken);
+        if (refreshToken != null) {
+            authService.logout(refreshToken);
+        }
 
-        Cookie access =
-                new Cookie(
-                        "access_token", null);
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                buildCookie(
+                        "access_token",
+                        "",
+                        0
+                ).toString());
 
-        access.setMaxAge(0);
-        access.setPath("/");
-
-        Cookie refresh =
-                new Cookie(
-                        "refresh_token", null);
-
-        refresh.setMaxAge(0);
-        refresh.setPath("/");
-
-        response.addCookie(access);
-        response.addCookie(refresh);
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                buildCookie(
+                        "refresh_token",
+                        "",
+                        0
+                ).toString());
 
         return ResponseEntity.ok("Logged Out");
     }
