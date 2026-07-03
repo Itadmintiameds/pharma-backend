@@ -39,6 +39,9 @@ public class PharmaEmailVerificationOtp {
     @Column(name = "max_retry_limit")
     private Integer maxRetryLimit;
 
+    @Column(name = "resend_count")
+    private Integer resendCount;
+
     @Column(name = "is_locked")
     private Boolean isLocked;
 
@@ -50,4 +53,10 @@ public class PharmaEmailVerificationOtp {
 
     @Column(name = "used_at")
     private LocalDateTime usedAt;
+
+    @Column(name = "is_verified")
+    private Boolean isVerified;
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
 }
