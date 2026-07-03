@@ -13,3 +13,7 @@ server:
 logging:
   level:
     root: INFO
+
+app:
+  cookie:
+    domain:

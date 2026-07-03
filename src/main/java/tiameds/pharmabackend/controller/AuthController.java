@@ -3,6 +3,7 @@ package tiameds.pharmabackend.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -32,15 +33,24 @@ public class AuthController {
                 authService.login(request));
     }
 
+    @Value("${app.cookie.domain:}")
+    private String cookieDomain;
+
     private ResponseCookie buildCookie(String name, String value, long maxAge) {
-        return ResponseCookie.from(name, value)
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("None")
-                .domain("tiameds.ai")
-                .path("/")
-                .maxAge(maxAge)
-                .build();
+
+        ResponseCookie.ResponseCookieBuilder builder =
+                ResponseCookie.from(name, value)
+                        .httpOnly(true)
+                        .secure(true)
+                        .sameSite("None")
+                        .path("/")
+                        .maxAge(maxAge);
+
+        if (cookieDomain != null && !cookieDomain.isBlank()) {
+            builder.domain(cookieDomain);
+        }
+
+        return builder.build();
     }
 
     @PostMapping("/verifyOtp")

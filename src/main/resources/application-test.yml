@@ -33,3 +33,7 @@ spring:
 
   flyway:
     enabled: false
+
+app:
+  cookie:
+    domain: tiameds.ai
