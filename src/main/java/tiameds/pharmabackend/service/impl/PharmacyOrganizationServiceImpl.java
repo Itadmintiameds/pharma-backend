@@ -32,9 +32,9 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
 
         String username = authentication.getName();
 
-        UserDetails user = userRepository.findByUserName(username)
-                .orElseThrow(() ->
-                        new RuntimeException("Logged in user not found"));
+//        UserDetails user = userRepository.findByUserName(username)
+//                .orElseThrow(() ->
+//                        new RuntimeException("Logged in user not found"));
 
         PharmacyOrganization organization =
                 organizationMapper.toEntity(dto);
@@ -47,9 +47,9 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
                 organizationRepository.save(organization);
 
         // Update logged-in user
-        user.setOrganization(savedOrganization);
-
-        userRepository.save(user);
+//        user.setOrganization(savedOrganization);
+//
+//        userRepository.save(user);
 
         return organizationMapper.toDto(savedOrganization);
     }

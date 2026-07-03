@@ -31,4 +31,6 @@ public class PharmacyDetailsDto {
     private List<UserDetailsDto> users;
     private List<PharmaDocumentsDto> documents;
 
+
+
 }

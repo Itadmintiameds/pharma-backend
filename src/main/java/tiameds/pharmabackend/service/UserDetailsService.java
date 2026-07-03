@@ -6,7 +6,7 @@ public interface UserDetailsService {
 
     UserDetailsDto registerUser(UserDetailsDto userDetailsDto);
 
-    void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId);
+//    void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId);
 
 
 }

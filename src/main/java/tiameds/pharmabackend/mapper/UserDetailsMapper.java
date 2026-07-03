@@ -1,22 +1,25 @@
 package tiameds.pharmabackend.mapper;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tiameds.pharmabackend.dto.PharmaRolesDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.entity.PharmaRoles;
 import tiameds.pharmabackend.entity.UserDetails;
 
+import java.util.stream.Collectors;
+
 @Component
+@RequiredArgsConstructor
 public class UserDetailsMapper {
 
+    private final PharmacyDetailsMapper pharmacyDetailsMapper;
 
     public UserDetails toEntity(UserDetailsDto dto) {
 
         UserDetails user = new UserDetails();
 
         user.setUserId(dto.getUserId());
-        user.setPharmacyRegistrationId(dto.getPharmacyRegistrationId());
-        user.setUserName(dto.getUserName());
         user.setPassword(dto.getPassword());
         user.setUserEmail(dto.getUserEmail());
         user.setUserStatus(dto.getUserStatus());
@@ -40,8 +43,6 @@ public class UserDetailsMapper {
         UserDetailsDto dto = new UserDetailsDto();
 
         dto.setUserId(user.getUserId());
-        dto.setPharmacyRegistrationId(user.getPharmacyRegistrationId());
-        dto.setUserName(user.getUserName());
         dto.setUserEmail(user.getUserEmail());
         dto.setUserStatus(user.getUserStatus());
         dto.setCreatedAt(user.getCreatedAt());
@@ -56,6 +57,15 @@ public class UserDetailsMapper {
             roleDto.setRoleName(user.getRole().getRoleName());
 
             dto.setPharmaRolesDto(roleDto);
+        }
+
+        if (user.getPharmacies() != null && !user.getPharmacies().isEmpty()) {
+            dto.setPharmacies(
+                    user.getPharmacies()
+                            .stream()
+                            .map(pharmacyDetailsMapper::toDto)
+                            .collect(Collectors.toList())
+            );
         }
 
         return dto;

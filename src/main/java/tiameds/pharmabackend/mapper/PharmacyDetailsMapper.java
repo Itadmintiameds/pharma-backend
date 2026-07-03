@@ -1,20 +1,20 @@
 package tiameds.pharmabackend.mapper;
 
 import org.springframework.stereotype.Component;
+import tiameds.pharmabackend.dto.PharmaRolesDto;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
+import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.UserDetails;
 
 import java.util.stream.Collectors;
 
 @Component
 public class PharmacyDetailsMapper {
 
-    private final UserDetailsMapper userDetailsMapper;
     private final PharmaDocumentsMapper pharmaDocumentsMapper;
 
-    public PharmacyDetailsMapper(UserDetailsMapper userDetailsMapper,
-                                 PharmaDocumentsMapper pharmaDocumentsMapper) {
-        this.userDetailsMapper = userDetailsMapper;
+    public PharmacyDetailsMapper(PharmaDocumentsMapper pharmaDocumentsMapper) {
         this.pharmaDocumentsMapper = pharmaDocumentsMapper;
     }
 
@@ -46,20 +46,12 @@ public class PharmacyDetailsMapper {
         pharmacy.setModifiedBy(dto.getModifiedBy());
         pharmacy.setModifiedAt(dto.getModifiedAt());
 
-        if (dto.getUsers() != null) {
-            pharmacy.setUsers(
-                    dto.getUsers().stream()
-                            .map(userDetailsMapper::toEntity)
-                            .peek(user -> user.setPharmacy(pharmacy))
-                            .collect(Collectors.toList())
-            );
-        }
-
         if (dto.getDocuments() != null) {
             pharmacy.setDocuments(
-                    dto.getDocuments().stream()
+                    dto.getDocuments()
+                            .stream()
                             .map(pharmaDocumentsMapper::toEntity)
-                            .peek(document -> document.setPharmacy(pharmacy))
+                            .peek(doc -> doc.setPharmacy(pharmacy))
                             .collect(Collectors.toList())
             );
         }
@@ -95,22 +87,47 @@ public class PharmacyDetailsMapper {
         dto.setModifiedBy(pharmacy.getModifiedBy());
         dto.setModifiedAt(pharmacy.getModifiedAt());
 
+        // User mapping (summary)
         if (pharmacy.getUsers() != null) {
             dto.setUsers(
-                    pharmacy.getUsers().stream()
-                            .map(userDetailsMapper::toDto)
+                    pharmacy.getUsers()
+                            .stream()
+                            .map(this::toUserSummaryDto)
                             .collect(Collectors.toList())
             );
         }
 
         if (pharmacy.getDocuments() != null) {
             dto.setDocuments(
-                    pharmacy.getDocuments().stream()
+                    pharmacy.getDocuments()
+                            .stream()
                             .map(pharmaDocumentsMapper::toDto)
                             .collect(Collectors.toList())
             );
         }
 
+        return dto;
+    }
+
+    private UserDetailsDto toUserSummaryDto(UserDetails user) {
+
+        UserDetailsDto dto = new UserDetailsDto();
+
+        dto.setUserId(user.getUserId());
+        dto.setUserEmail(user.getUserEmail());
+        dto.setUserStatus(user.getUserStatus());
+        dto.setCreatedAt(user.getCreatedAt());
+        dto.setModifiedBy(user.getModifiedBy());
+        dto.setModifiedAt(user.getModifiedAt());
+
+        if (user.getRole() != null) {
+            PharmaRolesDto roleDto = new PharmaRolesDto();
+            roleDto.setRoleId(user.getRole().getRoleId());
+            roleDto.setRoleName(user.getRole().getRoleName());
+            dto.setPharmaRolesDto(roleDto);
+        }
+
+        // Don't map pharmacies again.
         return dto;
     }
 }

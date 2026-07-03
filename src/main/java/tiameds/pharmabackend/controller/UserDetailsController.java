@@ -26,12 +26,12 @@ public class UserDetailsController {
                 .body(response);
     }
 
-    @DeleteMapping("/delete/{pharmacyRegistrationId}")
-    public ResponseEntity<String> deleteUser(
-            @PathVariable String pharmacyRegistrationId) {
-
-        userDetailsService.deleteUserByPharmacyRegistrationId(pharmacyRegistrationId);
-
-        return ResponseEntity.ok("User deleted successfully.");
-    }
+//    @DeleteMapping("/delete/{pharmacyRegistrationId}")
+//    public ResponseEntity<String> deleteUser(
+//            @PathVariable String pharmacyRegistrationId) {
+//
+//        userDetailsService.deleteUserByPharmacyRegistrationId(pharmacyRegistrationId);
+//
+//        return ResponseEntity.ok("User deleted successfully.");
+//    }
 }

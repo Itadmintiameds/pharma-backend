@@ -21,30 +21,34 @@ public class UserDetails {
     @Column(name = "user_id")
     private Long userId;
 
-    @Column(name = "pharmacy_registration_id")
-    private String pharmacyRegistrationId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "pharma_user_pharmacy",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "pharmacy_id")
+    )
     @JsonIgnore
-    private PharmacyDetails pharmacy;
-
-    @Column(name = "user_name")
-    private String userName;
-
-    @Column(name = "password")
-    private String password;
+    private List<PharmacyDetails> pharmacies = new ArrayList<>();
 
     @Column(name = "user_email")
     private String userEmail;
+
+    @Column(name = "password")
+    private String password;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)
     @JsonIgnore
     private PharmaRoles role;
 
+    @Column(name = "last_login")
+    private Boolean lastLogin;
+
+    @Column(name = "is_rejected")
+    private Boolean isRejected;
+
     @Column(name = "user_status")
-    private Boolean userStatus;
+    private String userStatus;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

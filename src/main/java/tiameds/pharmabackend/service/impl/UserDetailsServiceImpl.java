@@ -73,22 +73,21 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         // Set default values
         user.setCreatedAt(LocalDateTime.now());
-        user.setUserStatus(Boolean.TRUE);
 
         UserDetails savedUser = userDetailsRepository.save(user);
 
         return userDetailsMapper.toDto(savedUser);
     }
 
-    @Override
-    public void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId) {
-
-        UserDetails user = userDetailsRepository
-                .findByPharmacyRegistrationId(pharmacyRegistrationId)
-                .orElseThrow(() ->
-                        new RuntimeException("User not found with Pharmacy Registration Id : "
-                                + pharmacyRegistrationId));
-
-        userDetailsRepository.delete(user);
-    }
+//    @Override
+//    public void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId) {
+//
+//        UserDetails user = userDetailsRepository
+//                .findByPharmacyRegistrationId(pharmacyRegistrationId)
+//                .orElseThrow(() ->
+//                        new RuntimeException("User not found with Pharmacy Registration Id : "
+//                                + pharmacyRegistrationId));
+//
+//        userDetailsRepository.delete(user);
+//    }
 }

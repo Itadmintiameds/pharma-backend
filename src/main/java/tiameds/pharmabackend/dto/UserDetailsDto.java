@@ -4,18 +4,17 @@ import lombok.Data;
 import tiameds.pharmabackend.entity.PharmaRoles;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class UserDetailsDto {
 
     private Long userId;
-    private String pharmacyRegistrationId;
-    private Long pharmacyId;
-    private String userName;
+    private List<PharmacyDetailsDto> pharmacies;
     private String password;
     private String userEmail;
     private PharmaRolesDto pharmaRolesDto;
-    private Boolean userStatus;
+    private String userStatus;
     private LocalDateTime createdAt;
     private String modifiedBy;
     private LocalDateTime modifiedAt;

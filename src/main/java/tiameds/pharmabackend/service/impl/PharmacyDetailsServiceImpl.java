@@ -34,8 +34,8 @@ public class PharmacyDetailsServiceImpl
         // Set pharmacy reference for all users
         if (pharmacy.getUsers() != null) {
             pharmacy.getUsers().forEach(user -> {
-                user.setPharmacy(pharmacy);
-                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
+//                user.setPharmacy(pharmacy);
+//                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
             });
         }
 

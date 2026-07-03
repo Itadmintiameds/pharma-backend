@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -76,13 +77,9 @@ public class PharmacyDetails {
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
 
-    @OneToMany(
-            mappedBy = "pharmacy",
-            cascade = CascadeType.ALL,
-            fetch = FetchType.LAZY
-    )
+    @ManyToMany(mappedBy = "pharmacies", fetch = FetchType.LAZY)
     @JsonIgnore
-    private List<UserDetails> users;
+    private List<UserDetails> users = new ArrayList<>();
 
     @OneToMany(
             mappedBy = "pharmacy",
