@@ -7,6 +7,7 @@ import tiameds.pharmabackend.dto.EmailOtpRequestDto;
 import tiameds.pharmabackend.dto.EmailOtpVerifyRequestDto;
 import tiameds.pharmabackend.entity.verifictaion.PharmaEmailVerificationOtp;
 import tiameds.pharmabackend.repository.PharmaEmailVerificationOtpRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.EmailVerificationService;
 
 import java.time.LocalDateTime;
@@ -18,10 +19,15 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     private final PharmaEmailVerificationOtpRepository otpRepository;
     private final OtpGenerator otpGenerator;
     private final MailService mailService;
+    private final UserDetailsRepository userRepository;
 
     @Override
     @Transactional
     public String sendOtp(EmailOtpRequestDto request) {
+
+        if (userRepository.existsByUserEmail(request.getEmail())) {
+            throw new RuntimeException("Email is already registered");
+        }
 
         String otp =
                 otpGenerator.generateOtp();
