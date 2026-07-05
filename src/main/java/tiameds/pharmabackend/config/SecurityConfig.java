@@ -1,35 +1,72 @@
 package tiameds.pharmabackend.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import tiameds.pharmabackend.security.JwtAuthenticationFilter;
 
 @Configuration
-@EnableWebSecurity
+@EnableMethodSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    public SecurityConfig() {
-        System.out.println("******** SecurityConfig Loaded ********");
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    private final AuthenticationEntryPoint authenticationEntryPoint;
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http)
+            throws Exception {
+
+        http
+
+                .csrf(csrf -> csrf.disable())
+
+                .cors(Customizer.withDefaults())
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS))
+
+                .exceptionHandling(exception ->
+                        exception.authenticationEntryPoint(
+                                authenticationEntryPoint))
+
+                .authorizeHttpRequests(auth -> auth
+
+                        .requestMatchers(
+                                "/auth/**",
+                                "/public/**",
+                                "/verification/**"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                "/organization/**"
+                        ).authenticated()
+
+                        .anyRequest().authenticated())
+
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration)
+            throws Exception {
 
-        System.out.println("******** SecurityFilterChain Created ********");
-
-        http
-                .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/public/**").permitAll()
-                        .requestMatchers("/user/**").permitAll()
-                        .requestMatchers("/pharmacy/**").permitAll()
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/verification/**").permitAll()
-                        .anyRequest().authenticated()
-                );
-
-        return http.build();
+        return configuration.getAuthenticationManager();
     }
 }

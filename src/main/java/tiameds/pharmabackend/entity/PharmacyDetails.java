@@ -38,6 +38,9 @@ public class PharmacyDetails {
     @Column(name = "pharmacy_phone")
     private Long pharmacyPhone;
 
+    @Column(name = "pharmacy_branch")
+    private String pharmacyBranch;
+
     @Column(name = "pharmacy_building_no")
     private String pharmacyBuildingNo;
 
@@ -92,5 +95,6 @@ public class PharmacyDetails {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
+    @JsonIgnore
     private PharmacyOrganization organization;
 }
