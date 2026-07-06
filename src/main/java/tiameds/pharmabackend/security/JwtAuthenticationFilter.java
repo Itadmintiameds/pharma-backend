@@ -37,14 +37,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain)
 
             throws ServletException, IOException {
-        System.out.println("========== JWT FILTER ==========");
 
         String token =
                 cookieUtil.getCookie(
                         request,
                         "access_token");
 
-        System.out.println("Access Token = " + token);
         if (token == null) {
 
             filterChain.doFilter(request, response);
@@ -70,7 +68,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         token,
                         userDetails)) {
 
-                    System.out.println("Setting Authentication");
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
@@ -95,12 +92,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         } catch (JwtException ex) {
 
-            ex.printStackTrace();
             SecurityContextHolder.clearContext();
 
         } catch (Exception ex) {
 
-            ex.printStackTrace();
             SecurityContextHolder.clearContext();
         }
 

@@ -1,10 +1,8 @@
 package tiameds.pharmabackend.service.impl;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.dto.PharmacyOrganizationDto;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -22,34 +20,29 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
 
     private final PharmacyOrganizationRepository organizationRepository;
     private final PharmacyOrganizationMapper organizationMapper;
-    private final UserDetailsRepository userRepository;
+    private final UserDetailsRepository userDetailsRepository;
 
     @Override
-    public PharmacyOrganizationDto createOrganization(PharmacyOrganizationDto dto) {
+    public PharmacyOrganizationDto createOrganization(
+            PharmacyOrganizationDto organizationDto,
+            UserDetails user) {
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-
-        String username = authentication.getName();
-
-//        UserDetails user = userRepository.findByUserName(username)
-//                .orElseThrow(() ->
-//                        new RuntimeException("Logged in user not found"));
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
         PharmacyOrganization organization =
-                organizationMapper.toEntity(dto);
+                organizationMapper.toEntity(organizationDto);
 
         organization.setCreatedAt(LocalDateTime.now());
-        organization.setIsActive(true);
-        organization.setIsRejected(false);
+//        organization.setCreatedBy(persistentUser.getUserEmail());
 
         PharmacyOrganization savedOrganization =
                 organizationRepository.save(organization);
 
-        // Update logged-in user
-//        user.setOrganization(savedOrganization);
-//
-//        userRepository.save(user);
+        // Associate the logged-in user with this organization
+        persistentUser.setOrganization(savedOrganization);
+
+        userDetailsRepository.save(persistentUser);
 
         return organizationMapper.toDto(savedOrganization);
     }

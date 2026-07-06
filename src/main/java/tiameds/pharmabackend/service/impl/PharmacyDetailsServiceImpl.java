@@ -1,49 +1,83 @@
 package tiameds.pharmabackend.service.impl;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.mapper.PharmacyDetailsMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.PharmacyDetailsService;
 
 import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
-public class PharmacyDetailsServiceImpl
-        implements PharmacyDetailsService {
+@Transactional
+public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
 
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
     private final PharmacyDetailsMapper pharmacyDetailsMapper;
+    private final UserDetailsRepository userDetailsRepository;
+
+//    @Override
+//    public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto) {
+//
+//        PharmacyDetails pharmacy =
+//                pharmacyDetailsMapper.toEntity(pharmacyDetailsDto);
+//
+//        String pharmacyId = generatePharmacyId(
+//                pharmacy.getPharmacyName(),
+//                pharmacy.getPharmacyType());
+//
+//        pharmacy.setPharmacyId(pharmacyId);
+//        pharmacy.setCreatedAt(LocalDateTime.now());
+//
+//        // Set pharmacy reference for all users
+//        if (pharmacy.getUsers() != null) {
+//            pharmacy.getUsers().forEach(user -> {
+////                user.setPharmacy(pharmacy);
+////                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
+//            });
+//        }
+//
+//        // Set pharmacy reference for all documents
+//        if (pharmacy.getDocuments() != null) {
+//            pharmacy.getDocuments().forEach(document -> {
+//                document.setPharmacy(pharmacy);
+//            });
+//        }
+//
+//        PharmacyDetails savedPharmacy =
+//                pharmacyDetailsRepository.save(pharmacy);
+//
+//        return pharmacyDetailsMapper.toDto(savedPharmacy);
+//    }
 
     @Override
-    public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto) {
+    public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto, UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
         PharmacyDetails pharmacy =
                 pharmacyDetailsMapper.toEntity(pharmacyDetailsDto);
 
-        String pharmacyId = generatePharmacyId(
+        pharmacy.setPharmacyId(generatePharmacyId(
                 pharmacy.getPharmacyName(),
-                pharmacy.getPharmacyType());
+                pharmacy.getPharmacyType()));
 
-        pharmacy.setPharmacyId(pharmacyId);
         pharmacy.setCreatedAt(LocalDateTime.now());
+        pharmacy.setCreatedBy(persistentUser.getUserEmail());
 
-        // Set pharmacy reference for all users
-        if (pharmacy.getUsers() != null) {
-            pharmacy.getUsers().forEach(user -> {
-//                user.setPharmacy(pharmacy);
-//                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
-            });
-        }
+        pharmacy.getUsers().add(persistentUser);
+        persistentUser.getPharmacies().add(pharmacy);
 
-        // Set pharmacy reference for all documents
         if (pharmacy.getDocuments() != null) {
-            pharmacy.getDocuments().forEach(document -> {
-                document.setPharmacy(pharmacy);
-            });
+            pharmacy.getDocuments().forEach(document ->
+                    document.setPharmacy(pharmacy));
         }
 
         PharmacyDetails savedPharmacy =
@@ -51,7 +85,6 @@ public class PharmacyDetailsServiceImpl
 
         return pharmacyDetailsMapper.toDto(savedPharmacy);
     }
-
 
     private String generatePharmacyId(String pharmacyName,
                                       String pharmacyType) {

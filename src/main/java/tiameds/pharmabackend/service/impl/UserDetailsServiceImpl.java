@@ -24,39 +24,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final UserDetailsMapper userDetailsMapper;
     private final PasswordEncoder passwordEncoder;
 
-//    @Override
-//    public UserDetailsDto registerUser(UserDetailsDto userDetailsDto) {
-//
-//        PharmaRoles role = pharmaRolesRepository
-//                .findById(userDetailsDto.getPharmaRolesDto().getRoleId())
-//                .orElseThrow(() ->
-//                        new RuntimeException("Role not found"));
-//
-//        UserDetails user =
-//                userDetailsMapper.toEntity(userDetailsDto, role);
-//
-//        user.setPassword(
-//                passwordEncoder.encode(userDetailsDto.getPassword())
-//        );
-//
-//        user.setCreatedAt(LocalDateTime.now());
-//        user.setUserStatus(Boolean.TRUE);
-//
-//        UserDetails savedUser =
-//                userDetailsRepository.save(user);
-//
-//        return userDetailsMapper.toDto(savedUser);
-//    }
-
-
     @Override
     public UserDetailsDto registerUser(UserDetailsDto userDetailsDto) {
-
-        // Default role is USER (Role ID = 1)
         Long roleId = 1L;
 
-        // If a role is received from the frontend, use it.
-        // Otherwise, keep the default role.
         if (userDetailsDto.getPharmaRolesDto() != null
                 && userDetailsDto.getPharmaRolesDto().getRoleId() != null) {
             roleId = userDetailsDto.getPharmaRolesDto().getRoleId();
@@ -68,11 +39,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         UserDetails user = userDetailsMapper.toEntity(userDetailsDto, role);
 
-        // Encrypt password
         user.setPassword(passwordEncoder.encode(userDetailsDto.getPassword()));
 
-        // Set default values
         user.setCreatedAt(LocalDateTime.now());
+        user.setIsRejected(Boolean.FALSE);
+        user.setUserStatus("Active");
 
         UserDetails savedUser = userDetailsRepository.save(user);
 

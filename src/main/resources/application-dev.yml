@@ -5,7 +5,7 @@ jwt:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/pharma
+    url: jdbc:postgresql://localhost:5432/pharma
     username: postgres
     password: root
     driver-class-name: org.postgresql.Driver

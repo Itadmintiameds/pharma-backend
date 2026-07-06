@@ -1,8 +1,10 @@
 package tiameds.pharmabackend.service;
 
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
+import tiameds.pharmabackend.entity.UserDetails;
 
 public interface PharmacyDetailsService {
 
-    PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto);
+    PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto, UserDetails user);
+
 }

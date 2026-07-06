@@ -46,7 +46,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/**",
                                 "/public/**",
-                                "/verification/**"
+                                "/verification/**",
+                                "/user/**"
                         ).permitAll()
 
                         .requestMatchers(

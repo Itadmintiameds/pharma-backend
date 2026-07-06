@@ -82,31 +82,16 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
 
-//    public boolean validateToken(
-//            String token,
-//            UserDetails userDetails) {
-//
-//        String username = extractUsername(token);
-//
-//        return username.equals(userDetails.getUsername())
-//                && !isTokenExpired(token);
-//    }
-
-
     public boolean validateToken(
             String token,
             UserDetails userDetails) {
 
         String username = extractUsername(token);
 
-        System.out.println("========== VALIDATE TOKEN ==========");
-        System.out.println("JWT Username      : " + username);
-        System.out.println("Spring Username   : " + userDetails.getUsername());
-        System.out.println("Expired           : " + isTokenExpired(token));
-        System.out.println("Equals            : " + username.equals(userDetails.getUsername()));
-        System.out.println("====================================");
-
         return username.equals(userDetails.getUsername())
                 && !isTokenExpired(token);
     }
+
+
+
 }
