@@ -32,4 +32,13 @@ public class PharmacyOrganizationController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
+    @PutMapping("/reject/{userId}")
+    public ResponseEntity<?> rejectRequest(
+            @PathVariable Long userId) {
+
+        organizationService.rejectRequest(userId);
+
+        return ResponseEntity.ok("Request rejected successfully.");
+    }
 }

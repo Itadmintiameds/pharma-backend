@@ -2,6 +2,7 @@ package tiameds.pharmabackend.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.dto.PharmacyOrganizationDto;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
@@ -13,6 +14,7 @@ import tiameds.pharmabackend.service.PharmacyOrganizationService;
 
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -45,5 +47,39 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
         userDetailsRepository.save(persistentUser);
 
         return organizationMapper.toDto(savedOrganization);
+    }
+
+    @Override
+    public void rejectRequest(Long userId) {
+
+        UserDetails user = userDetailsRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        PharmacyOrganization organization = user.getOrganization();
+
+        boolean userHasPharmacy =
+                user.getPharmacies() != null && !user.getPharmacies().isEmpty();
+
+        boolean organizationHasPharmacy =
+                organization != null
+                        && organization.getPharmacies() != null
+                        && !organization.getPharmacies().isEmpty();
+
+        // A pharmacy already exists for this user/organization: they remain active,
+        // only the individual registration is rejected on the admin side.
+        if (userHasPharmacy || organizationHasPharmacy) {
+            log.info("Skipping reject for user {}: user/organization already has pharmacies", userId);
+            return;
+        }
+
+        user.setIsRejected(Boolean.TRUE);
+        user.setModifiedAt(LocalDateTime.now());
+
+        userDetailsRepository.save(user);
+
+        if (organization != null) {
+            organization.setIsRejected(Boolean.TRUE);
+            organizationRepository.save(organization);
+        }
     }
 }
