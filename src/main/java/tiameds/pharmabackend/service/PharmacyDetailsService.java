@@ -5,6 +5,6 @@ import tiameds.pharmabackend.entity.UserDetails;
 
 public interface PharmacyDetailsService {
 
-    PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto, UserDetails user);
+    PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto);
 
 }

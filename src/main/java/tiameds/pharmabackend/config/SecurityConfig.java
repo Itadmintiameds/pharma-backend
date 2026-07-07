@@ -47,7 +47,8 @@ public class SecurityConfig {
                                 "/auth/**",
                                 "/public/**",
                                 "/verification/**",
-                                "/user/**"
+                                "/user/**",
+                                "/pharmacy/**"
                         ).permitAll()
 
                         .requestMatchers(

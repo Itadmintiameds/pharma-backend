@@ -18,17 +18,11 @@ public class PharmacyDetailsController {
 
     @PostMapping("/create")
     public ResponseEntity<?> createPharmacy(
-            @RequestBody PharmacyDetailsDto pharmacyDetailsDto,
-            @AuthenticationPrincipal CustomUserDetails currentUser) {
-
-        if (currentUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+            @RequestBody PharmacyDetailsDto pharmacyDetailsDto) {
 
         PharmacyDetailsDto response =
                 pharmacyDetailsService.createPharmacy(
-                        pharmacyDetailsDto,
-                        currentUser.getUser());
+                        pharmacyDetailsDto);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

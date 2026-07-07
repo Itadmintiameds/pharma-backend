@@ -5,9 +5,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.mapper.PharmacyDetailsMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.PharmacyDetailsService;
 
@@ -21,6 +23,7 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
     private final PharmacyDetailsMapper pharmacyDetailsMapper;
     private final UserDetailsRepository userDetailsRepository;
+    private final PharmacyOrganizationRepository pharmacyOrganizationRepository;
 
 //    @Override
 //    public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto) {
@@ -38,8 +41,9 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
 //        // Set pharmacy reference for all users
 //        if (pharmacy.getUsers() != null) {
 //            pharmacy.getUsers().forEach(user -> {
-////                user.setPharmacy(pharmacy);
-////                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
+
+    /// /                user.setPharmacy(pharmacy);
+    /// /                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
 //            });
 //        }
 //
@@ -55,12 +59,14 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
 //
 //        return pharmacyDetailsMapper.toDto(savedPharmacy);
 //    }
-
     @Override
-    public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto, UserDetails user) {
+    public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto) {
 
-        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+        UserDetails persistentUser = userDetailsRepository.findById(pharmacyDetailsDto.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        PharmacyOrganization pharmacyOrganization = pharmacyOrganizationRepository.findById(persistentUser.getOrganization().getOrganizationId())
+                .orElseThrow(() -> new RuntimeException("Pharmacy Organization not found"));
 
         PharmacyDetails pharmacy =
                 pharmacyDetailsMapper.toEntity(pharmacyDetailsDto);
@@ -74,6 +80,8 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
 
         pharmacy.getUsers().add(persistentUser);
         persistentUser.getPharmacies().add(pharmacy);
+
+        pharmacy.setOrganization(pharmacyOrganization);
 
         if (pharmacy.getDocuments() != null) {
             pharmacy.getDocuments().forEach(document ->
