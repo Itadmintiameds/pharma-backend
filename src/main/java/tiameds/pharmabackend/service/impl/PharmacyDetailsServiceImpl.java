@@ -25,40 +25,7 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyOrganizationRepository pharmacyOrganizationRepository;
 
-//    @Override
-//    public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto) {
-//
-//        PharmacyDetails pharmacy =
-//                pharmacyDetailsMapper.toEntity(pharmacyDetailsDto);
-//
-//        String pharmacyId = generatePharmacyId(
-//                pharmacy.getPharmacyName(),
-//                pharmacy.getPharmacyType());
-//
-//        pharmacy.setPharmacyId(pharmacyId);
-//        pharmacy.setCreatedAt(LocalDateTime.now());
-//
-//        // Set pharmacy reference for all users
-//        if (pharmacy.getUsers() != null) {
-//            pharmacy.getUsers().forEach(user -> {
 
-    /// /                user.setPharmacy(pharmacy);
-    /// /                user.setPharmacyRegistrationId(pharmacy.getPharmacyRegistrationId());
-//            });
-//        }
-//
-//        // Set pharmacy reference for all documents
-//        if (pharmacy.getDocuments() != null) {
-//            pharmacy.getDocuments().forEach(document -> {
-//                document.setPharmacy(pharmacy);
-//            });
-//        }
-//
-//        PharmacyDetails savedPharmacy =
-//                pharmacyDetailsRepository.save(pharmacy);
-//
-//        return pharmacyDetailsMapper.toDto(savedPharmacy);
-//    }
     @Override
     public PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto) {
 

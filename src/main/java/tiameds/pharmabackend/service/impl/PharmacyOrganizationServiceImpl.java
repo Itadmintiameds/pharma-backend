@@ -36,7 +36,8 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
                 organizationMapper.toEntity(organizationDto);
 
         organization.setCreatedAt(LocalDateTime.now());
-//        organization.setCreatedBy(persistentUser.getUserEmail());
+        organization.setIsRejected(Boolean.FALSE);
+        organization.setIsActive(Boolean.TRUE);
 
         PharmacyOrganization savedOrganization =
                 organizationRepository.save(organization);

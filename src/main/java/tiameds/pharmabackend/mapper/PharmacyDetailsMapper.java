@@ -1,5 +1,6 @@
 package tiameds.pharmabackend.mapper;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tiameds.pharmabackend.dto.PharmaRolesDto;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
@@ -10,13 +11,10 @@ import tiameds.pharmabackend.entity.UserDetails;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class PharmacyDetailsMapper {
 
     private final PharmaDocumentsMapper pharmaDocumentsMapper;
-
-    public PharmacyDetailsMapper(PharmaDocumentsMapper pharmaDocumentsMapper) {
-        this.pharmaDocumentsMapper = pharmaDocumentsMapper;
-    }
 
     public PharmacyDetails toEntity(PharmacyDetailsDto dto) {
 
@@ -32,6 +30,9 @@ public class PharmacyDetailsMapper {
         pharmacy.setPharmacyType(dto.getPharmacyType());
         pharmacy.setPharmacyEmail(dto.getPharmacyEmail());
         pharmacy.setPharmacyPhone(dto.getPharmacyPhone());
+        pharmacy.setPanNumber(dto.getPanNumber());
+        pharmacy.setGstNumber(dto.getGstNumber());
+        pharmacy.setPharmacyBranch(dto.getPharmacyBranch());
         pharmacy.setPharmacyBuildingNo(dto.getPharmacyBuildingNo());
         pharmacy.setPharmacyStreet(dto.getPharmacyStreet());
         pharmacy.setPharmacyCity(dto.getPharmacyCity());
@@ -73,6 +74,9 @@ public class PharmacyDetailsMapper {
         dto.setPharmacyType(pharmacy.getPharmacyType());
         dto.setPharmacyEmail(pharmacy.getPharmacyEmail());
         dto.setPharmacyPhone(pharmacy.getPharmacyPhone());
+        dto.setPanNumber(pharmacy.getPanNumber());
+        dto.setGstNumber(pharmacy.getGstNumber());
+        dto.setPharmacyBranch(pharmacy.getPharmacyBranch());
         dto.setPharmacyBuildingNo(pharmacy.getPharmacyBuildingNo());
         dto.setPharmacyStreet(pharmacy.getPharmacyStreet());
         dto.setPharmacyCity(pharmacy.getPharmacyCity());

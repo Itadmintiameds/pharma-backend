@@ -32,6 +32,12 @@ public class PharmacyOrganization {
     @Column(name = "ownership_type")
     private String ownershipType;
 
+    @Column(name = "pan_number")
+    private String panNumber;
+
+    @Column(name = "gst_number")
+    private String gstNumber;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

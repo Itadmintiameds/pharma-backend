@@ -11,6 +11,8 @@ public class PharmacyOrganizationDto {
     private String organizationName;
     private String organizationType;
     private String ownershipType;
+    private String panNumber;
+    private String gstNumber;
     private LocalDateTime createdAt;
     private Boolean isActive;
     private Boolean isRejected;

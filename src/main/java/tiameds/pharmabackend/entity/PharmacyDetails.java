@@ -38,6 +38,12 @@ public class PharmacyDetails {
     @Column(name = "pharmacy_phone")
     private Long pharmacyPhone;
 
+    @Column(name = "pan_number")
+    private String panNumber;
+
+    @Column(name = "gst_number")
+    private String gstNumber;
+
     @Column(name = "pharmacy_branch")
     private String pharmacyBranch;
 

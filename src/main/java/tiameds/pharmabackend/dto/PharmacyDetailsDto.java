@@ -15,6 +15,9 @@ public class PharmacyDetailsDto {
     private String pharmacyType;
     private String pharmacyEmail;
     private Long pharmacyPhone;
+    private String panNumber;
+    private String gstNumber;
+    private String pharmacyBranch;
     private String pharmacyBuildingNo;
     private String pharmacyStreet;
     private String pharmacyCity;
