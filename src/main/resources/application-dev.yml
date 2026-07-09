@@ -40,3 +40,11 @@ server:
 app:
   cookie:
     domain:
+
+#     AWS S3 Configuration
+aws:
+  s3:
+    access-key: ${env.AWS_ACCESS_KEY:${AWS_ACCESS_KEY:dummy}}
+    secret-key: ${env.AWS_SECRET_KEY:${AWS_SECRET_KEY:dummy}}
+    region: ${env.AWS_REGION:${AWS_REGION:ap-south-1}}
+    bucket-name: ${env.AWS_BUCKET_NAME:${AWS_BUCKET_NAME:dummy}}

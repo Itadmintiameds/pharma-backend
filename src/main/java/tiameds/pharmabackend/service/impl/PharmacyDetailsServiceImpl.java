@@ -12,8 +12,11 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.PharmacyDetailsService;
+import tiameds.pharmabackend.service.S3Service;
 
+import java.net.URI;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,10 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
     private final PharmacyDetailsMapper pharmacyDetailsMapper;
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyOrganizationRepository pharmacyOrganizationRepository;
+    private final S3Service s3Service;
+
+    private static final DateTimeFormatter DOCUMENT_TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
 
     @Override
@@ -51,14 +58,50 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
         pharmacy.setOrganization(pharmacyOrganization);
 
         if (pharmacy.getDocuments() != null) {
-            pharmacy.getDocuments().forEach(document ->
-                    document.setPharmacy(pharmacy));
+            pharmacy.getDocuments().forEach(document -> {
+                document.setPharmacy(pharmacy);
+
+                if (document.getDocumentUrl() != null
+                        && !document.getDocumentUrl().isBlank()) {
+
+                    String targetKey = buildDocumentKey(
+                            pharmacy.getPharmacyId(),
+                            document.getDocumentType(),
+                            document.getDocumentUrl());
+
+                    String newUrl = s3Service.copyFromExternalUrl(
+                            document.getDocumentUrl(), targetKey);
+
+                    document.setDocumentUrl(newUrl);
+                }
+            });
         }
 
         PharmacyDetails savedPharmacy =
                 pharmacyDetailsRepository.save(pharmacy);
 
         return pharmacyDetailsMapper.toDto(savedPharmacy);
+    }
+
+    private String buildDocumentKey(String pharmacyId,
+                                    String documentType,
+                                    String sourceUrl) {
+
+        String type = (documentType == null || documentType.isBlank())
+                ? "DOCUMENT"
+                : documentType.trim().toUpperCase().replaceAll("[^A-Z0-9]+", "_");
+
+        String timestamp = LocalDateTime.now().format(DOCUMENT_TIMESTAMP_FORMAT);
+
+        String extension = "";
+        String path = URI.create(sourceUrl.trim()).getPath();
+        int dotIndex = path.lastIndexOf('.');
+        if (dotIndex > path.lastIndexOf('/')) {
+            extension = path.substring(dotIndex).toLowerCase();
+        }
+
+        return "pharmacy/" + pharmacyId + "/documents/"
+                + type + "_" + timestamp + extension;
     }
 
     private String generatePharmacyId(String pharmacyName,
