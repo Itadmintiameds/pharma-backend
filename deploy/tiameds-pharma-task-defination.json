@@ -84,6 +84,22 @@
         {
           "name": "JWT_PUBLIC_KEY",
           "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:tiamedspharmatest-Ru1QBE:JWT_PUBLIC_KEY::"
+        },
+        {
+          "name": "AWS_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:tiamedspharmatest-Ru1QBE:AWS_ACCESS_KEY::"
+        },
+        {
+          "name": "AWS_SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:tiamedspharmatest-Ru1QBE:AWS_SECRET_KEY::"
+        },
+        {
+          "name": "AWS_REGION",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:tiamedspharmatest-Ru1QBE:AWS_REGION::"
+        },
+        {
+          "name": "AWS_BUCKET_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:tiamedspharmatest-Ru1QBE:AWS_BUCKET_NAME::"
         }
       ],
       "ulimits": [],
