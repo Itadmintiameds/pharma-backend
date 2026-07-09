@@ -83,4 +83,17 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
             organizationRepository.save(organization);
         }
     }
+
+    @Override
+    public PharmacyOrganization getUserOrganization(Long userId) {
+
+        UserDetails user = userDetailsRepository.findByUserIdWithOrganization(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getOrganization() == null) {
+            throw new RuntimeException("Organization not found for this user.");
+        }
+
+        return user.getOrganization();
+    }
 }
