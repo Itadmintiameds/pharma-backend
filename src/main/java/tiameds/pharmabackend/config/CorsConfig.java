@@ -17,9 +17,11 @@ public class CorsConfig {
 
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:3000",
+                "http://localhost:3001",
                 "https://*.vercel.app",
                 "https://pharma-test.tiameds.ai",
-                "https://tiameds.ai"
+                "https://tiameds.ai",
+                "https://admin-test.tiameds.ai/"
         ));
 
         configuration.setAllowedMethods(List.of(
