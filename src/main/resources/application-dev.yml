@@ -41,6 +41,9 @@ app:
   cookie:
     domain:
 
+internal:
+  api-key: ${env.INTERNAL_API_KEY:${INTERNAL_API_KEY:dummy}}
+
 #     AWS S3 Configuration
 aws:
   s3:
