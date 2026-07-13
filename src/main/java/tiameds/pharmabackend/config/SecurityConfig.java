@@ -12,6 +12,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import tiameds.pharmabackend.security.ApiKeyAuthenticationFilter;
 import tiameds.pharmabackend.security.JwtAuthenticationFilter;
 
 @Configuration
@@ -20,6 +21,8 @@ import tiameds.pharmabackend.security.JwtAuthenticationFilter;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     private final AuthenticationEntryPoint authenticationEntryPoint;
 
@@ -47,9 +50,9 @@ public class SecurityConfig {
                                 "/auth/**",
                                 "/public/**",
                                 "/verification/**",
-                                "/user/**",
-                                "/pharmacy/**",
-                                "/organization/reject/**"
+                                "/user/**"
+//                                "/pharmacy/**",
+//                                "/organization/reject/**"
                         ).permitAll()
 
                         .requestMatchers(
@@ -60,7 +63,11 @@ public class SecurityConfig {
 
                 .addFilterBefore(
                         jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class)
+
+                .addFilterBefore(
+                        apiKeyAuthenticationFilter,
+                        JwtAuthenticationFilter.class);
 
         return http.build();
     }
