@@ -38,6 +38,9 @@ app:
   cookie:
     domain: tiameds.ai
 
+internal:
+  api-key: ${INTERNAL_API_KEY}
+
 aws:
   s3:
     access-key: ${AWS_ACCESS_KEY}
