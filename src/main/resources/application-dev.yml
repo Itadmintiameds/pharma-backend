@@ -41,7 +41,7 @@ app:
   cookie:
     domain:
 
-#     AWS S3 Configuration
+#AWS S3 Configuration
 aws:
   s3:
     access-key: ${env.AWS_ACCESS_KEY:${AWS_ACCESS_KEY:dummy}}
