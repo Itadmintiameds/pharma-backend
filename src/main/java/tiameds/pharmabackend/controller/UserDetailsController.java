@@ -5,6 +5,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.CreateUserRequestDto;
+import tiameds.pharmabackend.dto.CreateUserResponseDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
@@ -25,6 +27,21 @@ public class UserDetailsController {
         System.out.println("CONTROLLER HIT");
         UserDetailsDto response =
                 userDetailsService.registerUser(userDetailsDto);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
+    @PostMapping("/create")
+    public ResponseEntity<CreateUserResponseDto> createUser(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @RequestBody CreateUserRequestDto request) {
+
+        CreateUserResponseDto response =
+                userDetailsService.createUserWithPermissions(
+                        currentUser.getUserId(),
+                        request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
