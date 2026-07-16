@@ -2,8 +2,12 @@ package tiameds.pharmabackend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +37,32 @@ public class UserDetails {
     @Column(name = "user_email")
     private String userEmail;
 
+    @Column(name = "full_name")
+    private String fullName;
+
     @Column(name = "password")
     private String password;
+
+    @Column(name = "user_phone")
+    private String userPhone;
+
+    @Column(name = "employee_id")
+    private String employeeId;
+
+    @Column(name = "dob")
+    private LocalDate dob;
+
+    @Column(name = "gender")
+    private String gender;
+
+    @Column(name = "department")
+    private String department;
+
+    @Column(name = "designation")
+    private String designation;
+
+    @Column(name = "image_url")
+    private String imageUrl;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "role_id", nullable = false)

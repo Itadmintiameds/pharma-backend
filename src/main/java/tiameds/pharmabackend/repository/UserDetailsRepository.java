@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.UserDetails;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -22,4 +23,13 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, Long> 
             WHERE u.userId = :userId
             """)
     Optional<UserDetails> findByUserIdWithOrganization(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT DISTINCT u
+            FROM UserDetails u
+            LEFT JOIN FETCH u.pharmacies
+            WHERE u.organization.organizationId = :organizationId
+            """)
+    List<UserDetails> findAllByOrganizationIdWithPharmacies(
+            @Param("organizationId") Long organizationId);
 }
