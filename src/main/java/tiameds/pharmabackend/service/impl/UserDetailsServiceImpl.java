@@ -5,6 +5,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.dto.UserDetailsDto;
+import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.entity.PharmaRoles;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.mapper.UserDetailsMapper;
@@ -13,6 +14,8 @@ import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.UserDetailsService;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -48,6 +51,49 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         UserDetails savedUser = userDetailsRepository.save(user);
 
         return userDetailsMapper.toDto(savedUser);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserSummaryDto> getAllUsers(Long currentUserId) {
+
+        Long organizationId = getOrganizationIdOfUser(currentUserId);
+
+        return userDetailsRepository
+                .findAllByOrganizationIdWithPharmacies(organizationId)
+                .stream()
+                .map(userDetailsMapper::toSummaryDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDetailsDto getUserById(Long currentUserId, Long userId) {
+
+        Long organizationId = getOrganizationIdOfUser(currentUserId);
+
+        UserDetails user = userDetailsRepository
+                .findByUserIdWithOrganization(userId)
+                .filter(u -> u.getOrganization() != null
+                        && organizationId.equals(u.getOrganization().getOrganizationId()))
+                .orElseThrow(() ->
+                        new RuntimeException("User not found in your organization with id : " + userId));
+
+        return userDetailsMapper.toDto(user);
+    }
+
+    private Long getOrganizationIdOfUser(Long userId) {
+
+        UserDetails user = userDetailsRepository
+                .findByUserIdWithOrganization(userId)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found with id : " + userId));
+
+        if (user.getOrganization() == null) {
+            throw new RuntimeException("User is not associated with any organization");
+        }
+
+        return user.getOrganization().getOrganizationId();
     }
 
 //    @Override
