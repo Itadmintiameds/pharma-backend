@@ -103,4 +103,6 @@ public class UserDetails {
     @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
     @JsonIgnore
     private PharmacyOrganization organization;
+
+
 }
