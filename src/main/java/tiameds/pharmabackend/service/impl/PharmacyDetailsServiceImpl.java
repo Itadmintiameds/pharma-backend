@@ -4,6 +4,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
+import tiameds.pharmabackend.dto.PharmacySummaryDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -17,6 +18,8 @@ import tiameds.pharmabackend.service.S3Service;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -81,6 +84,33 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
                 pharmacyDetailsRepository.save(pharmacy);
 
         return pharmacyDetailsMapper.toDto(savedPharmacy);
+    }
+
+    @Override
+    public List<PharmacySummaryDto> getPharmacyCitiesOfTheOrganization(Long currentUserId) {
+
+        UserDetails currentUser = userDetailsRepository
+                .findByUserIdWithOrganization(currentUserId)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found with id : " + currentUserId));
+
+        if (currentUser.getOrganization() == null) {
+            throw new RuntimeException("User is not associated with any organization");
+        }
+
+        return pharmacyDetailsRepository
+                .findAllByOrganization_OrganizationIdOrderByPharmacyCity(
+                        currentUser.getOrganization().getOrganizationId())
+                .stream()
+                .map(pharmacy -> {
+                    PharmacySummaryDto dto = new PharmacySummaryDto();
+                    dto.setPharmacyId(pharmacy.getPharmacyId());
+                    dto.setPharmacyName(pharmacy.getPharmacyName());
+                    dto.setPharmacyBranch(pharmacy.getPharmacyBranch());
+                    dto.setPharmacyCity(pharmacy.getPharmacyCity());
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
     private String buildDocumentKey(String pharmacyId,

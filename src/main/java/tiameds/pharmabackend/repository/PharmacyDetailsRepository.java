@@ -17,4 +17,7 @@ public interface PharmacyDetailsRepository extends JpaRepository<PharmacyDetails
        LIMIT 1
        """)
     String findLatestPharmacyId();
+
+    List<PharmacyDetails> findAllByOrganization_OrganizationIdOrderByPharmacyCity(
+            Long organizationId);
 }

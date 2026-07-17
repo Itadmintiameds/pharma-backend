@@ -58,9 +58,6 @@ public class UserDetails {
     @Column(name = "department")
     private String department;
 
-    @Column(name = "designation")
-    private String designation;
-
     @Column(name = "image_url")
     private String imageUrl;
 
@@ -98,6 +95,12 @@ public class UserDetails {
             orphanRemoval = true)
     @JsonIgnore
     private List<PharmaOtp> pharmaOtps = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true)
+    @JsonIgnore
+    private List<UserFeaturePermission> featurePermissions = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
