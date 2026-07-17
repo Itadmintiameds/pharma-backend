@@ -22,7 +22,6 @@ public class UserDetailsDto {
     private LocalDate dob;
     private String gender;
     private String department;
-    private String designation;
     private String imageUrl;
     private PharmaRolesDto pharmaRolesDto;
     private String userStatus;

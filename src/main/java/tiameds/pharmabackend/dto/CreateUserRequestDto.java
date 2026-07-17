@@ -8,5 +8,6 @@ import java.util.List;
 public class CreateUserRequestDto {
 
     private UserDetailsDto user;
+    private List<String> pharmacyIds;
     private List<FeaturePermissionsDto> permissions;
 }

@@ -30,7 +30,6 @@ public class UserDetailsMapper {
         user.setDob(dto.getDob());
         user.setGender(dto.getGender());
         user.setDepartment(dto.getDepartment());
-        user.setDesignation(dto.getDesignation());
         user.setImageUrl(dto.getImageUrl());
         user.setUserStatus(dto.getUserStatus());
         user.setCreatedAt(dto.getCreatedAt());
@@ -60,7 +59,6 @@ public class UserDetailsMapper {
         dto.setDob(user.getDob());
         dto.setGender(user.getGender());
         dto.setDepartment(user.getDepartment());
-        dto.setDesignation(user.getDesignation());
         dto.setImageUrl(user.getImageUrl());
         dto.setUserStatus(user.getUserStatus());
         dto.setCreatedAt(user.getCreatedAt());

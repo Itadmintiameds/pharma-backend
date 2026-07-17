@@ -4,21 +4,26 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
+import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
 import tiameds.pharmabackend.dto.FeaturePermissionsDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.entity.PharmaFeature;
 import tiameds.pharmabackend.entity.PharmaPermission;
 import tiameds.pharmabackend.entity.PharmaRoles;
+import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.UserFeaturePermission;
 import tiameds.pharmabackend.mapper.UserDetailsMapper;
 import tiameds.pharmabackend.repository.PharmaFeatureRepository;
 import tiameds.pharmabackend.repository.PharmaPermissionRepository;
 import tiameds.pharmabackend.repository.PharmaRolesRepository;
+import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
+import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
 import tiameds.pharmabackend.service.UserDetailsService;
 
 import java.time.LocalDateTime;
@@ -40,6 +45,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final PharmaRolesRepository pharmaRolesRepository;
     private final PharmaFeatureRepository pharmaFeatureRepository;
     private final PharmaPermissionRepository pharmaPermissionRepository;
+    private final UserFeaturePermissionRepository userFeaturePermissionRepository;
+    private final PharmacyDetailsRepository pharmacyDetailsRepository;
     private final UserDetailsMapper userDetailsMapper;
     private final PasswordEncoder passwordEncoder;
 
@@ -123,6 +130,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         user.setIsRejected(Boolean.FALSE);
         user.setUserStatus("Active");
 
+        attachPharmacies(
+                user,
+                request.getPharmacyIds(),
+                currentUser.getOrganization().getOrganizationId());
+
         List<FeaturePermissionsDto> grantedPermissions =
                 attachPermissions(user, request.getPermissions());
 
@@ -131,6 +143,49 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return new CreateUserResponseDto(
                 userDetailsMapper.toDto(savedUser),
                 grantedPermissions);
+    }
+
+    private void attachPharmacies(
+            UserDetails user,
+            List<String> pharmacyIds,
+            Long organizationId) {
+
+        if (pharmacyIds == null || pharmacyIds.isEmpty()) {
+            return;
+        }
+
+        Set<String> uniqueIds = new LinkedHashSet<>(pharmacyIds);
+        uniqueIds.remove(null);
+
+        if (uniqueIds.isEmpty()) {
+            return;
+        }
+
+        Map<String, PharmacyDetails> pharmaciesById = pharmacyDetailsRepository
+                .findAllById(uniqueIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        PharmacyDetails::getPharmacyId,
+                        Function.identity()));
+
+        for (String pharmacyId : uniqueIds) {
+
+            PharmacyDetails pharmacy = pharmaciesById.get(pharmacyId);
+
+            if (pharmacy == null) {
+                throw new RuntimeException(
+                        "Pharmacy not found with id : " + pharmacyId);
+            }
+
+            if (pharmacy.getOrganization() == null
+                    || !organizationId.equals(
+                            pharmacy.getOrganization().getOrganizationId())) {
+                throw new RuntimeException(
+                        "Pharmacy does not belong to your organization : " + pharmacyId);
+            }
+
+            user.getPharmacies().add(pharmacy);
+        }
     }
 
     private List<FeaturePermissionsDto> attachPermissions(
@@ -240,16 +295,102 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Transactional(readOnly = true)
     public UserDetailsDto getUserById(Long currentUserId, Long userId) {
 
-        Long organizationId = getOrganizationIdOfUser(currentUserId);
+        UserDetails user = getUserInSameOrganization(currentUserId, userId);
+
+        return userDetailsMapper.toDto(user);
+    }
+
+    @Override
+    public List<FeaturePermissionsDto> updateUserPermissions(
+            Long currentUserId,
+            Long userId,
+            AssignPermissionsRequestDto request) {
+
+        UserDetails user = getUserInSameOrganization(currentUserId, userId);
+
+        userFeaturePermissionRepository.deleteByUser_UserId(userId);
+        userFeaturePermissionRepository.flush();
+
+        user.getFeaturePermissions().clear();
+
+        List<FeaturePermissionsDto> granted = attachPermissions(
+                user,
+                request == null ? null : request.getPermissions());
+
+        userDetailsRepository.save(user);
+
+        return granted;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FeaturePermissionsDto> getUserPermissions(
+            Long currentUserId,
+            Long userId) {
+
+        getUserInSameOrganization(currentUserId, userId);
+
+        Map<Long, List<Long>> permissionsByFeature = new LinkedHashMap<>();
+
+        for (UserFeaturePermission row :
+                userFeaturePermissionRepository.findAllByUserIdWithFeature(userId)) {
+
+            permissionsByFeature
+                    .computeIfAbsent(
+                            row.getFeature().getFeatureId(),
+                            featureId -> new ArrayList<>())
+                    .add(row.getPermission().getPermissionId());
+        }
+
+        List<FeaturePermissionsDto> result = new ArrayList<>();
+
+        for (Map.Entry<Long, List<Long>> entry : permissionsByFeature.entrySet()) {
+            FeaturePermissionsDto dto = new FeaturePermissionsDto();
+            dto.setFeatureId(entry.getKey());
+            dto.setPermissionIds(entry.getValue());
+            result.add(dto);
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CurrentUserPermissionsDto getCurrentUserPermissions(Long currentUserId) {
 
         UserDetails user = userDetailsRepository
+                .findById(currentUserId)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found with id : " + currentUserId));
+
+        List<String> permissionCodes = userFeaturePermissionRepository
+                .findAllByUserIdWithFeature(currentUserId)
+                .stream()
+                .map(row -> row.getFeature().getFeatureCode()
+                        + "_"
+                        + row.getPermission().getPermissionName()
+                                .trim()
+                                .toUpperCase()
+                                .replace(' ', '_'))
+                .distinct()
+                .collect(Collectors.toList());
+
+        return new CurrentUserPermissionsDto(
+                user.getUserId(),
+                user.getRole().getRoleName(),
+                permissionCodes);
+    }
+
+    private UserDetails getUserInSameOrganization(Long currentUserId, Long userId) {
+
+        Long organizationId = getOrganizationIdOfUser(currentUserId);
+
+        return userDetailsRepository
                 .findByUserIdWithOrganization(userId)
                 .filter(u -> u.getOrganization() != null
                         && organizationId.equals(u.getOrganization().getOrganizationId()))
                 .orElseThrow(() ->
                         new RuntimeException("User not found in your organization with id : " + userId));
-
-        return userDetailsMapper.toDto(user);
     }
 
     private Long getOrganizationIdOfUser(Long userId) {
