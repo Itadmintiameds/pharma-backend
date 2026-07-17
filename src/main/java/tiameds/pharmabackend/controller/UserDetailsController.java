@@ -10,7 +10,10 @@ import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
 import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
 import tiameds.pharmabackend.dto.FeaturePermissionsDto;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.UserDetailsDto;
+import tiameds.pharmabackend.dto.UserImageDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.UserDetailsService;
@@ -87,6 +90,21 @@ public class UserDetailsController {
                         currentUser.getUserId(),
                         userId,
                         request));
+    }
+
+    @PostMapping(
+            value = "/{userId}/image",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UserImageDto> uploadUserImage(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable Long userId,
+            @RequestParam("image") MultipartFile image) {
+
+        return ResponseEntity.ok(
+                userDetailsService.uploadUserImage(
+                        currentUser.getUserId(),
+                        userId,
+                        image));
     }
 
     @GetMapping("/{userId}")

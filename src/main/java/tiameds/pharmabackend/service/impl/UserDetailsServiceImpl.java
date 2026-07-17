@@ -4,12 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
 import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
 import tiameds.pharmabackend.dto.FeaturePermissionsDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
+import tiameds.pharmabackend.dto.UserImageDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.entity.PharmaFeature;
 import tiameds.pharmabackend.entity.PharmaPermission;
@@ -24,9 +26,12 @@ import tiameds.pharmabackend.repository.PharmaRolesRepository;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
+import tiameds.pharmabackend.service.S3Service;
 import tiameds.pharmabackend.service.UserDetailsService;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -49,6 +54,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
     private final UserDetailsMapper userDetailsMapper;
     private final PasswordEncoder passwordEncoder;
+    private final S3Service s3Service;
+
+    private static final DateTimeFormatter IMAGE_TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Override
     public UserDetailsDto registerUser(UserDetailsDto userDetailsDto) {
@@ -379,6 +388,73 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 user.getUserId(),
                 user.getRole().getRoleName(),
                 permissionCodes);
+    }
+
+    @Override
+    public UserImageDto uploadUserImage(
+            Long currentUserId,
+            Long userId,
+            MultipartFile image) {
+
+        if (image == null || image.isEmpty()) {
+            throw new RuntimeException("Image file is required");
+        }
+
+        String contentType = image.getContentType();
+
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new RuntimeException("Only image files are allowed");
+        }
+
+        UserDetails user = getUserInSameOrganization(currentUserId, userId);
+
+        String key = buildUserImageKey(userId, image.getOriginalFilename());
+
+        String imageUrl;
+
+        try {
+            imageUrl = s3Service.uploadFile(key, image);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to upload image", e);
+        }
+
+        String oldImageUrl = user.getImageUrl();
+
+        user.setImageUrl(imageUrl);
+        userDetailsRepository.save(user);
+
+        deleteOldImageQuietly(oldImageUrl);
+
+        return new UserImageDto(user.getUserId(), imageUrl);
+    }
+
+    private String buildUserImageKey(Long userId, String originalFilename) {
+
+        String extension = "";
+
+        if (originalFilename != null) {
+            int dotIndex = originalFilename.lastIndexOf('.');
+            if (dotIndex >= 0) {
+                extension = originalFilename.substring(dotIndex).toLowerCase();
+            }
+        }
+
+        String timestamp = LocalDateTime.now().format(IMAGE_TIMESTAMP_FORMAT);
+
+        return "users/" + userId + "/profile/PROFILE_" + timestamp + extension;
+    }
+
+    private void deleteOldImageQuietly(String oldImageUrl) {
+
+        if (oldImageUrl == null || oldImageUrl.isBlank()) {
+            return;
+        }
+
+        try {
+            s3Service.deleteFile(s3Service.extractKeyFromUrl(oldImageUrl));
+        } catch (Exception e) {
+            // Old image may be external or already gone; replacing it should not fail the upload
+        }
     }
 
     private UserDetails getUserInSameOrganization(Long currentUserId, Long userId) {
