@@ -12,6 +12,7 @@ import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
 import tiameds.pharmabackend.dto.FeaturePermissionsDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
+import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.entity.PharmaFeature;
 import tiameds.pharmabackend.entity.PharmaPermission;
@@ -426,6 +427,50 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         deleteOldImageQuietly(oldImageUrl);
 
         return new UserImageDto(user.getUserId(), imageUrl);
+    }
+
+    @Override
+    public UserStatusDto updateUserStatus(
+            Long currentUserId,
+            Long userId,
+            String userStatus) {
+
+        String normalizedStatus = normalizeStatus(userStatus);
+
+        if (currentUserId.equals(userId)
+                && !"Active".equals(normalizedStatus)) {
+            throw new RuntimeException("You cannot deactivate your own account");
+        }
+
+        UserDetails user = getUserInSameOrganization(currentUserId, userId);
+
+        user.setUserStatus(normalizedStatus);
+        user.setModifiedAt(LocalDateTime.now());
+        user.setModifiedBy(currentUserId.toString());
+
+        userDetailsRepository.save(user);
+
+        return new UserStatusDto(user.getUserId(), user.getUserStatus());
+    }
+
+    private String normalizeStatus(String userStatus) {
+
+        if (userStatus == null || userStatus.isBlank()) {
+            throw new RuntimeException("User status is required");
+        }
+
+        String status = userStatus.trim();
+
+        if ("Active".equalsIgnoreCase(status)) {
+            return "Active";
+        }
+
+        if ("Inactive".equalsIgnoreCase(status)) {
+            return "Inactive";
+        }
+
+        throw new RuntimeException(
+                "Invalid user status : " + status + ". Allowed values are Active, Inactive");
     }
 
     private String buildUserImageKey(Long userId, String originalFilename) {

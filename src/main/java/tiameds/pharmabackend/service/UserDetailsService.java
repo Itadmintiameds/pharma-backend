@@ -8,6 +8,7 @@ import tiameds.pharmabackend.dto.FeaturePermissionsDto;
 import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
+import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 
 import java.util.List;
@@ -39,6 +40,11 @@ public interface UserDetailsService {
             Long currentUserId,
             Long userId,
             MultipartFile image);
+
+    UserStatusDto updateUserStatus(
+            Long currentUserId,
+            Long userId,
+            String userStatus);
 
 //    void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId);
 

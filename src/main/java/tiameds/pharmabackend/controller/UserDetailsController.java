@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
+import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.UserDetailsService;
@@ -105,6 +106,19 @@ public class UserDetailsController {
                         currentUser.getUserId(),
                         userId,
                         image));
+    }
+
+    @PatchMapping("/{userId}/status")
+    public ResponseEntity<UserStatusDto> updateUserStatus(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable Long userId,
+            @RequestBody UserStatusDto request) {
+
+        return ResponseEntity.ok(
+                userDetailsService.updateUserStatus(
+                        currentUser.getUserId(),
+                        userId,
+                        request.getUserStatus()));
     }
 
     @GetMapping("/{userId}")
