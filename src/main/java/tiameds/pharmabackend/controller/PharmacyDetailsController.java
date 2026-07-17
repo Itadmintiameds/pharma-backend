@@ -6,8 +6,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
+import tiameds.pharmabackend.dto.PharmacySummaryDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.PharmacyDetailsService;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/pharmacy")
@@ -25,6 +28,15 @@ public class PharmacyDetailsController {
                         pharmacyDetailsDto);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/cities")
+    public ResponseEntity<List<PharmacySummaryDto>> getPharmacyCitiesOfTheOrganization(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        return ResponseEntity.ok(
+                pharmacyDetailsService.getPharmacyCitiesOfTheOrganization(
+                        currentUser.getUserId()));
     }
 
 //    @PostMapping("/create")
