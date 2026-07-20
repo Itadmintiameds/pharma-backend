@@ -1,5 +1,6 @@
 package tiameds.pharmabackend.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import tiameds.pharmabackend.entity.PharmaRoles;
@@ -12,6 +13,8 @@ import java.util.List;
 public class UserDetailsDto {
 
     private Long userId;
+    
+    @JsonIgnoreProperties("users")
     private List<PharmacyDetailsDto> pharmacies;
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
@@ -28,5 +31,7 @@ public class UserDetailsDto {
     private LocalDateTime createdAt;
     private String modifiedBy;
     private LocalDateTime modifiedAt;
+    
+    private List<UserFeaturePermissionDto> permissions;
 
 }
