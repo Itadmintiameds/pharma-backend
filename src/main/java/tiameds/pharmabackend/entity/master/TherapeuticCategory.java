@@ -15,7 +15,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "therapeutic_category_master")
+@Table(name = "pharma_therapeutic_category_master")
 public class TherapeuticCategory {
 
     @Id

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "therapeutic_subcategory_master")
+@Table(name = "pharma_therapeutic_subcategory_master")
 public class TherapeuticSubcategory {
 
     @Id
