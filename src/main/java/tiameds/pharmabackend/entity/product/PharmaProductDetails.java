@@ -67,4 +67,7 @@ public class PharmaProductDetails {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<PharmaProductAttributeSupplements> productAttributeSupplements;
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<PharmaProductAttributeDrug> productAttributeDrugs;
 }

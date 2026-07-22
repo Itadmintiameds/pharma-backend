@@ -15,8 +15,6 @@ public class PharmaProductDetailsDto {
     private String brandName;
     private BigDecimal gstPercentage;
     private String hsnNo;
-    private String createdBy;
-    private LocalDateTime createdAt;
     
     private List<PharmaProductAttributeDrugDto> productAttributeDrugs;
     private List<PharmaProductAttributeSupplementsDto> productAttributeSupplements;

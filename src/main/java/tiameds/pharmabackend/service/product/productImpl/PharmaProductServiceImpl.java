@@ -12,6 +12,10 @@ import tiameds.pharmabackend.repository.product.PharmaPackagingDetailsRepository
 import tiameds.pharmabackend.repository.product.PharmaProductDetailsRepository;
 import tiameds.pharmabackend.service.product.PharmaProductService;
 import tiameds.pharmabackend.mapper.product.PharmaProductMapper;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import tiameds.pharmabackend.security.CustomUserDetails;
+import java.time.LocalDateTime;
 
 @Service
 public class PharmaProductServiceImpl implements PharmaProductService {
@@ -33,7 +37,7 @@ public class PharmaProductServiceImpl implements PharmaProductService {
 
     @Override
     @Transactional
-    public String onboardProduct(PharmaProductDetailsDto dto) {
+    public PharmaProductDetailsDto onboardProduct(PharmaProductDetailsDto dto) {
         
         PharmacyDetails pharmacy = pharmacyRepo.findById(dto.getPharmacyId())
                 .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
@@ -43,33 +47,103 @@ public class PharmaProductServiceImpl implements PharmaProductService {
 
         String productId = generateProductId(dto.getProductName(), pharmacyName);
         
-        PharmaProductDetails product = mapper.toEntity(dto, productId);
-        
-        // Generate IDs and set bidirectional relationships
-        if (product.getBatchDetails() != null) {
-            product.getBatchDetails().forEach(batch -> {
-                batch.setBatchId(generateBatchId(pharmacyName));
-                batch.setProduct(product);
-            });
+        String createdBy = "System";
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
+            CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+            createdBy = String.valueOf(userDetails.getUserId());
         }
         
-        if (product.getPackagingDetails() != null) {
-            product.getPackagingDetails().forEach(pkg -> {
-                pkg.setPackagingId(generatePackagingId(pharmacyName));
-                pkg.setProduct(product);
-            });
+        PharmaProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
+        
+        dto.setProductId(productId);
+
+        // Generate IDs and set bidirectional relationships
+        if (product.getBatchDetails() != null && dto.getBatchDetails() != null) {
+            for (int i = 0; i < product.getBatchDetails().size(); i++) {
+                String bId = generateBatchId(pharmacyName);
+                product.getBatchDetails().get(i).setBatchId(bId);
+                product.getBatchDetails().get(i).setProduct(product);
+                dto.getBatchDetails().get(i).setBatchId(bId);
+            }
+        }
+        
+        if (product.getPackagingDetails() != null && dto.getPackagingDetails() != null) {
+            for (int i = 0; i < product.getPackagingDetails().size(); i++) {
+                String pId = generatePackagingId(pharmacyName);
+                product.getPackagingDetails().get(i).setPackagingId(pId);
+                product.getPackagingDetails().get(i).setProduct(product);
+                dto.getPackagingDetails().get(i).setPackagingId(pId);
+            }
         }
         
         // Setup supplements relationship
-        if (product.getProductAttributeSupplements() != null) {
-            product.getProductAttributeSupplements().forEach(supp -> {
-                supp.setProductAttributeId(productId + "_SUPP");
-                supp.setProduct(product);
-            });
+        if (product.getProductAttributeSupplements() != null && dto.getProductAttributeSupplements() != null) {
+            for (int i = 0; i < product.getProductAttributeSupplements().size(); i++) {
+                String sId = productId + "_SUPP";
+                product.getProductAttributeSupplements().get(i).setProductAttributeId(sId);
+                product.getProductAttributeSupplements().get(i).setProduct(product);
+                dto.getProductAttributeSupplements().get(i).setProductAttributeId(sId);
+            }
+        }
+        
+        // Setup drugs relationship
+        if (product.getProductAttributeDrugs() != null && dto.getProductAttributeDrugs() != null) {
+            int entityIndex = 0;
+            for (var dDto : dto.getProductAttributeDrugs()) {
+                String drugAttrId = productId + "_DRUG_" + (entityIndex + 1);
+                var drugEntity = product.getProductAttributeDrugs().get(entityIndex);
+                drugEntity.setProductAttributeId(drugAttrId);
+                drugEntity.setProduct(product);
+                dDto.setProductAttributeId(drugAttrId);
+                
+                if (drugEntity.getProductMolecules() != null) {
+                    for (var molEntity : drugEntity.getProductMolecules()) {
+                        tiameds.pharmabackend.entity.product.PharmaProductMoleculeId molId = new tiameds.pharmabackend.entity.product.PharmaProductMoleculeId();
+                        molId.setProductAttributeId(drugAttrId);
+                        if (molEntity.getMolecule() != null) {
+                            molId.setMoleculeId(molEntity.getMolecule().getMoleculeId());
+                        }
+                        molEntity.setId(molId);
+                        molEntity.setProductAttributeDrug(drugEntity);
+                    }
+                }
+                
+                if (dDto.getProductMolecules() != null) {
+                    for (var mDto : dDto.getProductMolecules()) {
+                        mDto.setProductAttributeId(drugAttrId);
+                    }
+                }
+                entityIndex++;
+            }
         }
         
         productRepo.save(product);
-        return productId;
+        return dto;
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.List<PharmaProductDetailsDto> getAllProducts() {
+        return productRepo.findAll().stream()
+                .map(mapper::toDto)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PharmaProductDetailsDto getProductById(String productId) {
+        return productRepo.findById(productId)
+                .map(mapper::toDto)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+    }
+
+    @Override
+    @Transactional
+    public void deleteProduct(String productId) {
+        if (!productRepo.existsById(productId)) {
+            throw new RuntimeException("Product not found with id: " + productId);
+        }
+        productRepo.deleteById(productId);
     }
 
     private synchronized String generateProductId(String productName, String pharmacyName) {

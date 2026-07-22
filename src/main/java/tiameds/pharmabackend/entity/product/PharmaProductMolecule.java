@@ -1,12 +1,12 @@
 package tiameds.pharmabackend.entity.product;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.master.Molecule;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Getter
 @Setter
@@ -28,9 +28,8 @@ public class PharmaProductMolecule {
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("moleculeId")
     @JoinColumn(name = "molecule_id")
-    @JsonIgnore
     private Molecule molecule;
 
-    @Column(name = "molecule_strength", length = 100)
+    @Column(name = "molecule_strength", length = 30)
     private String moleculeStrength;
 }

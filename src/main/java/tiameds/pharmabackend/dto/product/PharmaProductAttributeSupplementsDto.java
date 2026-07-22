@@ -17,9 +17,6 @@ public class PharmaProductAttributeSupplementsDto {
     private Double netQuantity;
     private String netQuantityUnit;
     private String gender;
-    
-    private String createdBy;
-    private LocalDateTime createdAt;
     private String manufacturerName;
     private String fssaiLicenseNumber;
 }

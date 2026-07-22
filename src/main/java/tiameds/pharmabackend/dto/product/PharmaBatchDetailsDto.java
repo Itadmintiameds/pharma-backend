@@ -22,7 +22,4 @@ public class PharmaBatchDetailsDto {
     private Double mrpPerUnit;
     private Double sellingPricePerUnit;
     private String rackLocation;
-    
-    private String createdBy;
-    private LocalDateTime createdAt;
 }

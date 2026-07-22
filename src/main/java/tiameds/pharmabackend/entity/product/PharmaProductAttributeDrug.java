@@ -28,7 +28,7 @@ public class PharmaProductAttributeDrug {
     private PharmaProductDetails product;
 
     @OneToMany(mappedBy = "productAttributeDrug", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PharmaProductMolecule> productMolecules = new ArrayList<>();
+    private java.util.List<PharmaProductMolecule> productMolecules;
 
     @Column(name = "drug_schedule", length = 20)
     private String drugSchedule;
