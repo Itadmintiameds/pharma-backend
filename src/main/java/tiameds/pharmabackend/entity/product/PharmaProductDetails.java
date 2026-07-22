@@ -58,4 +58,13 @@ public class PharmaProductDetails {
 
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<PharmaBatchDetails> batchDetails;
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<PharmaPackagingDetails> packagingDetails;
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<PharmaProductAttributeSupplements> productAttributeSupplements;
 }

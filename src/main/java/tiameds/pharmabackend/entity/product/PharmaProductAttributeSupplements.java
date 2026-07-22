@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.master.*;
 
-import java.math.BigDecimal;
+
 import java.time.LocalDateTime;
 
 @Getter
@@ -56,8 +56,8 @@ public class PharmaProductAttributeSupplements {
     @Column(name = "strength_composition", length = 500)
     private String strengthComposition;
 
-    @Column(name = "net_quantity", precision = 10, scale = 2)
-    private BigDecimal netQuantity;
+    @Column(name = "net_quantity")
+    private Double netQuantity;
 
     @Column(name = "net_quantity_unit", length = 20)
     private String netQuantityUnit;
