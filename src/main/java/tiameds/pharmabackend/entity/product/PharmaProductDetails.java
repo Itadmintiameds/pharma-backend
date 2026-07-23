@@ -8,9 +8,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.master.ProductCategory;
+import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -70,4 +73,12 @@ public class PharmaProductDetails {
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<PharmaProductAttributeDrug> productAttributeDrugs;
+
+    @OneToMany(
+            mappedBy = "product",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @JsonIgnore
+    private List<PurchaseDetails> purchaseDetails = new ArrayList<>();
 }

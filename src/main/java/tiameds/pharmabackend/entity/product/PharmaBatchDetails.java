@@ -2,20 +2,17 @@ package tiameds.pharmabackend.entity.product;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 
 @Getter
 @Setter
@@ -87,4 +84,12 @@ public class PharmaBatchDetails {
 
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
+
+    @OneToMany(
+            mappedBy = "batch",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @JsonIgnore
+    private List<PurchaseDetails> purchaseDetails = new ArrayList<>();
 }
