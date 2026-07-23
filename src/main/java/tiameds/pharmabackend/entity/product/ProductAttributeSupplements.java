@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "pharma_product_attribute_supplements")
-public class PharmaProductAttributeSupplements {
+public class ProductAttributeSupplements {
 
     @Id
     @Column(name = "product_attribute_id", length = 30)
@@ -26,7 +26,7 @@ public class PharmaProductAttributeSupplements {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "product_id")
     @JsonIgnore
-    private PharmaProductDetails product;
+    private ProductDetails product;
 
     // Temporary basic mappings until master entities are created
     @ManyToOne(fetch = FetchType.LAZY)

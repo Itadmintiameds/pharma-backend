@@ -6,8 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import tiameds.pharmabackend.entity.product.PharmaBatchDetails;
-import tiameds.pharmabackend.entity.product.PharmaProductDetails;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -35,12 +35,12 @@ public class PurchaseDetails {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "product_id")
     @JsonIgnore
-    private PharmaProductDetails product;
+    private ProductDetails product;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "batch_id", referencedColumnName = "batch_id")
     @JsonIgnore
-    private PharmaBatchDetails batch;
+    private BatchDetails batch;
 
     @Column(name = "purchase_quantity")
     private Long purchaseQuantity;

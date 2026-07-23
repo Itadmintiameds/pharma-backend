@@ -22,7 +22,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Entity
 @Table(name = "pharma_packaging_details")
-public class PharmaPackagingDetails {
+public class PackagingDetails {
 
     @Id
     @Column(name = "packaging_id", length = 30)
@@ -31,7 +31,7 @@ public class PharmaPackagingDetails {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "product_id")
     @JsonIgnore
-    private PharmaProductDetails product;
+    private ProductDetails product;
 
     @Column(name = "purchase_unit", length = 50)
     private String purchaseUnit;

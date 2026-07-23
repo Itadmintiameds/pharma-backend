@@ -14,16 +14,16 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @AllArgsConstructor
 @Entity
 @Table(name = "pharma_product_molecule")
-public class PharmaProductMolecule {
+public class ProductMolecule {
 
     @EmbeddedId
-    private PharmaProductMoleculeId id;
+    private ProductMoleculeId id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("productAttributeId")
     @JoinColumn(name = "product_attribute_id")
     @JsonIgnore
-    private PharmaProductAttributeDrug productAttributeDrug;
+    private ProductAttributeDrug productAttributeDrug;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("moleculeId")

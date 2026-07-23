@@ -2,10 +2,8 @@ package tiameds.pharmabackend.dto.product;
 
 import lombok.Data;
 
-import java.time.LocalDateTime;
-
 @Data
-public class PharmaProductAttributeSupplementsDto {
+public class ProductAttributeSupplementsDto {
     private String productAttributeId;
     private Long therapeuticCategoryId;
     private Long therapeuticSubcategoryId;

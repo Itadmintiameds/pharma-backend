@@ -14,7 +14,7 @@ import java.util.Objects;
 @NoArgsConstructor
 @AllArgsConstructor
 @Embeddable
-public class PharmaProductMoleculeId implements Serializable {
+public class ProductMoleculeId implements Serializable {
 
     @Column(name = "product_attribute_id", length = 30)
     private String productAttributeId;
@@ -26,7 +26,7 @@ public class PharmaProductMoleculeId implements Serializable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PharmaProductMoleculeId that = (PharmaProductMoleculeId) o;
+        ProductMoleculeId that = (ProductMoleculeId) o;
         return Objects.equals(productAttributeId, that.productAttributeId) &&
                Objects.equals(moleculeId, that.moleculeId);
     }

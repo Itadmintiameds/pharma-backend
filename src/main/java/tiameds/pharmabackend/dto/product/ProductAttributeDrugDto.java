@@ -6,11 +6,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
-public class PharmaProductAttributeDrugDto {
+public class ProductAttributeDrugDto {
     private String productAttributeId;
     private String drugSchedule;
     private String createdBy;
     private LocalDateTime createdAt;
     
-    private List<PharmaProductMoleculeDto> productMolecules;
+    private List<ProductMoleculeDto> productMolecules;
 }

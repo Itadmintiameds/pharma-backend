@@ -3,21 +3,21 @@ package tiameds.pharmabackend.controller.product;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import tiameds.pharmabackend.dto.product.PharmaProductDetailsDto;
-import tiameds.pharmabackend.service.product.PharmaProductService;
+import tiameds.pharmabackend.dto.product.ProductDetailsDto;
+import tiameds.pharmabackend.service.product.ProductService;
 import java.util.Map;
 import java.util.HashMap;
 
 @RestController
 @RequestMapping("/product")
-public class PharmaProductController {
+public class ProductController {
 
     @Autowired
-    private PharmaProductService pharmaProductService;
+    private ProductService pharmaProductService;
 
     @PostMapping("/onboard")
-    public ResponseEntity<Map<String, Object>> onboardProduct(@RequestBody PharmaProductDetailsDto dto) {
-        PharmaProductDetailsDto savedDto = pharmaProductService.onboardProduct(dto);
+    public ResponseEntity<Map<String, Object>> onboardProduct(@RequestBody ProductDetailsDto dto) {
+        ProductDetailsDto savedDto = pharmaProductService.onboardProduct(dto);
         
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Product successfully onboarded with ID: " + savedDto.getProductId());
@@ -27,7 +27,7 @@ public class PharmaProductController {
     }
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllProducts() {
-        java.util.List<PharmaProductDetailsDto> products = pharmaProductService.getAllProducts();
+        java.util.List<ProductDetailsDto> products = pharmaProductService.getAllProducts();
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Products retrieved successfully");
         response.put("count", products.size());
@@ -37,7 +37,7 @@ public class PharmaProductController {
 
     @GetMapping("/{productId}")
     public ResponseEntity<Map<String, Object>> getProductById(@PathVariable String productId) {
-        PharmaProductDetailsDto product = pharmaProductService.getProductById(productId);
+        ProductDetailsDto product = pharmaProductService.getProductById(productId);
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Product retrieved successfully");
         response.put("data", product);

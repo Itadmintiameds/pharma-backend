@@ -4,37 +4,37 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
-import tiameds.pharmabackend.dto.product.PharmaBatchDetailsDto;
-import tiameds.pharmabackend.dto.product.PharmaPackagingDetailsDto;
-import tiameds.pharmabackend.dto.product.PharmaProductAttributeSupplementsDto;
-import tiameds.pharmabackend.dto.product.PharmaProductDetailsDto;
+import tiameds.pharmabackend.dto.product.BatchDetailsDto;
+import tiameds.pharmabackend.dto.product.PackagingDetailsDto;
+import tiameds.pharmabackend.dto.product.ProductAttributeSupplementsDto;
+import tiameds.pharmabackend.dto.product.ProductDetailsDto;
 import tiameds.pharmabackend.entity.master.AgeGroup;
 import tiameds.pharmabackend.entity.master.DosageForm;
 import tiameds.pharmabackend.entity.master.Flavour;
 import tiameds.pharmabackend.entity.master.ProductCategory;
 import tiameds.pharmabackend.entity.master.TherapeuticCategory;
 import tiameds.pharmabackend.entity.master.TherapeuticSubcategory;
-import tiameds.pharmabackend.entity.product.PharmaBatchDetails;
-import tiameds.pharmabackend.entity.product.PharmaPackagingDetails;
-import tiameds.pharmabackend.entity.product.PharmaProductAttributeSupplements;
-import tiameds.pharmabackend.entity.product.PharmaProductDetails;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
+import tiameds.pharmabackend.entity.product.ProductAttributeSupplements;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.List;
 import java.util.ArrayList;
-import tiameds.pharmabackend.entity.product.PharmaProductAttributeDrug;
-import tiameds.pharmabackend.dto.product.PharmaProductAttributeDrugDto;
-import tiameds.pharmabackend.dto.product.PharmaProductMoleculeDto;
-import tiameds.pharmabackend.entity.product.PharmaProductMolecule;
+import tiameds.pharmabackend.entity.product.ProductAttributeDrug;
+import tiameds.pharmabackend.dto.product.ProductAttributeDrugDto;
+import tiameds.pharmabackend.dto.product.ProductMoleculeDto;
+import tiameds.pharmabackend.entity.product.ProductMolecule;
 import tiameds.pharmabackend.entity.master.Molecule;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 @Component
-public class PharmaProductMapper {
+public class ProductMapper {
 
-    public PharmaProductDetails toEntity(PharmaProductDetailsDto dto, String generatedProductId, String createdBy, LocalDateTime createdAt) {
+    public ProductDetails toEntity(ProductDetailsDto dto, String generatedProductId, String createdBy, LocalDateTime createdAt) {
         if (dto == null) return null;
         
-        PharmaProductDetails entity = new PharmaProductDetails();
+        ProductDetails entity = new ProductDetails();
         entity.setProductId(generatedProductId);
         
         if (dto.getPharmacyId() != null) {
@@ -57,35 +57,35 @@ public class PharmaProductMapper {
         entity.setCreatedAt(createdAt);
         
         if (dto.getBatchDetails() != null) {
-            List<PharmaBatchDetails> batchList = dto.getBatchDetails().stream().map(b -> toEntity(b, createdBy, createdAt)).collect(Collectors.toList());
+            List<BatchDetails> batchList = dto.getBatchDetails().stream().map(b -> toEntity(b, createdBy, createdAt)).collect(Collectors.toList());
             batchList.forEach(b -> b.setProduct(entity));
             entity.setBatchDetails(batchList);
         }
         
         if (dto.getPackagingDetails() != null) {
-            List<PharmaPackagingDetails> packList = dto.getPackagingDetails().stream().map(p -> toEntity(p, createdBy, createdAt)).collect(Collectors.toList());
+            List<PackagingDetails> packList = dto.getPackagingDetails().stream().map(p -> toEntity(p, createdBy, createdAt)).collect(Collectors.toList());
             packList.forEach(p -> p.setProduct(entity));
             entity.setPackagingDetails(packList);
         }
         
         if (dto.getProductAttributeSupplements() != null) {
-            List<PharmaProductAttributeSupplements> suppList = dto.getProductAttributeSupplements().stream().map(s -> toEntity(s, createdBy, createdAt)).collect(Collectors.toList());
+            List<ProductAttributeSupplements> suppList = dto.getProductAttributeSupplements().stream().map(s -> toEntity(s, createdBy, createdAt)).collect(Collectors.toList());
             suppList.forEach(s -> s.setProduct(entity));
             entity.setProductAttributeSupplements(suppList);
         }
         
         if (dto.getProductAttributeDrugs() != null) {
-            List<PharmaProductAttributeDrug> drugList = new ArrayList<>();
-            for (PharmaProductAttributeDrugDto dDto : dto.getProductAttributeDrugs()) {
-                PharmaProductAttributeDrug drugEntity = new PharmaProductAttributeDrug();
+            List<ProductAttributeDrug> drugList = new ArrayList<>();
+            for (ProductAttributeDrugDto dDto : dto.getProductAttributeDrugs()) {
+                ProductAttributeDrug drugEntity = new ProductAttributeDrug();
                 drugEntity.setDrugSchedule(dDto.getDrugSchedule());
                 drugEntity.setCreatedBy(createdBy);
                 drugEntity.setCreatedAt(createdAt);
                 
                 if (dDto.getProductMolecules() != null) {
-                    List<PharmaProductMolecule> molList = new ArrayList<>();
-                    for (PharmaProductMoleculeDto mDto : dDto.getProductMolecules()) {
-                        PharmaProductMolecule mol = new PharmaProductMolecule();
+                    List<ProductMolecule> molList = new ArrayList<>();
+                    for (ProductMoleculeDto mDto : dDto.getProductMolecules()) {
+                        ProductMolecule mol = new ProductMolecule();
                         mol.setMoleculeStrength(mDto.getMoleculeStrength());
                         if (mDto.getMoleculeId() != null) {
                             Molecule m = new Molecule();
@@ -106,9 +106,9 @@ public class PharmaProductMapper {
         return entity;
     }
 
-    private PharmaBatchDetails toEntity(PharmaBatchDetailsDto dto, String createdBy, LocalDateTime createdAt) {
+    private BatchDetails toEntity(BatchDetailsDto dto, String createdBy, LocalDateTime createdAt) {
         if (dto == null) return null;
-        PharmaBatchDetails entity = new PharmaBatchDetails();
+        BatchDetails entity = new BatchDetails();
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setManufacturingDate(dto.getManufacturingDate());
         entity.setExpiryDate(dto.getExpiryDate());
@@ -128,9 +128,9 @@ public class PharmaProductMapper {
         return entity;
     }
 
-    private PharmaPackagingDetails toEntity(PharmaPackagingDetailsDto dto, String createdBy, LocalDateTime createdAt) {
+    private PackagingDetails toEntity(PackagingDetailsDto dto, String createdBy, LocalDateTime createdAt) {
         if (dto == null) return null;
-        PharmaPackagingDetails entity = new PharmaPackagingDetails();
+        PackagingDetails entity = new PackagingDetails();
         entity.setPurchaseUnit(dto.getPurchaseUnit());
         entity.setPurchaseUnitContains(dto.getPurchaseUnitContains());
         entity.setSmallestUnit(dto.getSmallestUnit());
@@ -139,9 +139,9 @@ public class PharmaProductMapper {
         return entity;
     }
 
-    private PharmaProductAttributeSupplements toEntity(PharmaProductAttributeSupplementsDto dto, String createdBy, LocalDateTime createdAt) {
+    private ProductAttributeSupplements toEntity(ProductAttributeSupplementsDto dto, String createdBy, LocalDateTime createdAt) {
         if (dto == null) return null;
-        PharmaProductAttributeSupplements entity = new PharmaProductAttributeSupplements();
+        ProductAttributeSupplements entity = new ProductAttributeSupplements();
         
         if (dto.getTherapeuticCategoryId() != null) {
             TherapeuticCategory tc = new TherapeuticCategory();
@@ -186,9 +186,9 @@ public class PharmaProductMapper {
         return entity;
     }
 
-    public PharmaProductDetailsDto toDto(PharmaProductDetails entity) {
+    public ProductDetailsDto toDto(ProductDetails entity) {
         if (entity == null) return null;
-        PharmaProductDetailsDto dto = new PharmaProductDetailsDto();
+        ProductDetailsDto dto = new ProductDetailsDto();
         dto.setProductId(entity.getProductId());
         
         if (entity.getPharmacy() != null) {
@@ -222,9 +222,9 @@ public class PharmaProductMapper {
         return dto;
     }
 
-    private PharmaBatchDetailsDto toDto(PharmaBatchDetails entity) {
+    private BatchDetailsDto toDto(BatchDetails entity) {
         if (entity == null) return null;
-        PharmaBatchDetailsDto dto = new PharmaBatchDetailsDto();
+        BatchDetailsDto dto = new BatchDetailsDto();
         dto.setBatchId(entity.getBatchId());
         dto.setBatchNumber(entity.getBatchNumber());
         dto.setManufacturingDate(entity.getManufacturingDate());
@@ -243,9 +243,9 @@ public class PharmaProductMapper {
         return dto;
     }
 
-    private PharmaPackagingDetailsDto toDto(PharmaPackagingDetails entity) {
+    private PackagingDetailsDto toDto(PackagingDetails entity) {
         if (entity == null) return null;
-        PharmaPackagingDetailsDto dto = new PharmaPackagingDetailsDto();
+        PackagingDetailsDto dto = new PackagingDetailsDto();
         dto.setPackagingId(entity.getPackagingId());
         dto.setPurchaseUnit(entity.getPurchaseUnit());
         dto.setPurchaseUnitContains(entity.getPurchaseUnitContains());
@@ -253,9 +253,9 @@ public class PharmaProductMapper {
         return dto;
     }
 
-    private PharmaProductAttributeSupplementsDto toDto(PharmaProductAttributeSupplements entity) {
+    private ProductAttributeSupplementsDto toDto(ProductAttributeSupplements entity) {
         if (entity == null) return null;
-        PharmaProductAttributeSupplementsDto dto = new PharmaProductAttributeSupplementsDto();
+        ProductAttributeSupplementsDto dto = new ProductAttributeSupplementsDto();
         dto.setProductAttributeId(entity.getProductAttributeId());
         if (entity.getTherapeuticCategory() != null) dto.setTherapeuticCategoryId(entity.getTherapeuticCategory().getTherapeuticCategoryId());
         if (entity.getTherapeuticSubcategory() != null) dto.setTherapeuticSubcategoryId(entity.getTherapeuticSubcategory().getTherapeuticSubcategoryId());
@@ -272,18 +272,18 @@ public class PharmaProductMapper {
         return dto;
     }
 
-    private List<PharmaProductAttributeDrugDto> toDrugDtoList(List<PharmaProductAttributeDrug> entities) {
+    private List<ProductAttributeDrugDto> toDrugDtoList(List<ProductAttributeDrug> entities) {
         if (entities == null || entities.isEmpty()) return new ArrayList<>();
         
-        List<PharmaProductAttributeDrugDto> dtos = new ArrayList<>();
-        for (PharmaProductAttributeDrug drugEntity : entities) {
-            PharmaProductAttributeDrugDto dto = new PharmaProductAttributeDrugDto();
+        List<ProductAttributeDrugDto> dtos = new ArrayList<>();
+        for (ProductAttributeDrug drugEntity : entities) {
+            ProductAttributeDrugDto dto = new ProductAttributeDrugDto();
             dto.setDrugSchedule(drugEntity.getDrugSchedule());
             
             if (drugEntity.getProductMolecules() != null) {
-                List<PharmaProductMoleculeDto> moleculeDtos = new ArrayList<>();
-                for (PharmaProductMolecule molEntity : drugEntity.getProductMolecules()) {
-                    PharmaProductMoleculeDto molDto = new PharmaProductMoleculeDto();
+                List<ProductMoleculeDto> moleculeDtos = new ArrayList<>();
+                for (ProductMolecule molEntity : drugEntity.getProductMolecules()) {
+                    ProductMoleculeDto molDto = new ProductMoleculeDto();
                     if (molEntity.getId() != null) {
                         molDto.setProductAttributeId(molEntity.getId().getProductAttributeId());
                     }

@@ -20,7 +20,7 @@ import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 @AllArgsConstructor
 @Entity
 @Table(name = "pharma_batch_details")
-public class PharmaBatchDetails {
+public class BatchDetails {
 
     @Id
     @Column(name = "batch_id", length = 30)
@@ -29,7 +29,7 @@ public class PharmaBatchDetails {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "product_id")
     @JsonIgnore
-    private PharmaProductDetails product;
+    private ProductDetails product;
 
     @Column(name = "batch_number", length = 100)
     private String batchNumber;

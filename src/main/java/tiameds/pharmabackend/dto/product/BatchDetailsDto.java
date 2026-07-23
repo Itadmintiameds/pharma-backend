@@ -1,12 +1,11 @@
 package tiameds.pharmabackend.dto.product;
 
+import java.time.LocalDate;
+
 import lombok.Data;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
 @Data
-public class PharmaBatchDetailsDto {
+public class BatchDetailsDto {
     private String batchId;
     private String batchNumber;
     private LocalDate manufacturingDate;

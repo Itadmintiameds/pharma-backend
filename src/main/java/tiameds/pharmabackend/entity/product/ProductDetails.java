@@ -21,7 +21,7 @@ import java.util.List;
 @AllArgsConstructor
 @Entity
 @Table(name = "pharma_product_details")
-public class PharmaProductDetails {
+public class ProductDetails {
 
     @Id
     @Column(name = "product_id", length = 30)
@@ -63,16 +63,16 @@ public class PharmaProductDetails {
     private LocalDateTime modifiedAt;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<PharmaBatchDetails> batchDetails;
+    private java.util.List<BatchDetails> batchDetails;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<PharmaPackagingDetails> packagingDetails;
+    private java.util.List<PackagingDetails> packagingDetails;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<PharmaProductAttributeSupplements> productAttributeSupplements;
+    private java.util.List<ProductAttributeSupplements> productAttributeSupplements;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<PharmaProductAttributeDrug> productAttributeDrugs;
+    private java.util.List<ProductAttributeDrug> productAttributeDrugs;
 
     @OneToMany(
             mappedBy = "product",

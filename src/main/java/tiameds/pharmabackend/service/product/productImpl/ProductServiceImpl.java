@@ -3,58 +3,67 @@ package tiameds.pharmabackend.service.product.productImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tiameds.pharmabackend.dto.product.PharmaProductDetailsDto;
+import tiameds.pharmabackend.dto.product.ProductDetailsDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
-import tiameds.pharmabackend.entity.product.PharmaProductDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
-import tiameds.pharmabackend.repository.product.PharmaBatchDetailsRepository;
-import tiameds.pharmabackend.repository.product.PharmaPackagingDetailsRepository;
-import tiameds.pharmabackend.repository.product.PharmaProductDetailsRepository;
-import tiameds.pharmabackend.service.product.PharmaProductService;
-import tiameds.pharmabackend.mapper.product.PharmaProductMapper;
+import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
+import tiameds.pharmabackend.repository.product.PackagingDetailsRepository;
+import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
+import tiameds.pharmabackend.service.product.ProductService;
+import tiameds.pharmabackend.mapper.product.ProductMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import java.time.LocalDateTime;
 
 @Service
-public class PharmaProductServiceImpl implements PharmaProductService {
+public class ProductServiceImpl implements ProductService {
 
     @Autowired
-    private PharmaProductDetailsRepository productRepo;
+    private ProductDetailsRepository productRepo;
     
     @Autowired
-    private PharmaPackagingDetailsRepository packagingRepo;
+    private PackagingDetailsRepository packagingRepo;
     
     @Autowired
-    private PharmaBatchDetailsRepository batchRepo;
+    private BatchDetailsRepository batchRepo;
     
     @Autowired
     private PharmacyDetailsRepository pharmacyRepo;
     
     @Autowired
-    private PharmaProductMapper mapper;
+    private ProductMapper mapper;
 
     @Override
     @Transactional
-    public PharmaProductDetailsDto onboardProduct(PharmaProductDetailsDto dto) {
+    public ProductDetailsDto onboardProduct(ProductDetailsDto dto) {
         
         PharmacyDetails pharmacy = pharmacyRepo.findById(dto.getPharmacyId())
                 .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
+
+        String createdBy = "System";
+        Long userId = null;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
+            CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+            userId = userDetails.getUserId();
+            createdBy = String.valueOf(userId);
+        }
+
+        if (userId != null) {
+            boolean valid = pharmacyRepo.existsUserPharmacy(dto.getPharmacyId(), userId);
+            if (!valid) {
+                throw new RuntimeException("You are not authorized to use this pharmacy.");
+            }
+        }
                 
         String rawPharmacyName = pharmacy.getPharmacyName();
         final String pharmacyName = (rawPharmacyName == null) ? "XX" : rawPharmacyName;
 
         String productId = generateProductId(dto.getProductName(), pharmacyName);
         
-        String createdBy = "System";
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
-            CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-            createdBy = String.valueOf(userDetails.getUserId());
-        }
-        
-        PharmaProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
+        ProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
         
         dto.setProductId(productId);
 
@@ -99,7 +108,7 @@ public class PharmaProductServiceImpl implements PharmaProductService {
                 
                 if (drugEntity.getProductMolecules() != null) {
                     for (var molEntity : drugEntity.getProductMolecules()) {
-                        tiameds.pharmabackend.entity.product.PharmaProductMoleculeId molId = new tiameds.pharmabackend.entity.product.PharmaProductMoleculeId();
+                        tiameds.pharmabackend.entity.product.ProductMoleculeId molId = new tiameds.pharmabackend.entity.product.ProductMoleculeId();
                         molId.setProductAttributeId(drugAttrId);
                         if (molEntity.getMolecule() != null) {
                             molId.setMoleculeId(molEntity.getMolecule().getMoleculeId());
@@ -123,7 +132,7 @@ public class PharmaProductServiceImpl implements PharmaProductService {
     }
     @Override
     @Transactional(readOnly = true)
-    public java.util.List<PharmaProductDetailsDto> getAllProducts() {
+    public java.util.List<ProductDetailsDto> getAllProducts() {
         return productRepo.findAll().stream()
                 .map(mapper::toDto)
                 .collect(java.util.stream.Collectors.toList());
@@ -131,7 +140,7 @@ public class PharmaProductServiceImpl implements PharmaProductService {
 
     @Override
     @Transactional(readOnly = true)
-    public PharmaProductDetailsDto getProductById(String productId) {
+    public ProductDetailsDto getProductById(String productId) {
         return productRepo.findById(productId)
                 .map(mapper::toDto)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
