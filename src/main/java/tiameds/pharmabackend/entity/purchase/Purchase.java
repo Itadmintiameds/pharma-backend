@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
+import tiameds.pharmabackend.entity.supplier.SupplierPayment;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -76,6 +77,13 @@ public class Purchase {
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
 
+    @OneToMany(
+            mappedBy = "purchase",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<SupplierPayment> supplierPayments = new ArrayList<>();
 
     @OneToMany(
             mappedBy = "purchase",
