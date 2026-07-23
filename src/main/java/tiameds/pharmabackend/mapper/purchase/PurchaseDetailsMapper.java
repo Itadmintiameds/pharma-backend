@@ -1,0 +1,66 @@
+package tiameds.pharmabackend.mapper.purchase;
+
+import tiameds.pharmabackend.dto.purchase.PurchaseDetailsDto;
+import tiameds.pharmabackend.entity.product.PharmaBatchDetails;
+import tiameds.pharmabackend.entity.product.PharmaProductDetails;
+import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
+
+public class PurchaseDetailsMapper {
+
+    public static PurchaseDetailsDto toDto(PurchaseDetails entity) {
+
+        if (entity == null) {
+            return null;
+        }
+
+        PurchaseDetailsDto dto = new PurchaseDetailsDto();
+
+        dto.setPurchaseDetailsId(entity.getPurchaseDetailsId());
+        dto.setProductId(entity.getProduct().getProductId());
+        dto.setBatchId(entity.getBatch().getBatchId());
+        dto.setPurchaseQuantity(entity.getPurchaseQuantity());
+        dto.setGrossAmount(entity.getGrossAmount());
+        dto.setGst(entity.getGst());
+        dto.setNetAmount(entity.getNetAmount());
+        dto.setCreatedBy(entity.getCreatedBy());
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setModifiedBy(entity.getModifiedBy());
+        dto.setModifiedAt(entity.getModifiedAt());
+
+        return dto;
+    }
+
+    public static PurchaseDetails toEntity(PurchaseDetailsDto dto) {
+
+        if (dto == null) {
+            return null;
+        }
+
+        PurchaseDetails entity = new PurchaseDetails();
+
+        entity.setPurchaseDetailsId(dto.getPurchaseDetailsId());
+
+        if (dto.getProductId() != null) {
+            PharmaProductDetails product = new PharmaProductDetails();
+            product.setProductId(dto.getProductId());
+            entity.setProduct(product);
+        }
+
+        if (dto.getBatchId() != null) {
+            PharmaBatchDetails batch = new PharmaBatchDetails();
+            batch.setBatchId(dto.getBatchId());
+            entity.setBatch(batch);
+        }
+
+        entity.setPurchaseQuantity(dto.getPurchaseQuantity());
+        entity.setGrossAmount(dto.getGrossAmount());
+        entity.setGst(dto.getGst());
+        entity.setNetAmount(dto.getNetAmount());
+        entity.setCreatedBy(dto.getCreatedBy());
+        entity.setCreatedAt(dto.getCreatedAt());
+        entity.setModifiedBy(dto.getModifiedBy());
+        entity.setModifiedAt(dto.getModifiedAt());
+
+        return entity;
+    }
+}

@@ -81,16 +81,16 @@ public class Purchase {
             mappedBy = "purchase",
             cascade = CascadeType.ALL,
             orphanRemoval = true,
-            fetch = FetchType.LAZY)
+            fetch = FetchType.LAZY
+    )
     @JsonIgnore
-    private List<SupplierPayment> supplierPayments = new ArrayList<>();
+    private List<PurchaseDetails> purchaseDetails = new ArrayList<>();
 
     @OneToMany(
             mappedBy = "purchase",
             cascade = CascadeType.ALL,
             orphanRemoval = true,
-            fetch = FetchType.LAZY
-    )
+            fetch = FetchType.LAZY)
     @JsonIgnore
-    private List<PurchaseDetails> purchaseDetails = new ArrayList<>();
+    private List<SupplierPayment> supplierPayments = new ArrayList<>();
 }
