@@ -1,25 +1,26 @@
 package tiameds.pharmabackend.service.impl.purchase;
 
+import java.time.LocalDateTime;
+
+import org.springframework.stereotype.Service;
+
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.dto.purchase.PurchaseDto;
 import tiameds.pharmabackend.entity.UserDetails;
-import tiameds.pharmabackend.entity.product.PharmaBatchDetails;
-import tiameds.pharmabackend.entity.product.PharmaProductDetails;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Purchase;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
 import tiameds.pharmabackend.mapper.purchase.PurchaseMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
-import tiameds.pharmabackend.repository.product.PharmaBatchDetailsRepository;
-import tiameds.pharmabackend.repository.product.PharmaProductDetailsRepository;
+import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
+import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.PurchaseRepository;
 import tiameds.pharmabackend.repository.supplier.SupplierMasterRepository;
 import tiameds.pharmabackend.service.purchase.PurchaseService;
-
-import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +31,8 @@ public class PurchaseServiceImpl implements PurchaseService {
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
     private final SupplierMasterRepository supplierMasterRepository;
-    private final PharmaProductDetailsRepository pharmaProductDetailsRepository;
-    private final PharmaBatchDetailsRepository pharmaBatchDetailsRepository;
+    private final ProductDetailsRepository pharmaProductDetailsRepository;
+    private final BatchDetailsRepository pharmaBatchDetailsRepository;
 
     @Override
     public PurchaseDto createPurchase(PurchaseDto purchaseDto, UserDetails user) {
@@ -62,12 +63,12 @@ public class PurchaseServiceImpl implements PurchaseService {
                 PurchaseDetails detail = purchase.getPurchaseDetails().get(i);
                 var dto = purchaseDto.getPurchaseDetails().get(i);
 
-                PharmaProductDetails product = pharmaProductDetailsRepository
+                ProductDetails product = pharmaProductDetailsRepository
                         .findById(dto.getProductId())
                         .orElseThrow(() -> new RuntimeException(
                                 "Product not found: " + dto.getProductId()));
 
-                PharmaBatchDetails batch = pharmaBatchDetailsRepository
+                BatchDetails batch = pharmaBatchDetailsRepository
                         .findById(dto.getBatchId())
                         .orElseThrow(() -> new RuntimeException(
                                 "Batch not found: " + dto.getBatchId()));

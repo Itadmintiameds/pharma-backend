@@ -1,9 +1,14 @@
 package tiameds.pharmabackend.service.impl;
 
-import lombok.RequiredArgsConstructor;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
 import tiameds.pharmabackend.dto.FeatureDto;
 import tiameds.pharmabackend.dto.ModuleDto;
 import tiameds.pharmabackend.dto.ModuleSummaryDto;
@@ -11,10 +16,6 @@ import tiameds.pharmabackend.entity.PharmaFeature;
 import tiameds.pharmabackend.entity.PharmaModule;
 import tiameds.pharmabackend.repository.PharmaModuleRepository;
 import tiameds.pharmabackend.service.ModuleService;
-
-import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)

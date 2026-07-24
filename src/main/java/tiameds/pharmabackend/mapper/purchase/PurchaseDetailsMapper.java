@@ -1,8 +1,8 @@
 package tiameds.pharmabackend.mapper.purchase;
 
 import tiameds.pharmabackend.dto.purchase.PurchaseDetailsDto;
-import tiameds.pharmabackend.entity.product.PharmaBatchDetails;
-import tiameds.pharmabackend.entity.product.PharmaProductDetails;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 
 public class PurchaseDetailsMapper {
@@ -41,13 +41,13 @@ public class PurchaseDetailsMapper {
         entity.setPurchaseDetailsId(dto.getPurchaseDetailsId());
 
         if (dto.getProductId() != null) {
-            PharmaProductDetails product = new PharmaProductDetails();
+            ProductDetails product = new ProductDetails();
             product.setProductId(dto.getProductId());
             entity.setProduct(product);
         }
 
         if (dto.getBatchId() != null) {
-            PharmaBatchDetails batch = new PharmaBatchDetails();
+            BatchDetails batch = new BatchDetails();
             batch.setBatchId(dto.getBatchId());
             entity.setBatch(batch);
         }
