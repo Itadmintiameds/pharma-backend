@@ -1,6 +1,11 @@
 package tiameds.pharmabackend.entity.master;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -8,28 +13,21 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/*
-* Drugs
-* Supplements/ Nutraceuticals
-* Food & Infant Nutrition
-* Cosmetic & Personal Care, etc.,
-* */
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "pharma_product_category_master")
-public class ProductCategory {
+@Table(name = "pharma_product_form_master")
+public class ProductForm {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "product_category_id")
-    private Long productCategoryId;
+    @Column(name = "product_form_id")
+    private Long productFormId;
 
-    @Column(name = "product_category_name")
-    private String productCategoryName;
+    @Column(name = "product_form_name")
+    private String productFormName;
 
     @Column(name = "is_active")
     private Boolean isActive = true;

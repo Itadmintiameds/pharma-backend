@@ -8,28 +8,21 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/*
-* Drugs
-* Supplements/ Nutraceuticals
-* Food & Infant Nutrition
-* Cosmetic & Personal Care, etc.,
-* */
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "pharma_product_category_master")
-public class ProductCategory {
+@Table(name = "pharma_skin_type_master")
+public class SkinType {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "product_category_id")
-    private Long productCategoryId;
+    @Column(name = "skin_type_id")
+    private Long skinTypeId;
 
-    @Column(name = "product_category_name")
-    private String productCategoryName;
+    @Column(name = "skin_type_name")
+    private String skinTypeName;
 
     @Column(name = "is_active")
     private Boolean isActive = true;
