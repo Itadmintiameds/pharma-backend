@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.purchase.Purchase;
 
+import java.time.LocalDate;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,7 +29,7 @@ public class SupplierPayment {
     private Purchase purchase;
 
     @Column(name = "payment_date")
-    private String paymentDate;
+    private LocalDate paymentDate;
 
     @Column(name = "payment_mode")
     private String paymentMode;
