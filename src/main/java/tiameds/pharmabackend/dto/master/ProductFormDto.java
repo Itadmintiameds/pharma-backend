@@ -6,5 +6,7 @@ import lombok.Data;
 public class ProductFormDto {
     private Long productFormId;
     private String productFormName;
+    private Long productCategoryId;
+    private String productCategoryName;
     private Boolean isActive;
 }

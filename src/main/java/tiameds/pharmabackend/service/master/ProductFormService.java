@@ -10,6 +10,8 @@ public interface ProductFormService {
 
     ProductFormDto getProductFormById(Long productFormId);
 
+    List<ProductFormDto> getProductFormsByCategoryId(Long productCategoryId);
+
     ProductFormDto createProductForm(ProductFormDto productFormDto);
 
     ProductFormDto updateProductForm(Long productFormId, ProductFormDto productFormDto);

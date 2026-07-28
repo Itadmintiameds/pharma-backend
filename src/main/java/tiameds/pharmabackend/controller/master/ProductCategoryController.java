@@ -7,9 +7,11 @@ import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.master.MasterStatusDto;
 import tiameds.pharmabackend.dto.master.NetQuantityUnitDto;
 import tiameds.pharmabackend.dto.master.ProductCategoryDto;
+import tiameds.pharmabackend.dto.master.ProductFormDto;
 import tiameds.pharmabackend.dto.master.ProductTypeDto;
 import tiameds.pharmabackend.service.master.NetQuantityUnitService;
 import tiameds.pharmabackend.service.master.ProductCategoryService;
+import tiameds.pharmabackend.service.master.ProductFormService;
 import tiameds.pharmabackend.service.master.ProductTypeService;
 
 import java.util.List;
@@ -22,6 +24,7 @@ public class ProductCategoryController {
     private final ProductCategoryService productCategoryService;
     private final ProductTypeService productTypeService;
     private final NetQuantityUnitService netQuantityUnitService;
+    private final ProductFormService productFormService;
 
     @GetMapping
     public ResponseEntity<List<ProductCategoryDto>> getAllProductCategories() {
@@ -45,6 +48,13 @@ public class ProductCategoryController {
             @PathVariable Long productCategoryId) {
 
         return ResponseEntity.ok(netQuantityUnitService.getNetQuantityUnitsByCategoryId(productCategoryId));
+    }
+
+    @GetMapping("/{productCategoryId}/product-forms")
+    public ResponseEntity<List<ProductFormDto>> getProductFormsByCategoryId(
+            @PathVariable Long productCategoryId) {
+
+        return ResponseEntity.ok(productFormService.getProductFormsByCategoryId(productCategoryId));
     }
 
     @PostMapping
