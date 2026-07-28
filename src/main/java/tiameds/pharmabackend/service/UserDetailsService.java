@@ -46,6 +46,8 @@ public interface UserDetailsService {
             Long userId,
             String userStatus);
 
+    boolean checkEmailExists(String email);
+
 //    void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId);
 
 

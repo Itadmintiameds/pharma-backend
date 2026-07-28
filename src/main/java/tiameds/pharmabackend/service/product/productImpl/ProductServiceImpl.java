@@ -43,11 +43,8 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
 
         String createdBy = "System";
-        Long userId = null;
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
-            CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-            userId = userDetails.getUserId();
+        Long userId = getCurrentUserId();
+        if (userId != null) {
             createdBy = String.valueOf(userId);
         }
 
@@ -96,6 +93,16 @@ public class ProductServiceImpl implements ProductService {
             }
         }
         
+        // Setup cosmetics relationship
+        if (product.getProductAttributeCosmetics() != null && dto.getProductAttributeCosmetics() != null) {
+            for (int i = 0; i < product.getProductAttributeCosmetics().size(); i++) {
+                String cId = productId + "_COSM";
+                product.getProductAttributeCosmetics().get(i).setProductAttributeId(cId);
+                product.getProductAttributeCosmetics().get(i).setProduct(product);
+                dto.getProductAttributeCosmetics().get(i).setProductAttributeId(cId);
+            }
+        }
+        
         // Setup drugs relationship
         if (product.getProductAttributeDrugs() != null && dto.getProductAttributeDrugs() != null) {
             int entityIndex = 0;
@@ -133,7 +140,18 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public java.util.List<ProductDetailsDto> getAllProducts() {
+        Long userId = getCurrentUserId();
+        
+        if (userId == null) {
+            return productRepo.findAll().stream()
+                    .map(mapper::toDto)
+                    .collect(java.util.stream.Collectors.toList());
+        }
+
+        java.util.List<String> allowedPharmacies = pharmacyRepo.findPharmacyIdsByUserId(userId);
+        
         return productRepo.findAll().stream()
+                .filter(p -> p.getPharmacy() != null && allowedPharmacies.contains(p.getPharmacy().getPharmacyId()))
                 .map(mapper::toDto)
                 .collect(java.util.stream.Collectors.toList());
     }
@@ -141,18 +159,41 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public ProductDetailsDto getProductById(String productId) {
-        return productRepo.findById(productId)
-                .map(mapper::toDto)
+        ProductDetails product = productRepo.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+                
+        checkAuthorization(product);
+        
+        return mapper.toDto(product);
     }
 
     @Override
     @Transactional
     public void deleteProduct(String productId) {
-        if (!productRepo.existsById(productId)) {
-            throw new RuntimeException("Product not found with id: " + productId);
-        }
+        ProductDetails product = productRepo.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+                
+        checkAuthorization(product);
+        
         productRepo.deleteById(productId);
+    }
+
+    private Long getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
+            return ((CustomUserDetails) auth.getPrincipal()).getUserId();
+        }
+        return null;
+    }
+
+    private void checkAuthorization(ProductDetails product) {
+        Long userId = getCurrentUserId();
+        if (userId != null && product.getPharmacy() != null) {
+            boolean valid = pharmacyRepo.existsUserPharmacy(product.getPharmacy().getPharmacyId(), userId);
+            if (!valid) {
+                throw new RuntimeException("You are not authorized to access this product.");
+            }
+        }
     }
 
     private synchronized String generateProductId(String productName, String pharmacyName) {
