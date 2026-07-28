@@ -31,4 +31,13 @@ public interface PharmacyDetailsRepository extends JpaRepository<PharmacyDetails
 """)
     boolean existsUserPharmacy(
             @Param("pharmacyId") String pharmacyId,
-            @Param("userId") Long userId);}
+            @Param("userId") Long userId);
+
+    @Query("""
+    SELECT p.pharmacyId
+    FROM PharmacyDetails p
+    JOIN p.users u
+    WHERE u.userId = :userId
+""")
+    List<String> findPharmacyIdsByUserId(@Param("userId") Long userId);
+}

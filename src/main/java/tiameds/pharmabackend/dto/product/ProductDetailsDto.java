@@ -16,6 +16,7 @@ public class ProductDetailsDto {
     private String hsnNo;
     
     private List<ProductAttributeDrugDto> productAttributeDrugs;
+    private List<ProductAttributeCosmeticsDto> productAttributeCosmetics;
     private List<ProductAttributeSupplementsDto> productAttributeSupplements;
     private List<BatchDetailsDto> batchDetails;
     private List<PackagingDetailsDto> packagingDetails;
