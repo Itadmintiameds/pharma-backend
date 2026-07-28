@@ -7,10 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import tiameds.pharmabackend.entity.master.AgeGroup;
-import tiameds.pharmabackend.entity.master.ProductForm;
-import tiameds.pharmabackend.entity.master.ProductSubType;
-import tiameds.pharmabackend.entity.master.ProductType;
+import tiameds.pharmabackend.entity.master.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -63,6 +60,12 @@ public class ProductAttributeFoodInfant {
 
     @Column(name = "net_quantity")
     private Double NetQuantity;
+
+    // FK → Net Quantity Unit
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "net_quantity_unit_id", referencedColumnName = "net_quantity_unit_id")
+    @JsonIgnore
+    private NetQuantityUnit netQuantityUnit;
 
     @Column(name = "manufacturer_name")
     private String manufacturerName;

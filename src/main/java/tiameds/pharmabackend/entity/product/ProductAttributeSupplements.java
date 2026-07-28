@@ -59,8 +59,14 @@ public class ProductAttributeSupplements {
     @Column(name = "net_quantity")
     private Double netQuantity;
 
-    @Column(name = "net_quantity_unit", length = 20)
-    private String netQuantityUnit;
+//    @Column(name = "net_quantity_unit", length = 20)
+//    private String netQuantityUnit;
+
+    // FK → Net Quantity Unit
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "net_quantity_unit_id", referencedColumnName = "net_quantity_unit_id")
+    @JsonIgnore
+    private NetQuantityUnit netQuantityUnit;
 
     //join master table
     @ManyToOne(fetch = FetchType.LAZY)
