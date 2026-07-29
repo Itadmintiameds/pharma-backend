@@ -80,6 +80,9 @@ public class ProductDetails {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductAttributeFoodInfant> productAttributeFoodInfants;
 
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductAttributeConsumableMedical> productAttributeConsumableMedicals;
+
     @OneToMany(
             mappedBy = "product",
             cascade = CascadeType.ALL,
