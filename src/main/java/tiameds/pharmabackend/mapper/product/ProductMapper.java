@@ -193,7 +193,7 @@ public class ProductMapper {
         
         entity.setStrengthComposition(dto.getStrengthComposition());
         entity.setNetQuantity(dto.getNetQuantity());
-        entity.setNetQuantityUnit(dto.getNetQuantityUnit());
+//        entity.setNetQuantityUnit(dto.getNetQuantityUnit());
         entity.setGender(dto.getGender());
         entity.setCreatedBy(createdBy);
         entity.setCreatedAt(createdAt);
@@ -367,7 +367,7 @@ public class ProductMapper {
         
         dto.setStrengthComposition(entity.getStrengthComposition());
         dto.setNetQuantity(entity.getNetQuantity());
-        dto.setNetQuantityUnit(entity.getNetQuantityUnit());
+//        dto.setNetQuantityUnit(entity.getNetQuantityUnit());
         dto.setGender(entity.getGender());
         dto.setManufacturerName(entity.getManufacturerName());
         dto.setFssaiLicenseNumber(entity.getFssaiLicenseNumber());
