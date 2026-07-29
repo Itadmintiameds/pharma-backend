@@ -113,6 +113,27 @@ public class ProductServiceImpl implements ProductService {
             }
         }
         
+
+        // Setup consumable medical relationship
+        if (product.getProductAttributeConsumableMedicals() != null && dto.getProductAttributeConsumableMedicals() != null) {
+            for (int i = 0; i < product.getProductAttributeConsumableMedicals().size(); i++) {
+                String cId = productId + "_CONS";
+                product.getProductAttributeConsumableMedicals().get(i).setProductAttributeId(cId);
+                product.getProductAttributeConsumableMedicals().get(i).setProduct(product);
+                dto.getProductAttributeConsumableMedicals().get(i).setProductAttributeId(cId);
+            }
+        }
+        
+        // Setup non-consumable medical relationship
+        if (product.getProductAttributeNonConsumableMedicals() != null && dto.getProductAttributeNonConsumableMedicals() != null) {
+            for (int i = 0; i < product.getProductAttributeNonConsumableMedicals().size(); i++) {
+                String ncId = productId + "_NCONS";
+                product.getProductAttributeNonConsumableMedicals().get(i).setProductAttributeId(ncId);
+                product.getProductAttributeNonConsumableMedicals().get(i).setProduct(product);
+                dto.getProductAttributeNonConsumableMedicals().get(i).setProductAttributeId(ncId);
+            }
+        }
+
         // Setup drugs relationship
         if (product.getProductAttributeDrugs() != null && dto.getProductAttributeDrugs() != null) {
             int entityIndex = 0;
