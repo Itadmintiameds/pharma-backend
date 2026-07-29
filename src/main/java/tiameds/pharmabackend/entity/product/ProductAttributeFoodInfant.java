@@ -51,7 +51,7 @@ public class ProductAttributeFoodInfant {
     //join Age master table
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "pharma_cosmetic_age_group_mapping",
+            name = "pharma_food_infant_age_group_mapping",
             joinColumns = @JoinColumn(name = "product_attribute_id"),
             inverseJoinColumns = @JoinColumn(name = "age_group_id")
     )

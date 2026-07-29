@@ -103,6 +103,16 @@ public class ProductServiceImpl implements ProductService {
             }
         }
         
+        // Setup food and infants relationship
+        if (product.getProductAttributeFoodInfants() != null && dto.getProductAttributeFoodInfants() != null) {
+            for (int i = 0; i < product.getProductAttributeFoodInfants().size(); i++) {
+                String fId = productId + "_FOOD";
+                product.getProductAttributeFoodInfants().get(i).setProductAttributeId(fId);
+                product.getProductAttributeFoodInfants().get(i).setProduct(product);
+                dto.getProductAttributeFoodInfants().get(i).setProductAttributeId(fId);
+            }
+        }
+        
         // Setup drugs relationship
         if (product.getProductAttributeDrugs() != null && dto.getProductAttributeDrugs() != null) {
             int entityIndex = 0;

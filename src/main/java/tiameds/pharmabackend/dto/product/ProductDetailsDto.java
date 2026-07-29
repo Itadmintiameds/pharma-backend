@@ -17,6 +17,7 @@ public class ProductDetailsDto {
     
     private List<ProductAttributeDrugDto> productAttributeDrugs;
     private List<ProductAttributeCosmeticsDto> productAttributeCosmetics;
+    private List<ProductAttributeFoodInfantDto> productAttributeFoodInfants;
     private List<ProductAttributeSupplementsDto> productAttributeSupplements;
     private List<BatchDetailsDto> batchDetails;
     private List<PackagingDetailsDto> packagingDetails;

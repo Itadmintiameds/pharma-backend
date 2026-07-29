@@ -4,7 +4,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class ProductAttributeCosmeticsDto {
+public class ProductAttributeFoodInfantDto {
     private String productAttributeId;
     
     private Long productTypeId;
@@ -13,13 +13,7 @@ public class ProductAttributeCosmeticsDto {
     
     private String variantName;
     
-    private List<Long> intendedUseAreaIds;
-    private List<Long> skinTypeIds;
-    private List<Long> hairTypeIds;
     private List<Long> ageGroupIds;
-    
-    private String gender;
-    private String fragrance;
     
     private Double netQuantity;
     private Long netQuantityUnitId;

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.ArrayList;
 
 import tiameds.pharmabackend.dto.product.ProductAttributeCosmeticsDto;
+import tiameds.pharmabackend.dto.product.ProductAttributeFoodInfantDto;
 import tiameds.pharmabackend.dto.product.ProductAttributeDrugDto;
 import tiameds.pharmabackend.dto.product.ProductMoleculeDto;
 import tiameds.pharmabackend.entity.master.HairType;
@@ -34,6 +35,7 @@ import tiameds.pharmabackend.entity.master.ProductSubType;
 import tiameds.pharmabackend.entity.master.ProductType;
 import tiameds.pharmabackend.entity.master.SkinType;
 import tiameds.pharmabackend.entity.product.ProductAttributeCosmetics;
+import tiameds.pharmabackend.entity.product.ProductAttributeFoodInfant;
 import tiameds.pharmabackend.entity.product.ProductAttributeDrug;
 import tiameds.pharmabackend.dto.product.ProductAttributeDrugDto;
 import tiameds.pharmabackend.dto.product.ProductMoleculeDto;
@@ -90,6 +92,12 @@ public class ProductMapper {
             List<ProductAttributeCosmetics> cosmList = dto.getProductAttributeCosmetics().stream().map(c -> toEntity(c, createdBy, createdAt)).collect(Collectors.toList());
             cosmList.forEach(c -> c.setProduct(entity));
             entity.setProductAttributeCosmetics(cosmList);
+        }
+        
+        if (dto.getProductAttributeFoodInfants() != null) {
+            List<ProductAttributeFoodInfant> foodList = dto.getProductAttributeFoodInfants().stream().map(f -> toEntity(f, createdBy, createdAt)).collect(Collectors.toList());
+            foodList.forEach(f -> f.setProduct(entity));
+            entity.setProductAttributeFoodInfants(foodList);
         }
         
         if (dto.getProductAttributeDrugs() != null) {
@@ -193,7 +201,15 @@ public class ProductMapper {
         
         entity.setStrengthComposition(dto.getStrengthComposition());
         entity.setNetQuantity(dto.getNetQuantity());
-//        entity.setNetQuantityUnit(dto.getNetQuantityUnit());
+
+        
+        if (dto.getNetQuantityUnitId() != null) {
+            NetQuantityUnit nqu = new NetQuantityUnit();
+            nqu.setNetQuantityUnitId(dto.getNetQuantityUnitId());
+            entity.setNetQuantityUnit(nqu);
+        }
+        
+
         entity.setGender(dto.getGender());
         entity.setCreatedBy(createdBy);
         entity.setCreatedAt(createdAt);
@@ -270,6 +286,56 @@ public class ProductMapper {
         
         entity.setGender(dto.getGender());
         entity.setFragrance(dto.getFragrance());
+        entity.setNetQuantity(dto.getNetQuantity());
+        
+        if (dto.getNetQuantityUnitId() != null) {
+            NetQuantityUnit nqu = new NetQuantityUnit();
+            nqu.setNetQuantityUnitId(dto.getNetQuantityUnitId());
+            entity.setNetQuantityUnit(nqu);
+        }
+        
+        entity.setManufacturerName(dto.getManufacturerName());
+        entity.setCreatedBy(createdBy);
+        entity.setCreatedAt(createdAt);
+        
+        return entity;
+    }
+
+    private ProductAttributeFoodInfant toEntity(ProductAttributeFoodInfantDto dto, String createdBy, LocalDateTime createdAt) {
+        if (dto == null) return null;
+        ProductAttributeFoodInfant entity = new ProductAttributeFoodInfant();
+        
+        if (dto.getProductTypeId() != null) {
+            ProductType pt = new ProductType();
+            pt.setProductTypeId(dto.getProductTypeId());
+            entity.setProductType(pt);
+        }
+        
+        if (dto.getProductSubTypeId() != null) {
+            ProductSubType pst = new ProductSubType();
+            pst.setProductSubTypeId(dto.getProductSubTypeId());
+            entity.setProductSubType(pst);
+        }
+        
+        if (dto.getProductFormId() != null) {
+            ProductForm pf = new ProductForm();
+            pf.setProductFormId(dto.getProductFormId());
+            entity.setProductForm(pf);
+        }
+        
+        entity.setVariantName(dto.getVariantName());
+        
+        if (dto.getAgeGroupIds() != null) {
+            List<AgeGroup> list = new ArrayList<>();
+            for (Long id : dto.getAgeGroupIds()) {
+                AgeGroup item = new AgeGroup();
+                item.setAgeGroupId(id);
+                list.add(item);
+            }
+            entity.setAgeGroups(list);
+        }
+        
+        entity.setNetQuantity(dto.getNetQuantity());
         
         if (dto.getNetQuantityUnitId() != null) {
             NetQuantityUnit nqu = new NetQuantityUnit();
@@ -315,6 +381,10 @@ public class ProductMapper {
         
         if (entity.getProductAttributeCosmetics() != null) {
             dto.setProductAttributeCosmetics(entity.getProductAttributeCosmetics().stream().map(this::toDto).collect(Collectors.toList()));
+        }
+        
+        if (entity.getProductAttributeFoodInfants() != null) {
+            dto.setProductAttributeFoodInfants(entity.getProductAttributeFoodInfants().stream().map(this::toDto).collect(Collectors.toList()));
         }
         
         if (entity.getProductAttributeDrugs() != null && !entity.getProductAttributeDrugs().isEmpty()) {
@@ -367,7 +437,11 @@ public class ProductMapper {
         
         dto.setStrengthComposition(entity.getStrengthComposition());
         dto.setNetQuantity(entity.getNetQuantity());
-//        dto.setNetQuantityUnit(entity.getNetQuantityUnit());
+
+        if (entity.getNetQuantityUnit() != null) {
+            dto.setNetQuantityUnitId(entity.getNetQuantityUnit().getNetQuantityUnitId());
+        }
+
         dto.setGender(entity.getGender());
         dto.setManufacturerName(entity.getManufacturerName());
         dto.setFssaiLicenseNumber(entity.getFssaiLicenseNumber());
@@ -400,7 +474,32 @@ public class ProductMapper {
         
         dto.setGender(entity.getGender());
         dto.setFragrance(entity.getFragrance());
+        dto.setNetQuantity(entity.getNetQuantity());
         if (entity.getNetQuantityUnit() != null) dto.setNetQuantityUnitId(entity.getNetQuantityUnit().getNetQuantityUnitId());
+        dto.setManufacturerName(entity.getManufacturerName());
+        
+        return dto;
+    }
+
+    private ProductAttributeFoodInfantDto toDto(ProductAttributeFoodInfant entity) {
+        if (entity == null) return null;
+        ProductAttributeFoodInfantDto dto = new ProductAttributeFoodInfantDto();
+        dto.setProductAttributeId(entity.getProductAttributeId());
+        
+        if (entity.getProductType() != null) dto.setProductTypeId(entity.getProductType().getProductTypeId());
+        if (entity.getProductSubType() != null) dto.setProductSubTypeId(entity.getProductSubType().getProductSubTypeId());
+        if (entity.getProductForm() != null) dto.setProductFormId(entity.getProductForm().getProductFormId());
+        
+        dto.setVariantName(entity.getVariantName());
+        
+        if (entity.getAgeGroups() != null) {
+            dto.setAgeGroupIds(entity.getAgeGroups().stream().map(AgeGroup::getAgeGroupId).collect(Collectors.toList()));
+        }
+        
+        dto.setNetQuantity(entity.getNetQuantity());
+        if (entity.getNetQuantityUnit() != null) {
+            dto.setNetQuantityUnitId(entity.getNetQuantityUnit().getNetQuantityUnitId());
+        }
         dto.setManufacturerName(entity.getManufacturerName());
         
         return dto;

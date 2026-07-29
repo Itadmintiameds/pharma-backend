@@ -13,7 +13,7 @@ public class ProductAttributeSupplementsDto {
     
     private String strengthComposition;
     private Double netQuantity;
-    private String netQuantityUnit;
+    private Long netQuantityUnitId;
     private String gender;
     private String manufacturerName;
     private String fssaiLicenseNumber;
