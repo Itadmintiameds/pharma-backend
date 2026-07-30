@@ -10,7 +10,7 @@ import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 
 @Component
-public class InventoryMapper {
+public class ProductInventoryMapper {
 
     public BatchDetails toEntity(BatchDetailsDto dto, String createdBy, LocalDateTime createdAt) {
         if (dto == null) return null;

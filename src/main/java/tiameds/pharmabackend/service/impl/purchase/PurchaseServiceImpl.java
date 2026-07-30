@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.purchase.PurchaseDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -43,6 +44,8 @@ public class PurchaseServiceImpl implements PurchaseService {
     private final BatchDetailsRepository pharmaBatchDetailsRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryAuditRepository inventoryAuditRepository;
+    private final CurrentPharmacyContext pharmacyContext;
+
 
     @Override
     public PurchaseDto createPurchase(PurchaseDto purchaseDto, UserDetails user) {
@@ -50,29 +53,28 @@ public class PurchaseServiceImpl implements PurchaseService {
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
         boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
-                purchaseDto.getPharmacyId(),
+                pharmacyId,
                 persistentUser.getUserId());
 
         if (!valid) {
             throw new RuntimeException("You are not authorized to use this pharmacy.");
         }
 
-        PharmacyDetails pharmacy = pharmacyDetailsRepository.findById(purchaseDto.getPharmacyId())
+        PharmacyDetails pharmacy = pharmacyDetailsRepository.findById(pharmacyId)
                 .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
 
         Purchase purchase = PurchaseMapper.toEntity(purchaseDto);
+
+        purchase.setPharmacyId(pharmacyId);
 
         SupplierMaster supplier = supplierMasterRepository.findById(purchaseDto.getSupplierId())
                 .orElseThrow(() -> new RuntimeException("Supplier not found"));
 
         purchase.setSupplier(supplier);
 
-        /*
-         * Map Product & Batch
-         * Inventory table will maintain stock.
-         * BatchDetails is used only for batch reference.
-         */
         if (purchase.getPurchaseDetails() != null) {
 
             for (int i = 0; i < purchase.getPurchaseDetails().size(); i++) {
@@ -117,9 +119,6 @@ public class PurchaseServiceImpl implements PurchaseService {
 
         Purchase savedPurchase = purchaseRepository.save(purchase);
 
-        /*
-         * Inventory & Inventory Audit
-         */
         if (savedPurchase.getPurchaseDetails() != null) {
 
             for (PurchaseDetails detail : savedPurchase.getPurchaseDetails()) {
@@ -136,9 +135,6 @@ public class PurchaseServiceImpl implements PurchaseService {
                         .findByProductAndPackagingAndBatch(product, packaging, batch)
                         .orElse(null);
 
-                /*
-                 * Inventory does not exist
-                 */
                 if (inventory == null) {
 
                     inventory = new Inventory();
@@ -156,9 +152,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                     inventory.setModifiedAt(null);
 
                 }
-                /*
-                 * Inventory already exists
-                 */
+
                 else {
 
                     // Populate pharmacy if older inventory records don't have it
@@ -178,9 +172,7 @@ public class PurchaseServiceImpl implements PurchaseService {
 
                 inventory = inventoryRepository.save(inventory);
 
-                /*
-                 * Inventory Audit
-                 */
+
                 InventoryAudit audit = new InventoryAudit();
 
                 audit.setInventory(inventory);

@@ -28,7 +28,7 @@ import tiameds.pharmabackend.mapper.product.category.ConsumableMapper;
 import tiameds.pharmabackend.mapper.product.category.CosmeticMapper;
 import tiameds.pharmabackend.mapper.product.category.DrugMapper;
 import tiameds.pharmabackend.mapper.product.category.FoodInfantMapper;
-import tiameds.pharmabackend.mapper.product.category.InventoryMapper;
+import tiameds.pharmabackend.mapper.product.category.ProductInventoryMapper;
 import tiameds.pharmabackend.mapper.product.category.NonConsumableMapper;
 import tiameds.pharmabackend.mapper.product.category.SupplementMapper;
 
@@ -54,7 +54,7 @@ public class ProductMapper {
     private NonConsumableMapper nonConsumableMapper;
     
     @Autowired
-    private InventoryMapper inventoryMapper;
+    private ProductInventoryMapper inventoryMapper;
 
 
     public ProductDetails toEntity(ProductDetailsDto dto, String generatedProductId, String createdBy, LocalDateTime createdAt) {
@@ -63,11 +63,11 @@ public class ProductMapper {
         ProductDetails entity = new ProductDetails();
         entity.setProductId(generatedProductId);
         
-        if (dto.getPharmacyId() != null) {
-            PharmacyDetails pharmacy = new PharmacyDetails();
-            pharmacy.setPharmacyId(dto.getPharmacyId());
-            entity.setPharmacy(pharmacy);
-        }
+//        if (dto.getPharmacyId() != null) {
+//            PharmacyDetails pharmacy = new PharmacyDetails();
+//            pharmacy.setPharmacyId(dto.getPharmacyId());
+//            entity.setPharmacy(pharmacy);
+//        }
         
         if (dto.getProductCategoryId() != null) {
             ProductCategory cat = new ProductCategory();
