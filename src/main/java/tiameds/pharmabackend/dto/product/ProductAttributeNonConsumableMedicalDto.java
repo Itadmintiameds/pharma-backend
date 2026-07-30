@@ -14,7 +14,7 @@ public class ProductAttributeNonConsumableMedicalDto {
     private String deviceClassification;
     private String purpose;
     private String dimensionSize;
-    
+    private Long deviceSpecificationUnitId;
     private List<Long> materialTypeIds;
     
     private Long powerSourceId;

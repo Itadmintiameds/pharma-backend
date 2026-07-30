@@ -4,8 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.master.DeviceSpecificationUnitDto;
 import tiameds.pharmabackend.dto.master.DeviceSubCategoryDto;
 import tiameds.pharmabackend.dto.master.MasterStatusDto;
+import tiameds.pharmabackend.service.master.DeviceSpecificationUnitService;
 import tiameds.pharmabackend.service.master.DeviceSubCategoryService;
 
 import java.util.List;
@@ -16,6 +18,7 @@ import java.util.List;
 public class DeviceSubCategoryController {
 
     private final DeviceSubCategoryService deviceSubCategoryService;
+    private final DeviceSpecificationUnitService deviceSpecificationUnitService;
 
     @GetMapping
     public ResponseEntity<List<DeviceSubCategoryDto>> getAllDeviceSubCategories() {
@@ -27,6 +30,14 @@ public class DeviceSubCategoryController {
             @PathVariable Long deviceSubCategoryId) {
 
         return ResponseEntity.ok(deviceSubCategoryService.getDeviceSubCategoryById(deviceSubCategoryId));
+    }
+
+    @GetMapping("/{deviceSubCategoryId}/device-specification-units")
+    public ResponseEntity<List<DeviceSpecificationUnitDto>> getDeviceSpecificationUnitsByDeviceSubCategoryId(
+            @PathVariable Long deviceSubCategoryId) {
+
+        return ResponseEntity.ok(
+                deviceSpecificationUnitService.getDeviceSpecificationUnitsByDeviceSubCategoryId(deviceSubCategoryId));
     }
 
     @PostMapping
