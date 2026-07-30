@@ -6,65 +6,49 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.entity.supplier.SupplierMaster;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "pharma_purchase_details")
-public class PurchaseDetails {
+@Table(name = "pharma_inventory")
+public class Inventory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "purchase_details_id")
-    private Long purchaseDetailsId;
+    @Column(name = "inventory_id")
+    private Long inventoryId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "purchase_id", referencedColumnName = "purchase_id")
+    @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
     @JsonIgnore
-    private Purchase purchase;
+    private PharmacyDetails pharmacy;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", referencedColumnName = "product_id")
+    @JoinColumn(name = "product_id")
     @JsonIgnore
     private ProductDetails product;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id", referencedColumnName = "batch_id")
-    @JsonIgnore
-    private BatchDetails batch;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "packaging_id")
     @JsonIgnore
     private PackagingDetails packaging;
 
-    @Column(name = "purchase_quantity")
-    private Long purchaseQuantity;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "batch_id")
+    @JsonIgnore
+    private BatchDetails batch;
 
-    @Column(name = "free_unit")
-    private Long freeUnit;
-
-    @Column(name = "free_quantity")
-    private Long freeQuantity;
-
-    @Column(name = "gross_amount")
-    private BigDecimal grossAmount;
-
-    @Column(name = "gst")
-    private BigDecimal gst;
-
-    @Column(name = "net_amount")
-    private BigDecimal netAmount;
+    @Column(name = "total_stock")
+    private Long totalStock;
 
     @Column(name = "created_by")
     private String createdBy;
@@ -77,5 +61,4 @@ public class PurchaseDetails {
 
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
-
 }

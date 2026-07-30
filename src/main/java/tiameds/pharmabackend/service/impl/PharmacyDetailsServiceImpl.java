@@ -3,6 +3,7 @@ package tiameds.pharmabackend.service.impl;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import tiameds.pharmabackend.dto.LoggedInUserPharmacyDto;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
 import tiameds.pharmabackend.dto.PharmacySummaryDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
@@ -162,5 +163,28 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
         }
 
         return prefix + String.format("%04d", nextSequence);
+    }
+
+
+    @Override
+    public List<LoggedInUserPharmacyDto> getLoggedInUserPharmacies(Long userId) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return persistentUser.getPharmacies()
+                .stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+
+
+
+    private LoggedInUserPharmacyDto mapToDto(PharmacyDetails pharmacy) {
+
+        return new LoggedInUserPharmacyDto(
+                pharmacy.getPharmacyId(),
+                pharmacy.getPharmacyName()
+        );
     }
 }

@@ -3,6 +3,7 @@ package tiameds.pharmabackend.service.product.productImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.product.ProductDetailsDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
@@ -16,6 +17,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -35,11 +38,19 @@ public class ProductServiceImpl implements ProductService {
     @Autowired
     private ProductMapper mapper;
 
+    @Autowired
+    private CurrentPharmacyContext pharmacyContext;
+
     @Override
     @Transactional
     public ProductDetailsDto onboardProduct(ProductDetailsDto dto) {
         
-        PharmacyDetails pharmacy = pharmacyRepo.findById(dto.getPharmacyId())
+//        PharmacyDetails pharmacy = pharmacyRepo.findById(dto.getPharmacyId())
+//                .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        PharmacyDetails pharmacy = pharmacyRepo.findById(pharmacyId)
                 .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
 
         String createdBy = "System";
@@ -48,20 +59,21 @@ public class ProductServiceImpl implements ProductService {
             createdBy = String.valueOf(userId);
         }
 
-        if (userId != null) {
-            boolean valid = pharmacyRepo.existsUserPharmacy(dto.getPharmacyId(), userId);
-            if (!valid) {
-                throw new RuntimeException("You are not authorized to use this pharmacy.");
-            }
-        }
+//        if (userId != null) {
+//            boolean valid = pharmacyRepo.existsUserPharmacy(dto.getPharmacyId(), userId);
+//            if (!valid) {
+//                throw new RuntimeException("You are not authorized to use this pharmacy.");
+//            }
+//        }
                 
         String rawPharmacyName = pharmacy.getPharmacyName();
         final String pharmacyName = (rawPharmacyName == null) ? "XX" : rawPharmacyName;
 
         String productId = generateProductId(dto.getProductName(), pharmacyName);
-        
+
         ProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
-        
+
+        product.setPharmacy(pharmacy);
         dto.setProductId(productId);
 
         // Generate IDs and set bidirectional relationships
@@ -168,23 +180,39 @@ public class ProductServiceImpl implements ProductService {
         productRepo.save(product);
         return dto;
     }
+
+//    @Override
+//    @Transactional(readOnly = true)
+//    public java.util.List<ProductDetailsDto> getAllProducts() {
+//        Long userId = getCurrentUserId();
+//
+//        if (userId == null) {
+//            return productRepo.findAll().stream()
+//                    .map(mapper::toDto)
+//                    .collect(java.util.stream.Collectors.toList());
+//        }
+//
+//        java.util.List<String> allowedPharmacies = pharmacyRepo.findPharmacyIdsByUserId(userId);
+//
+//        return productRepo.findAll().stream()
+//                .filter(p -> p.getPharmacy() != null && allowedPharmacies.contains(p.getPharmacy().getPharmacyId()))
+//                .map(mapper::toDto)
+//                .collect(java.util.stream.Collectors.toList());
+//    }
+
     @Override
     @Transactional(readOnly = true)
-    public java.util.List<ProductDetailsDto> getAllProducts() {
-        Long userId = getCurrentUserId();
-        
-        if (userId == null) {
-            return productRepo.findAll().stream()
-                    .map(mapper::toDto)
-                    .collect(java.util.stream.Collectors.toList());
-        }
+    public List<ProductDetailsDto> getAllProducts() {
 
-        java.util.List<String> allowedPharmacies = pharmacyRepo.findPharmacyIdsByUserId(userId);
-        
-        return productRepo.findAll().stream()
-                .filter(p -> p.getPharmacy() != null && allowedPharmacies.contains(p.getPharmacy().getPharmacyId()))
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        return productRepo.findAll()
+                .stream()
+                .filter(product ->
+                        product.getPharmacy() != null &&
+                                pharmacyId.equals(product.getPharmacy().getPharmacyId()))
                 .map(mapper::toDto)
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -217,13 +245,28 @@ public class ProductServiceImpl implements ProductService {
         return null;
     }
 
+//    private void checkAuthorization(ProductDetails product) {
+//        Long userId = getCurrentUserId();
+//        if (userId != null && product.getPharmacy() != null) {
+//            boolean valid = pharmacyRepo.existsUserPharmacy(product.getPharmacy().getPharmacyId(), userId);
+//            if (!valid) {
+//                throw new RuntimeException("You are not authorized to access this product.");
+//            }
+//        }
+//    }
+
     private void checkAuthorization(ProductDetails product) {
-        Long userId = getCurrentUserId();
-        if (userId != null && product.getPharmacy() != null) {
-            boolean valid = pharmacyRepo.existsUserPharmacy(product.getPharmacy().getPharmacyId(), userId);
-            if (!valid) {
-                throw new RuntimeException("You are not authorized to access this product.");
-            }
+
+        String currentPharmacy =
+                pharmacyContext.getCurrentPharmacy();
+
+        if (product.getPharmacy() == null) {
+            throw new RuntimeException("Product is not mapped to any pharmacy.");
+        }
+
+        if (!product.getPharmacy().getPharmacyId().equals(currentPharmacy)) {
+            throw new RuntimeException(
+                    "You are not authorized to access this product.");
         }
     }
 

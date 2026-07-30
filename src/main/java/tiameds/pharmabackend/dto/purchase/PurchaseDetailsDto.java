@@ -14,6 +14,8 @@ public class PurchaseDetailsDto {
     private String batchId;
     private String batchNumber;
     private Long purchaseQuantity;
+    private Long freeUnit;
+    private Long freeQuantity;
     private BigDecimal grossAmount;
     private BigDecimal gst;
     private BigDecimal netAmount;
