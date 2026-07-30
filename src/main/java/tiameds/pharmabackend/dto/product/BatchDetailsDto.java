@@ -7,6 +7,7 @@ import lombok.Data;
 @Data
 public class BatchDetailsDto {
     private String batchId;
+    private String packagingId;
     private String batchNumber;
     private LocalDate manufacturingDate;
     private LocalDate expiryDate;
