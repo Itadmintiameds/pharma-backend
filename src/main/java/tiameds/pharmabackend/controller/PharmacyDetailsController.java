@@ -5,8 +5,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.LoggedInUserPharmacyDto;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
 import tiameds.pharmabackend.dto.PharmacySummaryDto;
+import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.PharmacyDetailsService;
 
@@ -38,6 +40,16 @@ public class PharmacyDetailsController {
                 pharmacyDetailsService.getPharmacyCitiesOfTheOrganization(
                         currentUser.getUserId()));
     }
+
+    @GetMapping("/userPharmacy")
+    public ResponseEntity<List<LoggedInUserPharmacyDto>> getLoggedInUserPharmacies(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        return ResponseEntity.ok(
+                pharmacyDetailsService.getLoggedInUserPharmacies(currentUser.getUserId())
+        );
+    }
+
 
 //    @PostMapping("/create")
 //    public ResponseEntity<PharmacyDetailsDto> createPharmacy(
