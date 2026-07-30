@@ -53,6 +53,11 @@ public class ProductAttributeNonConsumableMedical {
     @Column(name = "dimension_Size")
     private String dimensionSize;       // Technical Dimensions / Capacity / Configuration*
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "device_specification_unit_id")
+    @JsonIgnore
+    private DeviceSpecificationUnit deviceSpecificationUnit;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "pharma_non_consumable_material_mapping",

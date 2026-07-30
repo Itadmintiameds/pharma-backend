@@ -13,6 +13,7 @@ public class ProductAttributeConsumableMedicalDto {
     private List<Long> materialTypeIds;
     
     private String dimensionSize;
+    private Long deviceSpecificationUnitId;
     private String sterileOrNonSterile;
     private String disposalOrNonDisposal;
     private String purpose;
