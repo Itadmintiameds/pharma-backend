@@ -15,6 +15,11 @@ public class InventoryMapper {
     public BatchDetails toEntity(BatchDetailsDto dto, String createdBy, LocalDateTime createdAt) {
         if (dto == null) return null;
         BatchDetails entity = new BatchDetails();
+        if (dto.getPackagingId() != null) {
+            PackagingDetails pd = new PackagingDetails();
+            pd.setPackagingId(dto.getPackagingId());
+            entity.setPackagingDetails(pd);
+        }
         entity.setBatchNumber(dto.getBatchNumber());
         entity.setManufacturingDate(dto.getManufacturingDate());
         entity.setExpiryDate(dto.getExpiryDate());
@@ -49,6 +54,9 @@ public class InventoryMapper {
         if (entity == null) return null;
         BatchDetailsDto dto = new BatchDetailsDto();
         dto.setBatchId(entity.getBatchId());
+        if (entity.getPackagingDetails() != null) {
+            dto.setPackagingId(entity.getPackagingDetails().getPackagingId());
+        }
         dto.setBatchNumber(entity.getBatchNumber());
         dto.setManufacturingDate(entity.getManufacturingDate());
         dto.setExpiryDate(entity.getExpiryDate());

@@ -27,6 +27,11 @@ public class BatchDetails {
     private String batchId;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "packaging_id", referencedColumnName = "packaging_id")
+    @JsonIgnore
+    private PackagingDetails packagingDetails;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "product_id")
     @JsonIgnore
     private ProductDetails product;
