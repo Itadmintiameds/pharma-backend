@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import tiameds.pharmabackend.dto.product.ProductAttributeConsumableMedicalDto;
 import tiameds.pharmabackend.entity.master.DeviceCategory;
+import tiameds.pharmabackend.entity.master.DeviceSpecificationUnit;
 import tiameds.pharmabackend.entity.master.DeviceSubCategory;
 import tiameds.pharmabackend.entity.master.MaterialType;
 import tiameds.pharmabackend.entity.product.ProductAttributeConsumableMedical;
@@ -40,6 +41,12 @@ public class ConsumableMapper {
             entity.setMaterialTypes(list);
         }
         
+        if (dto.getDeviceSpecificationUnitId() != null) {
+            DeviceSpecificationUnit dsu = new DeviceSpecificationUnit();
+            dsu.setDeviceSpecificationUnitId(dto.getDeviceSpecificationUnitId());
+            entity.setDeviceSpecificationUnit(dsu);
+        }
+
         entity.setDimensionSize(dto.getDimensionSize());
         entity.setSterileOrNonSterile(dto.getSterileOrNonSterile());
         entity.setDisposalOrNonDisposal(dto.getDisposalOrNonDisposal());
@@ -64,6 +71,8 @@ public class ConsumableMapper {
             dto.setMaterialTypeIds(entity.getMaterialTypes().stream().map(MaterialType::getMaterialTypeId).collect(Collectors.toList()));
         }
         
+        if (entity.getDeviceSpecificationUnit() != null) dto.setDeviceSpecificationUnitId(entity.getDeviceSpecificationUnit().getDeviceSpecificationUnitId());
+
         dto.setDimensionSize(entity.getDimensionSize());
         dto.setSterileOrNonSterile(entity.getSterileOrNonSterile());
         dto.setDisposalOrNonDisposal(entity.getDisposalOrNonDisposal());

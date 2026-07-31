@@ -4,20 +4,32 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
+import tiameds.pharmabackend.dto.product.BatchDetailsDto;
+import tiameds.pharmabackend.dto.product.PackageWithBatchesDto;
+import tiameds.pharmabackend.dto.product.ProductDetailResponseDto;
 import tiameds.pharmabackend.dto.product.ProductDetailsDto;
+import tiameds.pharmabackend.dto.product.ProductStockSummaryDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.PackagingDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
+import tiameds.pharmabackend.repository.purchase.InventoryRepository;
 import tiameds.pharmabackend.service.product.ProductService;
 import tiameds.pharmabackend.mapper.product.ProductMapper;
+import tiameds.pharmabackend.mapper.product.category.ProductInventoryMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import tiameds.pharmabackend.security.CustomUserDetails;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,7 +51,16 @@ public class ProductServiceImpl implements ProductService {
     private ProductMapper mapper;
 
     @Autowired
+    private ProductInventoryMapper inventoryMapper;
+
+    @Autowired
+    private InventoryRepository inventoryRepo;
+
+    @Autowired
     private CurrentPharmacyContext pharmacyContext;
+
+    // A batch is "near expiry" when it expires within this many days from today.
+    private static final long NEAR_EXPIRY_DAYS = 30;
 
     @Override
     @Transactional
@@ -77,21 +98,33 @@ public class ProductServiceImpl implements ProductService {
         dto.setProductId(productId);
 
         // Generate IDs and set bidirectional relationships
-        if (product.getBatchDetails() != null && dto.getBatchDetails() != null) {
-            for (int i = 0; i < product.getBatchDetails().size(); i++) {
-                String bId = generateBatchId(pharmacyName);
-                product.getBatchDetails().get(i).setBatchId(bId);
-                product.getBatchDetails().get(i).setProduct(product);
-                dto.getBatchDetails().get(i).setBatchId(bId);
-            }
-        }
-        
         if (product.getPackagingDetails() != null && dto.getPackagingDetails() != null) {
             for (int i = 0; i < product.getPackagingDetails().size(); i++) {
                 String pId = generatePackagingId(pharmacyName);
                 product.getPackagingDetails().get(i).setPackagingId(pId);
                 product.getPackagingDetails().get(i).setProduct(product);
                 dto.getPackagingDetails().get(i).setPackagingId(pId);
+            }
+        }
+
+        if (product.getBatchDetails() != null && dto.getBatchDetails() != null) {
+            for (int i = 0; i < product.getBatchDetails().size(); i++) {
+                String bId = generateBatchId(pharmacyName);
+                var batchEntity = product.getBatchDetails().get(i);
+                var batchDto = dto.getBatchDetails().get(i);
+                batchEntity.setBatchId(bId);
+                batchEntity.setProduct(product);
+                batchDto.setBatchId(bId);
+
+                // Automatically link batch to the packaging details created in this onboarding request
+                if (product.getPackagingDetails() != null && !product.getPackagingDetails().isEmpty()) {
+                    var pkgEntity = product.getPackagingDetails().get(0);
+                    batchEntity.setPackagingDetails(pkgEntity);
+                    batchDto.setPackagingId(pkgEntity.getPackagingId());
+                    if (pkgEntity.getBatchDetails() != null) {
+                        pkgEntity.getBatchDetails().add(batchEntity);
+                    }
+                }
             }
         }
         
@@ -213,6 +246,174 @@ public class ProductServiceImpl implements ProductService {
                                 pharmacyId.equals(product.getPharmacy().getPharmacyId()))
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    // ===== API 1: products of the current pharmacy with stock + expiry status =====
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductStockSummaryDto> getProductStockSummaries() {
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        // stock lives in pharma_inventory, not on the batch -> load all stock
+        // rows for the pharmacy once and group them by product.
+        Map<String, List<Inventory>> inventoryByProduct =
+                inventoryRepo.findByPharmacy_PharmacyId(pharmacyId)
+                        .stream()
+                        .filter(inv -> inv.getProduct() != null)
+                        .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
+
+        return productRepo.findAll()
+                .stream()
+                .filter(product ->
+                        product.getPharmacy() != null &&
+                                pharmacyId.equals(product.getPharmacy().getPharmacyId()))
+                .map(product -> toStockSummary(
+                        product,
+                        inventoryByProduct.getOrDefault(product.getProductId(), List.of())))
+                .collect(Collectors.toList());
+    }
+
+    private ProductStockSummaryDto toStockSummary(ProductDetails product, List<Inventory> inventories) {
+        ProductStockSummaryDto dto = new ProductStockSummaryDto();
+        dto.setProductId(product.getProductId());
+        dto.setProductName(product.getProductName());
+
+        LocalDate today = LocalDate.now();
+        LocalDate nearExpiryCutoff = today.plusDays(NEAR_EXPIRY_DAYS);
+
+        long totalStock = 0L;
+        long active = 0L;
+        long nearExpiry = 0L;
+        long expired = 0L;
+        LocalDate nearestExpiry = null;
+
+        for (Inventory inv : inventories) {
+            long stock = inv.getTotalStock() == null ? 0L : inv.getTotalStock();
+
+            totalStock += stock;
+
+            // status is counted only over stock rows that actually hold stock
+            if (stock <= 0 || inv.getBatch() == null) {
+                continue;
+            }
+
+            LocalDate expiry = inv.getBatch().getExpiryDate();
+            if (expiry == null) {
+                // no expiry recorded -> treat as active, ignore for nearest-expiry
+                active++;
+                continue;
+            }
+
+            if (nearestExpiry == null || expiry.isBefore(nearestExpiry)) {
+                nearestExpiry = expiry;
+            }
+
+            if (expiry.isBefore(today)) {
+                expired++;
+            } else if (!expiry.isAfter(nearExpiryCutoff)) {
+                // today <= expiry <= today + NEAR_EXPIRY_DAYS
+                nearExpiry++;
+            } else {
+                active++;
+            }
+        }
+
+        dto.setTotalStock(totalStock);
+        dto.setActiveBatches(active);
+        dto.setNearExpiryBatches(nearExpiry);
+        dto.setExpiredBatches(expired);
+        dto.setNearestExpiryDate(nearestExpiry);
+        dto.setOverallStatus(resolveOverallStatus(active, nearExpiry, expired));
+
+        return dto;
+    }
+
+    private String resolveOverallStatus(long active, long nearExpiry, long expired) {
+        if (expired > 0) {
+            return "EXPIRED";
+        }
+        if (nearExpiry > 0) {
+            return "NEAR_EXPIRY";
+        }
+        if (active > 0) {
+            return "ACTIVE";
+        }
+        return "OUT_OF_STOCK";
+    }
+
+    // ===== API 2: complete product details with batches grouped per package =====
+    @Override
+    @Transactional(readOnly = true)
+    public ProductDetailResponseDto getProductDetails(String productId) {
+        ProductDetails product = productRepo.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+
+        checkAuthorization(product);
+
+        ProductDetailResponseDto dto = new ProductDetailResponseDto();
+        dto.setProductId(product.getProductId());
+        if (product.getPharmacy() != null) {
+            dto.setPharmacyId(product.getPharmacy().getPharmacyId());
+        }
+        if (product.getProductCategory() != null) {
+            dto.setProductCategoryId(product.getProductCategory().getProductCategoryId());
+        }
+        dto.setProductName(product.getProductName());
+        dto.setBrandName(product.getBrandName());
+        dto.setGstPercentage(product.getGstPercentage());
+        dto.setHsnNo(product.getHsnNo());
+
+        // per-batch stock comes from pharma_inventory, not the batch row
+        Map<String, Long> stockByBatch =
+                inventoryRepo.findByProduct_ProductId(product.getProductId())
+                        .stream()
+                        .filter(inv -> inv.getBatch() != null)
+                        .collect(Collectors.groupingBy(
+                                inv -> inv.getBatch().getBatchId(),
+                                Collectors.summingLong(inv ->
+                                        inv.getTotalStock() == null ? 0L : inv.getTotalStock())));
+
+        List<BatchDetails> batches = product.getBatchDetails() == null
+                ? new ArrayList<>()
+                : product.getBatchDetails();
+
+        // batches with no package linkage are surfaced separately
+        List<BatchDetailsDto> unassigned = batches.stream()
+                .filter(b -> b.getPackagingDetails() == null)
+                .map(b -> toBatchDto(b, stockByBatch))
+                .collect(Collectors.toList());
+        dto.setUnassignedBatches(unassigned);
+
+        List<PackageWithBatchesDto> packages = new ArrayList<>();
+        if (product.getPackagingDetails() != null) {
+            for (PackagingDetails pack : product.getPackagingDetails()) {
+                PackageWithBatchesDto packDto = new PackageWithBatchesDto();
+                packDto.setPackagingId(pack.getPackagingId());
+                packDto.setPurchaseUnit(pack.getPurchaseUnit());
+                packDto.setPurchaseUnitContains(pack.getPurchaseUnitContains());
+                packDto.setSmallestUnit(pack.getSmallestUnit());
+
+                List<BatchDetailsDto> packBatches = batches.stream()
+                        .filter(b -> b.getPackagingDetails() != null
+                                && pack.getPackagingId().equals(b.getPackagingDetails().getPackagingId()))
+                        .map(b -> toBatchDto(b, stockByBatch))
+                        .collect(Collectors.toList());
+                packDto.setBatches(packBatches);
+
+                packages.add(packDto);
+            }
+        }
+        dto.setPackages(packages);
+
+        return dto;
+    }
+
+    // maps a batch and overrides its stockQuantity with the value from pharma_inventory
+    private BatchDetailsDto toBatchDto(BatchDetails batch, Map<String, Long> stockByBatch) {
+        BatchDetailsDto batchDto = inventoryMapper.toDto(batch);
+        batchDto.setStockQuantity(stockByBatch.getOrDefault(batch.getBatchId(), 0L));
+        return batchDto;
     }
 
     @Override

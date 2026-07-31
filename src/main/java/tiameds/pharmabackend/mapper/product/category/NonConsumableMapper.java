@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import tiameds.pharmabackend.dto.product.ProductAttributeNonConsumableMedicalDto;
 import tiameds.pharmabackend.entity.master.Country;
 import tiameds.pharmabackend.entity.master.DeviceCategory;
+import tiameds.pharmabackend.entity.master.DeviceSpecificationUnit;
 import tiameds.pharmabackend.entity.master.DeviceSubCategory;
 import tiameds.pharmabackend.entity.master.MaterialType;
 import tiameds.pharmabackend.entity.master.PowerSource;
@@ -52,6 +53,12 @@ public class NonConsumableMapper {
             entity.setCountryMaster(c);
         }
         
+        if (dto.getDeviceSpecificationUnitId() != null) {
+            DeviceSpecificationUnit dsu = new DeviceSpecificationUnit();
+            dsu.setDeviceSpecificationUnitId(dto.getDeviceSpecificationUnitId());
+            entity.setDeviceSpecificationUnit(dsu);
+        }
+
         entity.setModelName(dto.getModelName());
         entity.setDeviceClassification(dto.getDeviceClassification());
         entity.setPurpose(dto.getPurpose());
@@ -78,6 +85,8 @@ public class NonConsumableMapper {
         if (entity.getPowerSource() != null) dto.setPowerSourceId(entity.getPowerSource().getPowerSourceId());
         if (entity.getCountryMaster() != null) dto.setCountryId(entity.getCountryMaster().getCountryId());
         
+        if (entity.getDeviceSpecificationUnit() != null) dto.setDeviceSpecificationUnitId(entity.getDeviceSpecificationUnit().getDeviceSpecificationUnitId());
+
         dto.setModelName(entity.getModelName());
         dto.setDeviceClassification(entity.getDeviceClassification());
         dto.setPurpose(entity.getPurpose());

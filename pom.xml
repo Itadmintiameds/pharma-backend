@@ -114,6 +114,12 @@
 			<version>0.12.5</version>
 			<scope>runtime</scope>
 		</dependency>
+<!-- added this for env dependency for global	-->
+		<dependency>
+			<groupId>me.paulschwarz</groupId>
+			<artifactId>spring-dotenv</artifactId>
+			<version>4.0.0</version>
+		</dependency>
 
 	<!--	S3 Configuration	-->
 		<dependency>

@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.master.DeviceCategory;
+import tiameds.pharmabackend.entity.master.DeviceSpecificationUnit;
 import tiameds.pharmabackend.entity.master.DeviceSubCategory;
 import tiameds.pharmabackend.entity.master.MaterialType;
 
@@ -54,6 +55,11 @@ public class ProductAttributeConsumableMedical {
 
     @Column(name = "dimension_Size")
     private String dimensionSize;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "device_specification_unit_id")
+    @JsonIgnore
+    private DeviceSpecificationUnit deviceSpecificationUnit;
 
     @Column(name = "sterile_or_non_sterile")
     private String sterileOrNonSterile;

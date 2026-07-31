@@ -63,10 +63,10 @@ public class ProductDetails {
     private LocalDateTime modifiedAt;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<BatchDetails> batchDetails;
+    private java.util.List<PackagingDetails> packagingDetails;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<PackagingDetails> packagingDetails;
+    private java.util.List<BatchDetails> batchDetails;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<ProductAttributeSupplements> productAttributeSupplements;
