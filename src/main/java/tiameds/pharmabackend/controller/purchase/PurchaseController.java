@@ -9,6 +9,8 @@ import tiameds.pharmabackend.dto.purchase.PurchaseDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.purchase.PurchaseService;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/purchase")
 @RequiredArgsConstructor
@@ -30,5 +32,20 @@ public class PurchaseController {
                 currentUser.getUser());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+
+    @GetMapping("/allPurchase")
+    public ResponseEntity<?> getAllPurchases(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<PurchaseDto> purchases =
+                purchaseService.getAllPurchases(currentUser.getUser());
+
+        return ResponseEntity.ok(purchases);
     }
 }

@@ -48,4 +48,22 @@ public class SupplierMasterController {
 
         return ResponseEntity.ok(suppliers);
     }
+
+
+    @GetMapping("/getById/{supplierId}")
+    public ResponseEntity<?> getSupplierById(
+            @PathVariable Long supplierId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        SupplierMasterDto supplier =
+                supplierMasterService.getSupplierById(
+                        supplierId,
+                        currentUser.getUser());
+
+        return ResponseEntity.ok(supplier);
+    }
 }
