@@ -26,7 +26,7 @@ public class BatchDetails {
     @Column(name = "batch_id", length = 30)
     private String batchId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST, CascadeType.MERGE })
     @JoinColumn(name = "packaging_id", referencedColumnName = "packaging_id")
     @JsonIgnore
     private PackagingDetails packagingDetails;

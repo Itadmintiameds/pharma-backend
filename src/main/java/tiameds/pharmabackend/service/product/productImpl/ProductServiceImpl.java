@@ -77,21 +77,33 @@ public class ProductServiceImpl implements ProductService {
         dto.setProductId(productId);
 
         // Generate IDs and set bidirectional relationships
-        if (product.getBatchDetails() != null && dto.getBatchDetails() != null) {
-            for (int i = 0; i < product.getBatchDetails().size(); i++) {
-                String bId = generateBatchId(pharmacyName);
-                product.getBatchDetails().get(i).setBatchId(bId);
-                product.getBatchDetails().get(i).setProduct(product);
-                dto.getBatchDetails().get(i).setBatchId(bId);
-            }
-        }
-        
         if (product.getPackagingDetails() != null && dto.getPackagingDetails() != null) {
             for (int i = 0; i < product.getPackagingDetails().size(); i++) {
                 String pId = generatePackagingId(pharmacyName);
                 product.getPackagingDetails().get(i).setPackagingId(pId);
                 product.getPackagingDetails().get(i).setProduct(product);
                 dto.getPackagingDetails().get(i).setPackagingId(pId);
+            }
+        }
+
+        if (product.getBatchDetails() != null && dto.getBatchDetails() != null) {
+            for (int i = 0; i < product.getBatchDetails().size(); i++) {
+                String bId = generateBatchId(pharmacyName);
+                var batchEntity = product.getBatchDetails().get(i);
+                var batchDto = dto.getBatchDetails().get(i);
+                batchEntity.setBatchId(bId);
+                batchEntity.setProduct(product);
+                batchDto.setBatchId(bId);
+
+                // Automatically link batch to the packaging details created in this onboarding request
+                if (product.getPackagingDetails() != null && !product.getPackagingDetails().isEmpty()) {
+                    var pkgEntity = product.getPackagingDetails().get(0);
+                    batchEntity.setPackagingDetails(pkgEntity);
+                    batchDto.setPackagingId(pkgEntity.getPackagingId());
+                    if (pkgEntity.getBatchDetails() != null) {
+                        pkgEntity.getBatchDetails().add(batchEntity);
+                    }
+                }
             }
         }
         
