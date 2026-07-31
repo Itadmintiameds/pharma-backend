@@ -9,6 +9,8 @@ import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.supplier.SupplierMasterService;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/supplier")
 @RequiredArgsConstructor
@@ -31,5 +33,19 @@ public class SupplierMasterController {
                         currentUser.getUser());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/allSupplier")
+    public ResponseEntity<?> getAllSuppliers(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<SupplierMasterDto> suppliers =
+                supplierMasterService.getAllSuppliers(currentUser.getUser());
+
+        return ResponseEntity.ok(suppliers);
     }
 }

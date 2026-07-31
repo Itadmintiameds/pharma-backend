@@ -19,6 +19,8 @@ public class PurchaseDetailsMapper {
         dto.setProductId(entity.getProduct().getProductId());
         dto.setBatchId(entity.getBatch().getBatchId());
         dto.setPurchaseQuantity(entity.getPurchaseQuantity());
+        dto.setFreeUnit(entity.getFreeUnit());
+        dto.setFreeQuantity(entity.getFreeQuantity());
         dto.setGrossAmount(entity.getGrossAmount());
         dto.setGst(entity.getGst());
         dto.setNetAmount(entity.getNetAmount());
@@ -53,6 +55,8 @@ public class PurchaseDetailsMapper {
         }
 
         entity.setPurchaseQuantity(dto.getPurchaseQuantity());
+        entity.setFreeUnit(dto.getFreeUnit());
+        entity.setFreeQuantity(dto.getFreeQuantity());
         entity.setGrossAmount(dto.getGrossAmount());
         entity.setGst(dto.getGst());
         entity.setNetAmount(dto.getNetAmount());

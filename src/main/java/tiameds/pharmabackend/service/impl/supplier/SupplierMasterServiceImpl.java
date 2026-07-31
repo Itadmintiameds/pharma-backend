@@ -3,6 +3,7 @@ package tiameds.pharmabackend.service.impl.supplier;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
@@ -13,6 +14,8 @@ import tiameds.pharmabackend.repository.supplier.SupplierMasterRepository;
 import tiameds.pharmabackend.service.supplier.SupplierMasterService;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
     private final SupplierMasterMapper supplierMasterMapper;
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
+    private final CurrentPharmacyContext pharmacyContext;
 
     @Override
     public SupplierMasterDto createSupplier(
@@ -32,17 +36,19 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
         boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
-                supplierDto.getPharmacyId(),
+                pharmacyId,
                 persistentUser.getUserId());
 
         if (!valid) {
             throw new RuntimeException("You are not authorized to use this pharmacy.");
         }
 
-        SupplierMaster supplier =
-                supplierMasterMapper.toEntity(supplierDto);
+        SupplierMaster supplier = supplierMasterMapper.toEntity(supplierDto);
 
+        supplier.setPharmacyId(pharmacyId);
         supplier.setCreatedBy(String.valueOf(persistentUser.getUserId()));
         supplier.setCreatedAt(LocalDateTime.now());
 
@@ -53,5 +59,28 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
                 supplierMasterRepository.save(supplier);
 
         return supplierMasterMapper.toDto(savedSupplier);
+    }
+
+
+    @Override
+    public List<SupplierMasterDto> getAllSuppliers(UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        return supplierMasterRepository.findByPharmacyId(pharmacyId)
+                .stream()
+                .map(supplierMasterMapper::toDto)
+                .collect(Collectors.toList());
     }
 }
