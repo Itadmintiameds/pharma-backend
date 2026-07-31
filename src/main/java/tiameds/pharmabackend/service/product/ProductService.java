@@ -1,7 +1,10 @@
 package tiameds.pharmabackend.service.product;
 
+import tiameds.pharmabackend.dto.product.AddPackageRequest;
+import tiameds.pharmabackend.dto.product.BatchDetailsDto;
 import tiameds.pharmabackend.dto.product.ProductDetailResponseDto;
 import tiameds.pharmabackend.dto.product.ProductDetailsDto;
+import tiameds.pharmabackend.dto.product.ProductExpiryKpiDto;
 import tiameds.pharmabackend.dto.product.ProductStockSummaryDto;
 
 import java.util.List;
@@ -17,4 +20,13 @@ public interface ProductService {
 
     // API 2: complete details of one product with batches grouped per package
     ProductDetailResponseDto getProductDetails(String productId);
+
+    // Dashboard KPI: product counts bucketed by nearest in-stock expiry
+    ProductExpiryKpiDto getExpiryKpi();
+
+    // Add a new package (optionally with batches) to an existing product
+    ProductDetailResponseDto addPackage(String productId, AddPackageRequest request);
+
+    // Add one or more batches to existing packages of a product (each batch carries its packagingId)
+    ProductDetailResponseDto addBatches(String productId, List<BatchDetailsDto> batches);
 }

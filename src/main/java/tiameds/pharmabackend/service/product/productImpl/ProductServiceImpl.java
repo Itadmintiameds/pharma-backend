@@ -1,30 +1,27 @@
 package tiameds.pharmabackend.service.product.productImpl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
-import tiameds.pharmabackend.dto.product.BatchDetailsDto;
-import tiameds.pharmabackend.dto.product.PackageWithBatchesDto;
-import tiameds.pharmabackend.dto.product.ProductDetailResponseDto;
-import tiameds.pharmabackend.dto.product.ProductDetailsDto;
-import tiameds.pharmabackend.dto.product.ProductStockSummaryDto;
+import tiameds.pharmabackend.dto.product.*;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Inventory;
+import tiameds.pharmabackend.mapper.product.ProductMapper;
+import tiameds.pharmabackend.mapper.product.category.ProductInventoryMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.PackagingDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.InventoryRepository;
-import tiameds.pharmabackend.service.product.ProductService;
-import tiameds.pharmabackend.mapper.product.ProductMapper;
-import tiameds.pharmabackend.mapper.product.category.ProductInventoryMapper;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.service.product.ProductService;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -37,16 +34,16 @@ public class ProductServiceImpl implements ProductService {
 
     @Autowired
     private ProductDetailsRepository productRepo;
-    
+
     @Autowired
     private PackagingDetailsRepository packagingRepo;
-    
+
     @Autowired
     private BatchDetailsRepository batchRepo;
-    
+
     @Autowired
     private PharmacyDetailsRepository pharmacyRepo;
-    
+
     @Autowired
     private ProductMapper mapper;
 
@@ -65,7 +62,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductDetailsDto onboardProduct(ProductDetailsDto dto) {
-        
+
 //        PharmacyDetails pharmacy = pharmacyRepo.findById(dto.getPharmacyId())
 //                .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
 
@@ -86,7 +83,7 @@ public class ProductServiceImpl implements ProductService {
 //                throw new RuntimeException("You are not authorized to use this pharmacy.");
 //            }
 //        }
-                
+
         String rawPharmacyName = pharmacy.getPharmacyName();
         final String pharmacyName = (rawPharmacyName == null) ? "XX" : rawPharmacyName;
 
@@ -127,7 +124,7 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
         }
-        
+
         // Setup supplements relationship
         if (product.getProductAttributeSupplements() != null && dto.getProductAttributeSupplements() != null) {
             for (int i = 0; i < product.getProductAttributeSupplements().size(); i++) {
@@ -137,7 +134,7 @@ public class ProductServiceImpl implements ProductService {
                 dto.getProductAttributeSupplements().get(i).setProductAttributeId(sId);
             }
         }
-        
+
         // Setup cosmetics relationship
         if (product.getProductAttributeCosmetics() != null && dto.getProductAttributeCosmetics() != null) {
             for (int i = 0; i < product.getProductAttributeCosmetics().size(); i++) {
@@ -147,7 +144,7 @@ public class ProductServiceImpl implements ProductService {
                 dto.getProductAttributeCosmetics().get(i).setProductAttributeId(cId);
             }
         }
-        
+
         // Setup food and infants relationship
         if (product.getProductAttributeFoodInfants() != null && dto.getProductAttributeFoodInfants() != null) {
             for (int i = 0; i < product.getProductAttributeFoodInfants().size(); i++) {
@@ -157,7 +154,7 @@ public class ProductServiceImpl implements ProductService {
                 dto.getProductAttributeFoodInfants().get(i).setProductAttributeId(fId);
             }
         }
-        
+
 
         // Setup consumable medical relationship
         if (product.getProductAttributeConsumableMedicals() != null && dto.getProductAttributeConsumableMedicals() != null) {
@@ -168,7 +165,7 @@ public class ProductServiceImpl implements ProductService {
                 dto.getProductAttributeConsumableMedicals().get(i).setProductAttributeId(cId);
             }
         }
-        
+
         // Setup non-consumable medical relationship
         if (product.getProductAttributeNonConsumableMedicals() != null && dto.getProductAttributeNonConsumableMedicals() != null) {
             for (int i = 0; i < product.getProductAttributeNonConsumableMedicals().size(); i++) {
@@ -188,7 +185,7 @@ public class ProductServiceImpl implements ProductService {
                 drugEntity.setProductAttributeId(drugAttrId);
                 drugEntity.setProduct(product);
                 dDto.setProductAttributeId(drugAttrId);
-                
+
                 if (drugEntity.getProductMolecules() != null) {
                     for (var molEntity : drugEntity.getProductMolecules()) {
                         tiameds.pharmabackend.entity.product.ProductMoleculeId molId = new tiameds.pharmabackend.entity.product.ProductMoleculeId();
@@ -200,7 +197,7 @@ public class ProductServiceImpl implements ProductService {
                         molEntity.setProductAttributeDrug(drugEntity);
                     }
                 }
-                
+
                 if (dDto.getProductMolecules() != null) {
                     for (var mDto : dDto.getProductMolecules()) {
                         mDto.setProductAttributeId(drugAttrId);
@@ -209,7 +206,7 @@ public class ProductServiceImpl implements ProductService {
                 entityIndex++;
             }
         }
-        
+
         productRepo.save(product);
         return dto;
     }
@@ -239,11 +236,8 @@ public class ProductServiceImpl implements ProductService {
 
         String pharmacyId = pharmacyContext.getCurrentPharmacy();
 
-        return productRepo.findAll()
+        return productRepo.findByPharmacy_PharmacyId(pharmacyId)
                 .stream()
-                .filter(product ->
-                        product.getPharmacy() != null &&
-                                pharmacyId.equals(product.getPharmacy().getPharmacyId()))
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -263,11 +257,8 @@ public class ProductServiceImpl implements ProductService {
                         .filter(inv -> inv.getProduct() != null)
                         .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
 
-        return productRepo.findAll()
+        return productRepo.findByPharmacy_PharmacyId(pharmacyId)
                 .stream()
-                .filter(product ->
-                        product.getPharmacy() != null &&
-                                pharmacyId.equals(product.getPharmacy().getPharmacyId()))
                 .map(product -> toStockSummary(
                         product,
                         inventoryByProduct.getOrDefault(product.getProductId(), List.of())))
@@ -340,6 +331,82 @@ public class ProductServiceImpl implements ProductService {
             return "ACTIVE";
         }
         return "OUT_OF_STOCK";
+    }
+
+    // ===== Dashboard KPI: product counts bucketed by nearest in-stock expiry =====
+    @Override
+    @Transactional(readOnly = true)
+    public ProductExpiryKpiDto getExpiryKpi() {
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        // in-stock rows for the pharmacy, grouped by product
+        Map<String, List<Inventory>> inventoryByProduct =
+                inventoryRepo.findByPharmacy_PharmacyId(pharmacyId)
+                        .stream()
+                        .filter(inv -> inv.getProduct() != null)
+                        .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
+
+        List<ProductDetails> products = productRepo.findByPharmacy_PharmacyId(pharmacyId);
+
+        LocalDate today = LocalDate.now();
+        LocalDate in30Days = today.plusDays(30);
+        LocalDate in60Days = today.plusDays(60);
+
+        long expired = 0;
+        long expiring0To30 = 0;
+        long expiring31To60 = 0;
+        long healthy = 0;
+
+        for (ProductDetails product : products) {
+            List<Inventory> inventories =
+                    inventoryByProduct.getOrDefault(product.getProductId(), List.of());
+
+            LocalDate nearest = null;
+            boolean hasInStock = false;
+
+            for (Inventory inv : inventories) {
+                long stock = inv.getTotalStock() == null ? 0L : inv.getTotalStock();
+                if (stock <= 0 || inv.getBatch() == null) {
+                    continue;
+                }
+                hasInStock = true;
+
+                LocalDate expiry = inv.getBatch().getExpiryDate();
+                if (expiry == null) {
+                    continue; // no expiry -> does not affect nearest
+                }
+                if (nearest == null || expiry.isBefore(nearest)) {
+                    nearest = expiry;
+                }
+            }
+
+            // products with no in-stock batch count only towards the total
+            if (!hasInStock) {
+                continue;
+            }
+
+            // only null-expiry stock on hand -> treat as healthy
+            if (nearest == null) {
+                healthy++;
+            } else if (nearest.isBefore(today)) {
+                expired++;
+            } else if (!nearest.isAfter(in30Days)) {
+                expiring0To30++;               // today .. today + 30
+            } else if (!nearest.isAfter(in60Days)) {
+                expiring31To60++;              // today + 31 .. today + 60
+            } else {
+                healthy++;                     // > today + 60
+            }
+        }
+
+        ProductExpiryKpiDto dto = new ProductExpiryKpiDto();
+        dto.setTotalProducts(products.size());
+        dto.setExpired(expired);
+        dto.setExpiring0To30Days(expiring0To30);
+        dto.setExpiring31To60Days(expiring31To60);
+        dto.setHealthyAbove60Days(healthy);
+        return dto;
     }
 
     // ===== API 2: complete product details with batches grouped per package =====
@@ -416,14 +483,107 @@ public class ProductServiceImpl implements ProductService {
         return batchDto;
     }
 
+    // ===== Add a new package (optionally with batches) to an existing product =====
+    @Override
+    @Transactional
+    public ProductDetailResponseDto addPackage(String productId, AddPackageRequest request) {
+        ProductDetails product = productRepo.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+
+        checkAuthorization(product);
+
+        String pharmacyName = resolvePharmacyName(product);
+        String createdBy = resolveCreatedBy();
+        LocalDateTime now = LocalDateTime.now();
+
+        PackagingDetails pkg = new PackagingDetails();
+        pkg.setPackagingId(generatePackagingId(pharmacyName));
+        pkg.setProduct(product);
+        pkg.setPurchaseUnit(request.getPurchaseUnit());
+        pkg.setPurchaseUnitContains(request.getPurchaseUnitContains());
+        pkg.setSmallestUnit(request.getSmallestUnit());
+        pkg.setCreatedBy(createdBy);
+        pkg.setCreatedAt(now);
+
+        List<BatchDetailsDto> batchDtos = request.getBatches() == null
+                ? List.of()
+                : request.getBatches();
+
+        List<String> batchIds = nextBatchIds(pharmacyName, batchDtos.size());
+        List<BatchDetails> batchEntities = new ArrayList<>();
+        for (int i = 0; i < batchDtos.size(); i++) {
+            BatchDetails batch = inventoryMapper.toEntity(batchDtos.get(i), createdBy, now);
+            batch.setBatchId(batchIds.get(i));
+            batch.setProduct(product);
+            batch.setPackagingDetails(pkg);
+            batchEntities.add(batch);
+        }
+        pkg.setBatchDetails(batchEntities);
+
+        // cascade ALL on PackagingDetails.batchDetails persists the batches too
+        packagingRepo.save(pkg);
+
+        return getProductDetails(productId);
+    }
+
+    // ===== Add batches to existing packages of a product =====
+    @Override
+    @Transactional
+    public ProductDetailResponseDto addBatches(String productId, List<BatchDetailsDto> batches) {
+        if (batches == null || batches.isEmpty()) {
+            throw new RuntimeException("At least one batch is required.");
+        }
+
+        ProductDetails product = productRepo.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+
+        checkAuthorization(product);
+
+        // packages that belong to this product, keyed by id, for ownership validation
+        Map<String, PackagingDetails> ownPackages = product.getPackagingDetails() == null
+                ? Map.of()
+                : product.getPackagingDetails().stream()
+                .collect(Collectors.toMap(PackagingDetails::getPackagingId, p -> p));
+
+        String pharmacyName = resolvePharmacyName(product);
+        String createdBy = resolveCreatedBy();
+        LocalDateTime now = LocalDateTime.now();
+
+        List<String> batchIds = nextBatchIds(pharmacyName, batches.size());
+        List<BatchDetails> batchEntities = new ArrayList<>();
+        for (int i = 0; i < batches.size(); i++) {
+            BatchDetailsDto bDto = batches.get(i);
+
+            String packagingId = bDto.getPackagingId();
+            if (packagingId == null || packagingId.isBlank()) {
+                throw new RuntimeException("packagingId is required for each batch.");
+            }
+            PackagingDetails pkg = ownPackages.get(packagingId);
+            if (pkg == null) {
+                throw new RuntimeException(
+                        "Packaging " + packagingId + " does not belong to product " + productId);
+            }
+
+            BatchDetails batch = inventoryMapper.toEntity(bDto, createdBy, now);
+            batch.setBatchId(batchIds.get(i));
+            batch.setProduct(product);
+            batch.setPackagingDetails(pkg);
+            batchEntities.add(batch);
+        }
+
+        batchRepo.saveAll(batchEntities);
+
+        return getProductDetails(productId);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public ProductDetailsDto getProductById(String productId) {
         ProductDetails product = productRepo.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
-                
+
         checkAuthorization(product);
-        
+
         return mapper.toDto(product);
     }
 
@@ -432,9 +592,9 @@ public class ProductServiceImpl implements ProductService {
     public void deleteProduct(String productId) {
         ProductDetails product = productRepo.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
-                
+
         checkAuthorization(product);
-        
+
         productRepo.deleteById(productId);
     }
 
@@ -481,6 +641,40 @@ public class ProductServiceImpl implements ProductService {
         Integer lastNumber = productRepo.findMaxProductNumber();
         int nextNumber = (lastNumber == null) ? 1 : lastNumber + 1;
         return prefix + namePart + String.format("%05d", nextNumber);
+    }
+
+    private String resolvePharmacyName(ProductDetails product) {
+        String name = product.getPharmacy() == null ? null : product.getPharmacy().getPharmacyName();
+        return name == null ? "XX" : name;
+    }
+
+    private String resolveCreatedBy() {
+        Long userId = getCurrentUserId();
+        return userId != null ? String.valueOf(userId) : "System";
+    }
+
+    private String pharmacyPrefix(String pharmacyName) {
+        String cleaned = pharmacyName.replaceAll("[^a-zA-Z]", "").toUpperCase();
+        return cleaned.length() >= 2
+                ? cleaned.substring(0, 2)
+                : String.format("%-2s", cleaned).replace(' ', 'X');
+    }
+
+    // Generates a contiguous block of batch ids in one shot so multiple batches
+    // created in a single request don't collide (findMaxBatchNumber only sees
+    // persisted rows). Synchronized to match the single-id generators.
+    private synchronized List<String> nextBatchIds(String pharmacyName, int count) {
+        List<String> ids = new ArrayList<>();
+        if (count <= 0) {
+            return ids;
+        }
+        String prefix = pharmacyPrefix(pharmacyName);
+        Integer lastNumber = batchRepo.findMaxBatchNumber();
+        int next = (lastNumber == null) ? 0 : lastNumber;
+        for (int i = 0; i < count; i++) {
+            ids.add(prefix + "BTCH" + String.format("%05d", ++next));
+        }
+        return ids;
     }
 
     private synchronized String generatePackagingId(String pharmacyName) {
