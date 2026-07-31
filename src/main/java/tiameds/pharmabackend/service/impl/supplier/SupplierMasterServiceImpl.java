@@ -83,4 +83,31 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
                 .map(supplierMasterMapper::toDto)
                 .collect(Collectors.toList());
     }
+
+
+    @Override
+    public SupplierMasterDto getSupplierById(
+            Long supplierId,
+            UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        SupplierMaster supplier = supplierMasterRepository
+                .findBySupplierIdAndPharmacyId(supplierId, pharmacyId)
+                .orElseThrow(() ->
+                        new RuntimeException("Supplier not found"));
+
+        return supplierMasterMapper.toDto(supplier);
+    }
 }

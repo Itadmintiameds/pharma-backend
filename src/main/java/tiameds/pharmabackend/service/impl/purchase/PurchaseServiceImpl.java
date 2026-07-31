@@ -1,6 +1,8 @@
 package tiameds.pharmabackend.service.impl.purchase;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -190,5 +192,28 @@ public class PurchaseServiceImpl implements PurchaseService {
         }
 
         return PurchaseMapper.toDto(savedPurchase);
+    }
+
+
+    @Override
+    public List<PurchaseDto> getAllPurchases(UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        return purchaseRepository.findByPharmacyId(pharmacyId)
+                .stream()
+                .map(PurchaseMapper::toDto)
+                .collect(Collectors.toList());
     }
 }
