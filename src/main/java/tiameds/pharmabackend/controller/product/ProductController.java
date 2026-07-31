@@ -3,8 +3,11 @@ package tiameds.pharmabackend.controller.product;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.product.ProductDetailResponseDto;
 import tiameds.pharmabackend.dto.product.ProductDetailsDto;
+import tiameds.pharmabackend.dto.product.ProductStockSummaryDto;
 import tiameds.pharmabackend.service.product.ProductService;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -32,6 +35,27 @@ public class ProductController {
         response.put("message", "Products retrieved successfully");
         response.put("count", products.size());
         response.put("data", products);
+        return ResponseEntity.ok(response);
+    }
+
+    // API 1: all products of the current pharmacy with stock + expiry status
+    @GetMapping("/stock-summary")
+    public ResponseEntity<Map<String, Object>> getProductStockSummaries() {
+        List<ProductStockSummaryDto> summaries = pharmaProductService.getProductStockSummaries();
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Product stock summaries retrieved successfully");
+        response.put("count", summaries.size());
+        response.put("data", summaries);
+        return ResponseEntity.ok(response);
+    }
+
+    // API 2: complete details of one product with batches grouped per package
+    @GetMapping("/{productId}/details")
+    public ResponseEntity<Map<String, Object>> getProductDetails(@PathVariable String productId) {
+        ProductDetailResponseDto product = pharmaProductService.getProductDetails(productId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Product details retrieved successfully");
+        response.put("data", product);
         return ResponseEntity.ok(response);
     }
 
