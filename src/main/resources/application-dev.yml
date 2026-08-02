@@ -4,6 +4,9 @@ jwt:
   refresh-token-expiry: 604800000
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
+
   datasource:
     url: jdbc:postgresql://localhost:5433/pharma
     username: postgres
@@ -41,13 +44,15 @@ app:
   cookie:
     domain:
 
+
 internal:
   api-key: ${env.INTERNAL_API_KEY:${INTERNAL_API_KEY:dummy}}
 
 #     AWS S3 Configuration
+
 aws:
   s3:
-    access-key: ${env.AWS_ACCESS_KEY:${AWS_ACCESS_KEY:dummy}}
-    secret-key: ${env.AWS_SECRET_KEY:${AWS_SECRET_KEY:dummy}}
-    region: ${env.AWS_REGION:${AWS_REGION:ap-south-1}}
-    bucket-name: ${env.AWS_BUCKET_NAME:${AWS_BUCKET_NAME:dummy}}
+    access-key: ${AWS_ACCESS_KEY:dummy}
+    secret-key: ${AWS_SECRET_KEY:dummy}
+    region: ${AWS_REGION:ap-south-1}
+    bucket-name: ${AWS_BUCKET_NAME:dummy}

@@ -539,4 +539,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 //
 //        userDetailsRepository.delete(user);
 //    }
+
+    public boolean checkEmailExists(String email) {
+        return userDetailsRepository.existsByUserEmail(email);
+    }
 }

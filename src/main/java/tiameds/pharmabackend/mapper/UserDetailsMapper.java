@@ -8,6 +8,8 @@ import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.PharmaRoles;
 import tiameds.pharmabackend.entity.UserDetails;
+import tiameds.pharmabackend.entity.UserFeaturePermission;
+import tiameds.pharmabackend.dto.UserFeaturePermissionDto;
 
 import java.util.stream.Collectors;
 
@@ -81,6 +83,29 @@ public class UserDetailsMapper {
                             .stream()
                             .map(pharmacyDetailsMapper::toDto)
                             .collect(Collectors.toList())
+            );
+        }
+
+        if (user.getFeaturePermissions() != null && !user.getFeaturePermissions().isEmpty()) {
+            dto.setPermissions(
+                    user.getFeaturePermissions().stream().map(fp -> {
+                        UserFeaturePermissionDto fpDto = new UserFeaturePermissionDto();
+                        fpDto.setId(fp.getId());
+                        if (fp.getFeature() != null) {
+                            fpDto.setFeatureId(fp.getFeature().getFeatureId());
+                            fpDto.setFeatureName(fp.getFeature().getFeatureName());
+                            fpDto.setFeatureCode(fp.getFeature().getFeatureCode());
+                            if (fp.getFeature().getModule() != null) {
+                                fpDto.setModuleId(fp.getFeature().getModule().getModuleId());
+                                fpDto.setModuleName(fp.getFeature().getModule().getModuleName());
+                            }
+                        }
+                        if (fp.getPermission() != null) {
+                            fpDto.setPermissionId(fp.getPermission().getPermissionId());
+                            fpDto.setPermissionName(fp.getPermission().getPermissionName());
+                        }
+                        return fpDto;
+                    }).collect(Collectors.toList())
             );
         }
 

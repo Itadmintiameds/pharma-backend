@@ -13,6 +13,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import tiameds.pharmabackend.security.ApiKeyAuthenticationFilter;
+import tiameds.pharmabackend.security.CurrentPharmacyFilter;
 import tiameds.pharmabackend.security.JwtAuthenticationFilter;
 
 @Configuration
@@ -25,6 +26,9 @@ public class SecurityConfig {
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     private final AuthenticationEntryPoint authenticationEntryPoint;
+
+    private final CurrentPharmacyFilter currentPharmacyFilter;
+
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
@@ -50,7 +54,9 @@ public class SecurityConfig {
                                 "/auth/**",
                                 "/public/**",
                                 "/verification/**",
-                                "/user/registration"
+                                "/user/registration",
+                                "/user/check-email",
+                                "/error"
 //                                "/pharmacy/**",
 //                                "/organization/reject/**"
                         ).permitAll()

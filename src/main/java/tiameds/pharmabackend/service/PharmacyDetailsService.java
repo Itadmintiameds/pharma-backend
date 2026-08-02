@@ -1,5 +1,6 @@
 package tiameds.pharmabackend.service;
 
+import tiameds.pharmabackend.dto.LoggedInUserPharmacyDto;
 import tiameds.pharmabackend.dto.PharmacyDetailsDto;
 import tiameds.pharmabackend.dto.PharmacySummaryDto;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -12,4 +13,5 @@ public interface PharmacyDetailsService {
 
     List<PharmacySummaryDto> getPharmacyCitiesOfTheOrganization(Long currentUserId);
 
+    List<LoggedInUserPharmacyDto> getLoggedInUserPharmacies(Long userId);
 }

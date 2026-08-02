@@ -138,4 +138,10 @@ public class UserDetailsController {
 //
 //        return ResponseEntity.ok("User deleted successfully.");
 //    }
+
+    @GetMapping("/check-email")
+    public ResponseEntity<Boolean> checkEmailExists(@RequestParam String email) {
+        boolean exists = userDetailsService.checkEmailExists(email);
+        return ResponseEntity.ok(exists);
+    }
 }
