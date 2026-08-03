@@ -1,49 +1,49 @@
-#jwt:
-#  secret-key: ${JWT_SECRET}}
-#  access-token-expiry: 1800000
-#  refresh-token-expiry: 604800000
-#
-#spring:
-#  datasource:
-#    url: jdbc:postgresql://${DB_URL}:5432/${DB_NAME}
-#    username: ${DB_USERNAME}
-#    password: ${DB_PASSWORD}
-#    driver-class-name: org.postgresql.Driver
-#
-#  mail:
-#    host: ${SPRING_MAIL_HOST}
-#    port: ${SPRING_MAIL_PORT}
-#    username: ${SPRING_MAIL_USERNAME}
-#    password: ${SPRING_MAIL_PASSWORD}
-#
-#    properties:
-#      mail:
-#        smtp:
-#          auth: true
-#          starttls:
-#            enable: true
-#
-#  jpa:
-#    hibernate:
-#      ddl-auto: update
-#    show-sql: true
-#    properties:
-#      hibernate:
-#        format_sql: true
-#
-#  flyway:
-#    enabled: false
-#
-#app:
-#  cookie:
-#    domain: tiameds.ai
-#
-#internal:
-#  api-key: ${INTERNAL_API_KEY}
-#
-#aws:
-#  s3:
-#    access-key: ${AWS_ACCESS_KEY}
-#    secret-key: ${AWS_SECRET_KEY}
-#    region: ${AWS_REGION}
-#    bucket-name: ${AWS_BUCKET_NAME}
+jwt:
+  secret-key: ${JWT_SECRET}}
+  access-token-expiry: 1800000
+  refresh-token-expiry: 604800000
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_URL}:5432/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  mail:
+    host: ${SPRING_MAIL_HOST}
+    port: ${SPRING_MAIL_PORT}
+    username: ${SPRING_MAIL_USERNAME}
+    password: ${SPRING_MAIL_PASSWORD}
+
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: false
+
+app:
+  cookie:
+    domain: tiameds.ai
+
+internal:
+  api-key: ${INTERNAL_API_KEY}
+
+aws:
+  s3:
+    access-key: ${AWS_ACCESS_KEY}
+    secret-key: ${AWS_SECRET_KEY}
+    region: ${AWS_REGION}
+    bucket-name: ${AWS_BUCKET_NAME}
