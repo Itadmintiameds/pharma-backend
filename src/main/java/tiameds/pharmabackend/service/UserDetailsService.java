@@ -25,6 +25,8 @@ public interface UserDetailsService {
 
     UserDetailsDto getUserById(Long currentUserId, Long userId);
 
+    UserDetailsDto getById(Long userId);
+
     List<FeaturePermissionsDto> updateUserPermissions(
             Long currentUserId,
             Long userId,

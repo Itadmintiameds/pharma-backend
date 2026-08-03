@@ -310,6 +310,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return userDetailsMapper.toDto(user);
     }
 
+
+    @Override
+    public UserDetailsDto getById(Long userId) {
+
+        UserDetails user = userDetailsRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return userDetailsMapper.toDto(user);
+    }
+
     @Override
     public List<FeaturePermissionsDto> updateUserPermissions(
             Long currentUserId,

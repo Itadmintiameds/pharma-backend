@@ -121,6 +121,7 @@ public class UserDetailsController {
                         request.getUserStatus()));
     }
 
+
     @GetMapping("/{userId}")
     public ResponseEntity<UserDetailsDto> getUserById(
             @AuthenticationPrincipal CustomUserDetails currentUser,
@@ -128,6 +129,15 @@ public class UserDetailsController {
 
         return ResponseEntity.ok(
                 userDetailsService.getUserById(currentUser.getUserId(), userId));
+    }
+
+    @GetMapping("/getById/{userId}")
+    public ResponseEntity<UserDetailsDto> getById(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable Long userId) {
+
+        return ResponseEntity.ok(
+                userDetailsService.getById(userId));
     }
 
 //    @DeleteMapping("/delete/{pharmacyRegistrationId}")
