@@ -52,7 +52,7 @@ public class PurchaseDetails {
     private Long purchaseQuantity;
 
     @Column(name = "free_unit")
-    private Long freeUnit;
+    private String freeUnit;
 
     @Column(name = "free_quantity")
     private Long freeQuantity;

@@ -24,9 +24,7 @@ public class ProductInventoryMapper {
         entity.setManufacturingDate(dto.getManufacturingDate());
         entity.setExpiryDate(dto.getExpiryDate());
         entity.setPurchaseUnit(dto.getPurchaseUnit());
-        entity.setStockQuantity(dto.getStockQuantity());
-        entity.setFreeUnit(dto.getFreeUnit());
-        entity.setFreeQuantity(dto.getFreeQuantity());
+
         entity.setPurchasePrice(dto.getPurchasePrice());
         entity.setMrp(dto.getMrp());
         entity.setSellingPrice(dto.getSellingPrice());
@@ -61,9 +59,7 @@ public class ProductInventoryMapper {
         dto.setManufacturingDate(entity.getManufacturingDate());
         dto.setExpiryDate(entity.getExpiryDate());
         dto.setPurchaseUnit(entity.getPurchaseUnit());
-        dto.setStockQuantity(entity.getStockQuantity());
-        dto.setFreeUnit(entity.getFreeUnit());
-        dto.setFreeQuantity(entity.getFreeQuantity());
+
         dto.setPurchasePrice(entity.getPurchasePrice());
         dto.setMrp(entity.getMrp());
         dto.setSellingPrice(entity.getSellingPrice());

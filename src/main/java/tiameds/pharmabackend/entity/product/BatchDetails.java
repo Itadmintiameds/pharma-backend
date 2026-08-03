@@ -48,14 +48,14 @@ public class BatchDetails {
     @Column(name = "purchase_unit", length = 50)
     private String purchaseUnit;
 
-    @Column(name = "stock_quantity")
-    private Long stockQuantity;
+    // @Column(name = "stock_quantity")
+    // private Long stockQuantity;
 
-    @Column(name = "free_unit", length = 50)
-    private String freeUnit;
+    // @Column(name = "free_unit", length = 50)
+    // private String freeUnit;
 
-    @Column(name = "free_quantity")
-    private Long freeQuantity;
+    // @Column(name = "free_quantity")
+    // private Long freeQuantity;
 
     @Column(name = "purchase_price")
     private Double purchasePrice;
