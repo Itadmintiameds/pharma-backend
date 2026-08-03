@@ -1,5 +1,6 @@
 package tiameds.pharmabackend.service.impl.purchase;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,6 +33,8 @@ import tiameds.pharmabackend.repository.purchase.InventoryRepository;
 import tiameds.pharmabackend.repository.purchase.PurchaseRepository;
 import tiameds.pharmabackend.repository.supplier.SupplierMasterRepository;
 import tiameds.pharmabackend.service.purchase.PurchaseService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 
 @Service
 @RequiredArgsConstructor
@@ -102,6 +105,7 @@ public class PurchaseServiceImpl implements PurchaseService {
             }
         }
 
+        purchase.setGrnNo(generateGrnNo());
         purchase.setCreatedBy(String.valueOf(persistentUser.getUserId()));
         purchase.setCreatedAt(LocalDateTime.now());
         purchase.setModifiedBy(null);
@@ -215,5 +219,29 @@ public class PurchaseServiceImpl implements PurchaseService {
                 .stream()
                 .map(PurchaseMapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    private String generateGrnNo() {
+
+        int year = LocalDate.now().getYear();
+        String prefix = "GRN-" + year + "-";
+
+        List<String> latest = purchaseRepository.findLatestGrn(
+                prefix,
+                PageRequest.of(0, 1)
+        );
+
+        int nextNumber = 1;
+
+        if (!latest.isEmpty()) {
+
+            String latestGrn = latest.get(0);
+
+            String numberPart = latestGrn.substring(prefix.length());
+
+            nextNumber = Integer.parseInt(numberPart) + 1;
+        }
+
+        return prefix + String.format("%05d", nextNumber);
     }
 }
