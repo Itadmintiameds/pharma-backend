@@ -82,7 +82,7 @@ public class ProductAttributeNonConsumableMedical {
     private String manufacturerName;        // Manufacturer Name*
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "country_id", nullable = false)
+    @JoinColumn(name = "country_id")
     @JsonIgnore
     private Country countryMaster;     // Country of Origin*
 
