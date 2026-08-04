@@ -7,5 +7,7 @@ public class PackagingDetailsDto {
     private String packagingId;
     private String purchaseUnit;
     private Long purchaseUnitContains;
-    private String smallestUnit;
+    // private String smallestUnit;
+    private Long purchaseSmallestUnitId;
+    private String purchaseSmallestUnitName;
 }
