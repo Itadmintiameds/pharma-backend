@@ -19,6 +19,14 @@ public interface InventoryRepository extends JpaRepository <Inventory, Long> {
             BatchDetails batch
     );
 
+    // pharmacy-scoped variant, used when stock is issued out (billing)
+    Optional<Inventory> findByPharmacy_PharmacyIdAndProductAndPackagingAndBatch(
+            String pharmacyId,
+            ProductDetails product,
+            PackagingDetails packaging,
+            BatchDetails batch
+    );
+
     // all stock rows for a pharmacy (used for the products stock summary)
     List<Inventory> findByPharmacy_PharmacyId(String pharmacyId);
 
