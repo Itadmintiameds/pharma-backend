@@ -100,8 +100,6 @@ public class PurchaseServiceImpl implements PurchaseService {
                 detail.setProduct(product);
                 detail.setBatch(batch);
 
-                // Packaging is already mapped by PurchaseMapper
-                // detail.setPackaging(...);
             }
         }
 
@@ -131,11 +129,19 @@ public class PurchaseServiceImpl implements PurchaseService {
 
                 ProductDetails product = detail.getProduct();
                 BatchDetails batch = detail.getBatch();
-                PackagingDetails packaging = detail.getPackaging();
+                PackagingDetails packaging = batch.getPackagingDetails();
 
                 Long purchaseQty = detail.getPurchaseQuantity() != null
                         ? detail.getPurchaseQuantity()
                         : 0L;
+
+                Long purchaseUnitContains = (packaging != null
+                        && packaging.getPurchaseUnitContains() != null)
+                        ? packaging.getPurchaseUnitContains()
+                        : 1L;
+
+             // Stock in smallest units
+                Long stockQty = purchaseQty * purchaseUnitContains;
 
                 Inventory inventory = inventoryRepository
                         .findByProductAndPackagingAndBatch(product, packaging, batch)
@@ -150,7 +156,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                     inventory.setPackaging(packaging);
                     inventory.setBatch(batch);
 
-                    inventory.setTotalStock(purchaseQty);
+                    inventory.setTotalStock(stockQty);
 
                     inventory.setCreatedBy(String.valueOf(persistentUser.getUserId()));
                     inventory.setCreatedAt(LocalDateTime.now());
@@ -170,7 +176,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                             ? inventory.getTotalStock()
                             : 0L;
 
-                    inventory.setTotalStock(currentStock + purchaseQty);
+                    inventory.setTotalStock(currentStock + stockQty);
 
                     inventory.setModifiedBy(String.valueOf(persistentUser.getUserId()));
                     inventory.setModifiedAt(LocalDateTime.now());
@@ -186,7 +192,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                 audit.setPurchaseDetails(detail);
                 audit.setStockMovement(StockMovement.IN);
                 audit.setTransactionType(TransactionType.PURCHASE);
-                audit.setChangeStock(purchaseQty);
+                audit.setChangeStock(stockQty);
                 audit.setRemainingStock(inventory.getTotalStock());
                 audit.setChangedBy(String.valueOf(persistentUser.getUserId()));
                 audit.setChangedAt(LocalDateTime.now());
