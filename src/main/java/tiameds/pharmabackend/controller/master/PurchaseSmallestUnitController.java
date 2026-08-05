@@ -39,7 +39,7 @@ public class PurchaseSmallestUnitController {
                 .body(purchaseSmallestUnitService.createPurchaseSmallestUnit(purchaseSmallestUnitDto));
     }
 
-    @PutMapping("/{purchaseSmallestUnitId}")
+    @PutMapping("/{purchaseSmallestUnitId}")    
     public ResponseEntity<PurchaseSmallestUnitDto> updatePurchaseSmallestUnit(
             @PathVariable Long purchaseSmallestUnitId,
             @RequestBody PurchaseSmallestUnitDto purchaseSmallestUnitDto) {

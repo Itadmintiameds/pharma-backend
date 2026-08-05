@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.enums.StockMovement;
@@ -41,6 +42,11 @@ public class InventoryAudit {
     @JoinColumn(name = "purchase_details_id")
     @JsonIgnore
     private PurchaseDetails purchaseDetails;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "billing_id", referencedColumnName = "billing_id")
+    @JsonIgnore
+    private Billing billing;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "stock_movement")

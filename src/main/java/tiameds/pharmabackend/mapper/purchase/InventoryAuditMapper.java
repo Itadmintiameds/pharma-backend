@@ -2,6 +2,7 @@ package tiameds.pharmabackend.mapper.purchase;
 
 import org.springframework.stereotype.Component;
 import tiameds.pharmabackend.dto.purchase.InventoryAuditDto;
+import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.entity.purchase.InventoryAudit;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
@@ -24,6 +25,11 @@ public class InventoryAuditMapper {
                         ? audit.getPurchaseDetails().getPurchaseDetailsId()
                         : null
         );
+        dto.setBillingId(
+                audit.getBilling() != null
+                        ? audit.getBilling().getBillingId()
+                        : null
+        );
         dto.setStockMovement(audit.getStockMovement());
         dto.setTransactionType(audit.getTransactionType());
         dto.setChangeStock(audit.getChangeStock());
@@ -39,12 +45,22 @@ public class InventoryAuditMapper {
             Inventory inventory,
             PurchaseDetails purchaseDetails
     ) {
+        return toEntity(dto, inventory, purchaseDetails, null);
+    }
+
+    public InventoryAudit toEntity(
+            InventoryAuditDto dto,
+            Inventory inventory,
+            PurchaseDetails purchaseDetails,
+            Billing billing
+    ) {
 
         InventoryAudit audit = new InventoryAudit();
 
         audit.setInventoryAuditId(dto.getInventoryAuditId());
         audit.setInventory(inventory);
         audit.setPurchaseDetails(purchaseDetails);
+        audit.setBilling(billing);
         audit.setStockMovement(dto.getStockMovement());
         audit.setTransactionType(dto.getTransactionType());
         audit.setChangeStock(dto.getChangeStock());

@@ -12,6 +12,7 @@ public class InventoryAuditDto {
     private Long inventoryAuditId;
     private Long inventoryId;
     private Long purchaseDetailsId;
+    private Long billingId;
     private StockMovement stockMovement;
     private TransactionType transactionType;
     private Long changeStock;
