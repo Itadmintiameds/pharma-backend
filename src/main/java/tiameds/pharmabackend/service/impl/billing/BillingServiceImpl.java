@@ -15,7 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
+import tiameds.pharmabackend.dto.billing.BillingDetailsDto;
 import tiameds.pharmabackend.dto.billing.BillingDto;
+import tiameds.pharmabackend.dto.billing.BillingPaymentDto;
 import tiameds.pharmabackend.dto.billing.PrescriptionUploadDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -30,7 +32,9 @@ import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.entity.purchase.InventoryAudit;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
+import tiameds.pharmabackend.mapper.billing.BillingDetailsMapper;
 import tiameds.pharmabackend.mapper.billing.BillingMapper;
+import tiameds.pharmabackend.mapper.billing.BillingPaymentMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.billing.BillingRepository;
@@ -65,42 +69,222 @@ public class BillingServiceImpl implements BillingService {
     @Override
     public BillingDto createBilling(BillingDto billingDto, UserDetails user) {
 
-        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        BillingContext context = resolveContext(user);
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        requireLines(billingDto);
 
-        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
-                pharmacyId,
-                persistentUser.getUserId());
-
-        if (!valid) {
-            throw new RuntimeException("You are not authorized to use this pharmacy.");
-        }
-
-        PharmacyDetails pharmacy = pharmacyDetailsRepository.findById(pharmacyId)
-                .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
-
-        if (billingDto.getBillingDetails() == null
-                || billingDto.getBillingDetails().isEmpty()) {
-            throw new RuntimeException("A bill must contain at least one product.");
-        }
-
-        String currentUserId = String.valueOf(persistentUser.getUserId());
-
-        CustomerManagement customer = resolveCustomer(billingDto, pharmacy, currentUserId);
+        CustomerManagement customer = resolveCustomer(
+                billingDto,
+                context.pharmacy(),
+                context.currentUserId());
 
         Billing billing = BillingMapper.toEntity(billingDto);
 
-        billing.setPharmacy(pharmacy);
+        billing.setPharmacy(context.pharmacy());
         billing.setCustomer(customer);
-        billing.setCreatedBy(currentUserId);
+        billing.setCreatedBy(context.currentUserId());
         billing.setCreatedAt(LocalDateTime.now());
         billing.setModifiedBy(null);
         billing.setModifiedAt(null);
 
         // Resolve every line and validate stock BEFORE anything is written, so a
         // single short line aborts the whole bill instead of half-issuing stock.
+        List<Inventory> lineInventories = attachAndValidateLines(billing, billingDto, context);
+
+        attachPayments(billing, context.currentUserId());
+
+        Billing savedBilling = billingRepository.save(billing);
+
+        issueStockOut(savedBilling, lineInventories, context);
+
+        return BillingMapper.toDto(savedBilling);
+    }
+
+
+    @Override
+    public List<BillingDto> getAllBillings(UserDetails user) {
+
+        BillingContext context = resolveContext(user);
+
+        return billingRepository.findByPharmacy_PharmacyId(context.pharmacyId())
+                .stream()
+                .map(BillingMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+
+    @Override
+    public BillingDto getBillingById(Long billingId, UserDetails user) {
+
+        BillingContext context = resolveContext(user);
+
+        Billing billing = requireBilling(billingId, context.pharmacyId());
+
+        return BillingMapper.toDto(billing);
+    }
+
+
+    @Override
+    public BillingDto updateBilling(Long billingId, BillingDto billingDto, UserDetails user) {
+
+        BillingContext context = resolveContext(user);
+
+        requireLines(billingDto);
+
+        Billing billing = requireBilling(billingId, context.pharmacyId());
+
+        // Put the previously sold quantities back before re-applying the new lines,
+        // so the stock check for the edited bill sees the stock it had released.
+        restoreStock(billing, billing, context);
+
+        billing.getBillingDetails().clear();
+        billing.getBillingPayments().clear();
+
+        // Flush the removals so the replacement rows are inserted cleanly.
+        billingRepository.saveAndFlush(billing);
+
+        billing.setCustomer(resolveCustomer(
+                billingDto,
+                context.pharmacy(),
+                context.currentUserId()));
+
+        billing.setCustomerType(billingDto.getCustomerType());
+        billing.setSellingType(billingDto.getSellingType());
+        billing.setTotalGrossAmount(billingDto.getTotalGrossAmount());
+        billing.setTotalDiscountPercentage(billingDto.getTotalDiscountPercentage());
+        billing.setTotalDiscountAmount(billingDto.getTotalDiscountAmount());
+        billing.setTotalGstAmount(billingDto.getTotalGstAmount());
+        billing.setTotalNetAmount(billingDto.getTotalNetAmount());
+
+        // An edit that omits the prescription keeps the already uploaded one.
+        if (billingDto.getPrescriptionUrl() != null
+                && !billingDto.getPrescriptionUrl().isBlank()) {
+            billing.setPrescriptionUrl(billingDto.getPrescriptionUrl());
+        }
+
+        billing.setModifiedBy(context.currentUserId());
+        billing.setModifiedAt(LocalDateTime.now());
+
+        for (BillingDetailsDto lineDto : billingDto.getBillingDetails()) {
+
+            BillingDetails detail = BillingDetailsMapper.toEntity(lineDto);
+            detail.setBillingDetailsId(null);
+            detail.setBilling(billing);
+
+            billing.getBillingDetails().add(detail);
+        }
+
+        if (billingDto.getBillingPayments() != null) {
+
+            for (BillingPaymentDto paymentDto : billingDto.getBillingPayments()) {
+
+                BillingPayment payment = BillingPaymentMapper.toEntity(paymentDto);
+                payment.setPaymentId(null);
+                payment.setBilling(billing);
+
+                billing.getBillingPayments().add(payment);
+            }
+        }
+
+        List<Inventory> lineInventories = attachAndValidateLines(billing, billingDto, context);
+
+        attachPayments(billing, context.currentUserId());
+
+        Billing savedBilling = billingRepository.save(billing);
+
+        issueStockOut(savedBilling, lineInventories, context);
+
+        return BillingMapper.toDto(savedBilling);
+    }
+
+
+    @Override
+    public void deleteBilling(Long billingId, UserDetails user) {
+
+        BillingContext context = resolveContext(user);
+
+        Billing billing = requireBilling(billingId, context.pharmacyId());
+
+        // Give the sold stock back before the bill disappears.
+        restoreStock(billing, null, context);
+
+        // The audit trail outlives the bill, so its billing reference is cleared
+        // instead of the history rows being deleted along with it.
+        List<InventoryAudit> audits =
+                inventoryAuditRepository.findByBilling_BillingId(billingId);
+
+        for (InventoryAudit audit : audits) {
+            audit.setBilling(null);
+        }
+
+        inventoryAuditRepository.saveAll(audits);
+
+        String prescriptionUrl = billing.getPrescriptionUrl();
+
+        billingRepository.delete(billing);
+
+        deleteOldPrescriptionQuietly(prescriptionUrl);
+    }
+
+
+    @Override
+    public PrescriptionUploadDto uploadPrescription(
+            Long billingId,
+            MultipartFile file,
+            UserDetails user) {
+
+        BillingContext context = resolveContext(user);
+
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("Prescription file is required");
+        }
+
+        String contentType = file.getContentType() != null
+                ? file.getContentType().toLowerCase()
+                : "";
+
+        if (!contentType.startsWith("image/") && !contentType.equals("application/pdf")) {
+            throw new RuntimeException("Only image or PDF files are allowed");
+        }
+
+        Billing billing = requireBilling(billingId, context.pharmacyId());
+
+        String key = buildPrescriptionKey(
+                context.pharmacyId(),
+                billingId,
+                file.getOriginalFilename());
+
+        String prescriptionUrl;
+
+        try {
+            prescriptionUrl = s3Service.uploadFile(key, file);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to upload prescription", e);
+        }
+
+        String oldPrescriptionUrl = billing.getPrescriptionUrl();
+
+        billing.setPrescriptionUrl(prescriptionUrl);
+        billing.setModifiedBy(context.currentUserId());
+        billing.setModifiedAt(LocalDateTime.now());
+
+        billingRepository.save(billing);
+
+        deleteOldPrescriptionQuietly(oldPrescriptionUrl);
+
+        return new PrescriptionUploadDto(billing.getBillingId(), prescriptionUrl);
+    }
+
+
+    /**
+     * Resolves each bill line onto managed product/batch entities and verifies the
+     * requested quantity against locked stock. Nothing is written here.
+     */
+    private List<Inventory> attachAndValidateLines(
+            Billing billing,
+            BillingDto billingDto,
+            BillingContext context) {
+
         List<Inventory> lineInventories = new ArrayList<>();
 
         // A batch can appear on more than one line of the same bill, so the
@@ -110,7 +294,7 @@ public class BillingServiceImpl implements BillingService {
         for (int i = 0; i < billing.getBillingDetails().size(); i++) {
 
             BillingDetails detail = billing.getBillingDetails().get(i);
-            var dto = billingDto.getBillingDetails().get(i);
+            BillingDetailsDto dto = billingDto.getBillingDetails().get(i);
 
             ProductDetails product = productDetailsRepository
                     .findById(dto.getProductId())
@@ -118,7 +302,7 @@ public class BillingServiceImpl implements BillingService {
                             new RuntimeException("Product not found: " + dto.getProductId()));
 
             if (product.getPharmacy() == null
-                    || !pharmacyId.equals(product.getPharmacy().getPharmacyId())) {
+                    || !context.pharmacyId().equals(product.getPharmacy().getPharmacyId())) {
                 throw new RuntimeException(
                         "Product does not belong to this pharmacy: " + dto.getProductId());
             }
@@ -138,7 +322,7 @@ public class BillingServiceImpl implements BillingService {
             detail.setProduct(product);
             detail.setBatch(batch);
             detail.setBilling(billing);
-            detail.setCreatedBy(currentUserId);
+            detail.setCreatedBy(context.currentUserId());
             detail.setCreatedAt(LocalDateTime.now());
             detail.setModifiedBy(null);
             detail.setModifiedAt(null);
@@ -155,14 +339,7 @@ public class BillingServiceImpl implements BillingService {
                                 + product.getProductName());
             }
 
-            PackagingDetails packaging = batch.getPackagingDetails();
-
-            Inventory inventory = inventoryRepository
-                    .findByPharmacy_PharmacyIdAndProductAndPackagingAndBatch(
-                            pharmacyId, product, packaging, batch)
-                    .orElseThrow(() -> new RuntimeException(
-                            "No stock available for product " + product.getProductName()
-                                    + ", batch " + batch.getBatchNumber()));
+            Inventory inventory = requireInventory(product, batch, context.pharmacyId());
 
             Long availableStock = inventory.getTotalStock() != null
                     ? inventory.getTotalStock()
@@ -186,21 +363,36 @@ public class BillingServiceImpl implements BillingService {
             lineInventories.add(inventory);
         }
 
-        if (billing.getBillingPayments() != null) {
+        return lineInventories;
+    }
 
-            for (BillingPayment payment : billing.getBillingPayments()) {
 
-                payment.setBilling(billing);
-                payment.setCreatedBy(currentUserId);
-                payment.setCreatedAt(LocalDateTime.now());
-                payment.setModifiedBy(null);
-                payment.setModifiedAt(null);
-            }
+    private void attachPayments(Billing billing, String currentUserId) {
+
+        if (billing.getBillingPayments() == null) {
+            return;
         }
 
-        Billing savedBilling = billingRepository.save(billing);
+        for (BillingPayment payment : billing.getBillingPayments()) {
 
-        // Stock is issued out only after every line passed validation.
+            payment.setBilling(billing);
+            payment.setCreatedBy(currentUserId);
+            payment.setCreatedAt(LocalDateTime.now());
+            payment.setModifiedBy(null);
+            payment.setModifiedAt(null);
+        }
+    }
+
+
+    /**
+     * Issues stock out once every line has passed validation, writing one
+     * OUT / SALE audit row per line.
+     */
+    private void issueStockOut(
+            Billing savedBilling,
+            List<Inventory> lineInventories,
+            BillingContext context) {
+
         for (int i = 0; i < savedBilling.getBillingDetails().size(); i++) {
 
             BillingDetails detail = savedBilling.getBillingDetails().get(i);
@@ -215,124 +407,131 @@ public class BillingServiceImpl implements BillingService {
                     : 0L;
 
             inventory.setTotalStock(currentStock - billQuantity);
-            inventory.setModifiedBy(currentUserId);
+            inventory.setModifiedBy(context.currentUserId());
             inventory.setModifiedAt(LocalDateTime.now());
 
             inventory = inventoryRepository.save(inventory);
 
-            InventoryAudit audit = new InventoryAudit();
-
-            audit.setInventory(inventory);
-            audit.setPharmacy(pharmacy);
-            audit.setBilling(savedBilling);
-            audit.setPurchaseDetails(null);
-            audit.setStockMovement(StockMovement.OUT);
-            audit.setTransactionType(TransactionType.SALE);
-            audit.setChangeStock(billQuantity);
-            audit.setRemainingStock(inventory.getTotalStock());
-            audit.setChangedBy(currentUserId);
-            audit.setChangedAt(LocalDateTime.now());
-
-            inventoryAuditRepository.save(audit);
+            writeAudit(
+                    inventory,
+                    savedBilling,
+                    StockMovement.OUT,
+                    TransactionType.SALE,
+                    billQuantity,
+                    context);
         }
-
-        return BillingMapper.toDto(savedBilling);
     }
 
 
-    @Override
-    public List<BillingDto> getAllBillings(UserDetails user) {
+    /**
+     * Puts the quantities of the bill's current lines back into stock, writing one
+     * IN / STOCK_ADJUSTMENT audit row per line. {@code auditBilling} is null when
+     * the bill itself is being deleted.
+     */
+    private void restoreStock(
+            Billing billing,
+            Billing auditBilling,
+            BillingContext context) {
 
-        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
-
-        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
-                pharmacyId,
-                persistentUser.getUserId());
-
-        if (!valid) {
-            throw new RuntimeException("You are not authorized to use this pharmacy.");
-        }
-
-        return billingRepository.findByPharmacy_PharmacyId(pharmacyId)
-                .stream()
-                .map(BillingMapper::toDto)
-                .collect(Collectors.toList());
-    }
-
-
-    @Override
-    public PrescriptionUploadDto uploadPrescription(
-            Long billingId,
-            MultipartFile file,
-            UserDetails user) {
-
-        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
-
-        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
-                pharmacyId,
-                persistentUser.getUserId());
-
-        if (!valid) {
-            throw new RuntimeException("You are not authorized to use this pharmacy.");
-        }
-
-        if (file == null || file.isEmpty()) {
-            throw new RuntimeException("Prescription file is required");
-        }
-
-        String contentType = file.getContentType() != null
-                ? file.getContentType().toLowerCase()
-                : "";
-
-        if (!contentType.startsWith("image/") && !contentType.equals("application/pdf")) {
-            throw new RuntimeException("Only image or PDF files are allowed");
-        }
-
-        Billing billing = billingRepository
-                .findByBillingIdAndPharmacy_PharmacyId(billingId, pharmacyId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Bill not found in this pharmacy with id : " + billingId));
-
-        String key = buildPrescriptionKey(pharmacyId, billingId, file.getOriginalFilename());
-
-        String prescriptionUrl;
-
-        try {
-            prescriptionUrl = s3Service.uploadFile(key, file);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to upload prescription", e);
-        }
-
-        String oldPrescriptionUrl = billing.getPrescriptionUrl();
-
-        billing.setPrescriptionUrl(prescriptionUrl);
-        billing.setModifiedBy(String.valueOf(persistentUser.getUserId()));
-        billing.setModifiedAt(LocalDateTime.now());
-
-        billingRepository.save(billing);
-
-        deleteOldPrescriptionQuietly(oldPrescriptionUrl);
-
-        return new PrescriptionUploadDto(billing.getBillingId(), prescriptionUrl);
-    }
-
-
-    private void deleteOldPrescriptionQuietly(String oldPrescriptionUrl) {
-
-        if (oldPrescriptionUrl == null || oldPrescriptionUrl.isBlank()) {
+        if (billing.getBillingDetails() == null) {
             return;
         }
 
-        try {
-            s3Service.deleteFile(s3Service.extractKeyFromUrl(oldPrescriptionUrl));
-        } catch (Exception e) {
-            // Old file may be external or already gone; replacing it should not fail the upload
+        for (BillingDetails detail : billing.getBillingDetails()) {
+
+            Long billQuantity = detail.getBillQuantity() != null
+                    ? detail.getBillQuantity()
+                    : 0L;
+
+            if (billQuantity <= 0L) {
+                continue;
+            }
+
+            Inventory inventory = requireInventory(
+                    detail.getProduct(),
+                    detail.getBatch(),
+                    context.pharmacyId());
+
+            Long currentStock = inventory.getTotalStock() != null
+                    ? inventory.getTotalStock()
+                    : 0L;
+
+            inventory.setTotalStock(currentStock + billQuantity);
+            inventory.setModifiedBy(context.currentUserId());
+            inventory.setModifiedAt(LocalDateTime.now());
+
+            inventory = inventoryRepository.save(inventory);
+
+            writeAudit(
+                    inventory,
+                    auditBilling,
+                    StockMovement.IN,
+                    TransactionType.STOCK_ADJUSTMENT,
+                    billQuantity,
+                    context);
+        }
+    }
+
+
+    private void writeAudit(
+            Inventory inventory,
+            Billing billing,
+            StockMovement stockMovement,
+            TransactionType transactionType,
+            Long changeStock,
+            BillingContext context) {
+
+        InventoryAudit audit = new InventoryAudit();
+
+        audit.setInventory(inventory);
+        audit.setPharmacy(context.pharmacy());
+        audit.setBilling(billing);
+        audit.setPurchaseDetails(null);
+        audit.setStockMovement(stockMovement);
+        audit.setTransactionType(transactionType);
+        audit.setChangeStock(changeStock);
+        audit.setRemainingStock(inventory.getTotalStock());
+        audit.setChangedBy(context.currentUserId());
+        audit.setChangedAt(LocalDateTime.now());
+
+        inventoryAuditRepository.save(audit);
+    }
+
+
+    private Inventory requireInventory(
+            ProductDetails product,
+            BatchDetails batch,
+            String pharmacyId) {
+
+        PackagingDetails packaging = batch != null
+                ? batch.getPackagingDetails()
+                : null;
+
+        return inventoryRepository
+                .findByPharmacy_PharmacyIdAndProductAndPackagingAndBatch(
+                        pharmacyId, product, packaging, batch)
+                .orElseThrow(() -> new RuntimeException(
+                        "No stock available for product "
+                                + (product != null ? product.getProductName() : null)
+                                + ", batch "
+                                + (batch != null ? batch.getBatchNumber() : null)));
+    }
+
+
+    private Billing requireBilling(Long billingId, String pharmacyId) {
+
+        return billingRepository
+                .findByBillingIdAndPharmacy_PharmacyId(billingId, pharmacyId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Bill not found in this pharmacy with id : " + billingId));
+    }
+
+
+    private void requireLines(BillingDto billingDto) {
+
+        if (billingDto.getBillingDetails() == null
+                || billingDto.getBillingDetails().isEmpty()) {
+            throw new RuntimeException("A bill must contain at least one product.");
         }
     }
 
@@ -399,6 +598,45 @@ public class BillingServiceImpl implements BillingService {
     }
 
 
+    private BillingContext resolveContext(UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        PharmacyDetails pharmacy = pharmacyDetailsRepository.findById(pharmacyId)
+                .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
+
+        return new BillingContext(
+                pharmacy,
+                pharmacyId,
+                String.valueOf(persistentUser.getUserId()));
+    }
+
+
+    private void deleteOldPrescriptionQuietly(String oldPrescriptionUrl) {
+
+        if (oldPrescriptionUrl == null || oldPrescriptionUrl.isBlank()) {
+            return;
+        }
+
+        try {
+            s3Service.deleteFile(s3Service.extractKeyFromUrl(oldPrescriptionUrl));
+        } catch (Exception e) {
+            // Old file may be external or already gone; replacing it should not fail the upload
+        }
+    }
+
+
     private String buildPrescriptionKey(
             String pharmacyId,
             Long billingId,
@@ -417,5 +655,12 @@ public class BillingServiceImpl implements BillingService {
 
         return "pharmacy/" + pharmacyId + "/billing/" + billingId
                 + "/prescription/RX_" + timestamp + extension;
+    }
+
+
+    private record BillingContext(
+            PharmacyDetails pharmacy,
+            String pharmacyId,
+            String currentUserId) {
     }
 }

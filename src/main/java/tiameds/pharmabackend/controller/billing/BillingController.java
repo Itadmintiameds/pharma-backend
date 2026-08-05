@@ -72,4 +72,55 @@ public class BillingController {
 
         return ResponseEntity.ok(billings);
     }
+
+
+    @GetMapping("/{billingId}")
+    public ResponseEntity<?> getBillingById(
+            @PathVariable Long billingId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        BillingDto billing = billingService.getBillingById(
+                billingId,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(billing);
+    }
+
+
+    @PutMapping("/{billingId}")
+    public ResponseEntity<?> updateBilling(
+            @PathVariable Long billingId,
+            @RequestBody BillingDto billingDto,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        BillingDto response = billingService.updateBilling(
+                billingId,
+                billingDto,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    @DeleteMapping("/{billingId}")
+    public ResponseEntity<?> deleteBilling(
+            @PathVariable Long billingId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        billingService.deleteBilling(billingId, currentUser.getUser());
+
+        return ResponseEntity.noContent().build();
+    }
 }

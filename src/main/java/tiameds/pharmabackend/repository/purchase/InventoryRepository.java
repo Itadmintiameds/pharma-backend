@@ -1,6 +1,8 @@
 package tiameds.pharmabackend.repository.purchase;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
@@ -19,7 +21,11 @@ public interface InventoryRepository extends JpaRepository <Inventory, Long> {
             BatchDetails batch
     );
 
-    // pharmacy-scoped variant, used when stock is issued out (billing)
+    // Pharmacy-scoped variant, used when stock is issued out (billing).
+    // PESSIMISTIC_WRITE issues SELECT ... FOR UPDATE and holds the row until the
+    // transaction commits, so two concurrent bills cannot both read the same
+    // stock level, both pass the sufficiency check, and drive the stock negative.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Inventory> findByPharmacy_PharmacyIdAndProductAndPackagingAndBatch(
             String pharmacyId,
             ProductDetails product,

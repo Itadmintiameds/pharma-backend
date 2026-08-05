@@ -13,5 +13,11 @@ public interface BillingService {
 
     List<BillingDto> getAllBillings(UserDetails user);
 
+    BillingDto getBillingById(Long billingId, UserDetails user);
+
+    BillingDto updateBilling(Long billingId, BillingDto billingDto, UserDetails user);
+
+    void deleteBilling(Long billingId, UserDetails user);
+
     PrescriptionUploadDto uploadPrescription(Long billingId, MultipartFile file, UserDetails user);
 }
