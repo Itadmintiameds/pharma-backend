@@ -38,4 +38,7 @@ public interface InventoryRepository extends JpaRepository <Inventory, Long> {
 
     // all stock rows for a single product (used for the product details view)
     List<Inventory> findByProduct_ProductId(String productId);
+
+    // stock rows of one batch within a pharmacy (used for the batch lookup)
+    List<Inventory> findByPharmacy_PharmacyIdAndBatch_BatchId(String pharmacyId, String batchId);
 }

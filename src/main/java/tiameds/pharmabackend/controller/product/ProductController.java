@@ -59,6 +59,27 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
+    // All batches of the pharmacy with product, packaging, stock and pricing
+    @GetMapping("/batches")
+    public ResponseEntity<Map<String, Object>> getAllBatches() {
+        List<BatchStockDto> batches = pharmaProductService.getAllBatches();
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Batches retrieved successfully");
+        response.put("count", batches.size());
+        response.put("data", batches);
+        return ResponseEntity.ok(response);
+    }
+
+    // One batch with the same detail as the listing
+    @GetMapping("/batch/{batchId}")
+    public ResponseEntity<Map<String, Object>> getBatchById(@PathVariable String batchId) {
+        BatchStockDto batch = pharmaProductService.getBatchById(batchId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Batch retrieved successfully");
+        response.put("data", batch);
+        return ResponseEntity.ok(response);
+    }
+
     // API 2: complete details of one product with batches grouped per package
     @GetMapping("/{productId}/details")
     public ResponseEntity<Map<String, Object>> getProductDetails(@PathVariable String productId) {

@@ -702,4 +702,122 @@ public class ProductServiceImpl implements ProductService {
         int nextNumber = (lastNumber == null) ? 1 : lastNumber + 1;
         return prefix + "BTCH" + String.format("%05d", nextNumber);
     }
+
+    // ===== Batch listing: batch + product + packaging + available stock =====
+    @Override
+    @Transactional(readOnly = true)
+    public List<BatchStockDto> getAllBatches() {
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        // stock lives in pharma_inventory, not on the batch -> load the pharmacy's
+        // stock rows once and total them per batch.
+        Map<String, Long> stockByBatch =
+                inventoryRepo.findByPharmacy_PharmacyId(pharmacyId)
+                        .stream()
+                        .filter(inv -> inv.getBatch() != null)
+                        .collect(Collectors.groupingBy(
+                                inv -> inv.getBatch().getBatchId(),
+                                Collectors.summingLong(inv ->
+                                        inv.getTotalStock() == null ? 0L : inv.getTotalStock())));
+
+        return batchRepo.findByProduct_Pharmacy_PharmacyId(pharmacyId)
+                .stream()
+                .map(batch -> toBatchStock(
+                        batch,
+                        stockByBatch.getOrDefault(batch.getBatchId(), 0L)))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BatchStockDto getBatchById(String batchId) {
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        BatchDetails batch = batchRepo
+                .findByBatchIdAndProduct_Pharmacy_PharmacyId(batchId, pharmacyId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Batch not found in this pharmacy with id : " + batchId));
+
+        long totalStock = inventoryRepo
+                .findByPharmacy_PharmacyIdAndBatch_BatchId(pharmacyId, batchId)
+                .stream()
+                .mapToLong(inv -> inv.getTotalStock() == null ? 0L : inv.getTotalStock())
+                .sum();
+
+        return toBatchStock(batch, totalStock);
+    }
+
+    private BatchStockDto toBatchStock(BatchDetails batch, long totalStock) {
+
+        BatchStockDto dto = new BatchStockDto();
+
+        dto.setBatchId(batch.getBatchId());
+        dto.setBatchNumber(batch.getBatchNumber());
+        dto.setManufacturingDate(batch.getManufacturingDate());
+        dto.setExpiryDate(batch.getExpiryDate());
+        dto.setRackLocation(batch.getRackLocation());
+
+        ProductDetails product = batch.getProduct();
+
+        if (product != null) {
+            dto.setProductId(product.getProductId());
+            dto.setProductName(product.getProductName());
+            dto.setBrandName(product.getBrandName());
+            dto.setGstPercentage(product.getGstPercentage());
+            dto.setHsnNo(product.getHsnNo());
+        }
+
+        PackagingDetails packaging = batch.getPackagingDetails();
+
+        if (packaging != null) {
+            dto.setPackagingId(packaging.getPackagingId());
+            dto.setPurchaseUnit(packaging.getPurchaseUnit());
+            dto.setPurchaseUnitContains(packaging.getPurchaseUnitContains());
+
+            if (packaging.getPurchaseSmallestUnit() != null) {
+                dto.setPurchaseSmallestUnitId(
+                        packaging.getPurchaseSmallestUnit().getPurchaseSmallestUnitId());
+                dto.setPurchaseSmallestUnitName(
+                        packaging.getPurchaseSmallestUnit().getPurchaseSmallestUnitName());
+            }
+        }
+
+        dto.setTotalStock(totalStock);
+
+        dto.setPurchasePrice(batch.getPurchasePrice());
+        dto.setMrp(batch.getMrp());
+        dto.setSellingPrice(batch.getSellingPrice());
+        dto.setPurchasePricePerUnit(batch.getPurchasePricePerUnit());
+        dto.setMrpPerUnit(batch.getMrpPerUnit());
+        dto.setSellingPricePerUnit(batch.getSellingPricePerUnit());
+
+        dto.setStatus(resolveBatchStatus(batch.getExpiryDate(), totalStock));
+
+        return dto;
+    }
+
+    private String resolveBatchStatus(LocalDate expiryDate, long totalStock) {
+
+        if (totalStock <= 0L) {
+            return "OUT_OF_STOCK";
+        }
+
+        if (expiryDate == null) {
+            return "ACTIVE";
+        }
+
+        LocalDate today = LocalDate.now();
+
+        if (expiryDate.isBefore(today)) {
+            return "EXPIRED";
+        }
+
+        if (!expiryDate.isAfter(today.plusDays(NEAR_EXPIRY_DAYS))) {
+            return "NEAR_EXPIRY";
+        }
+
+        return "ACTIVE";
+    }
 }
