@@ -138,7 +138,8 @@ public class AuthService {
         otpEntity.setIsUsed(true);
         otpEntity.setUsedAt(
                 LocalDateTime.now());
-
+        user.setLastLogin(LocalDateTime.now());
+        userRepository.save(user);
         otpRepository.save(otpEntity);
 
         // Revoke Existing Active Refresh Tokens

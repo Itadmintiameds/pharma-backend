@@ -27,6 +27,8 @@ public class UserDetailsDto {
     private String department;
     private String imageUrl;
     private PharmaRolesDto pharmaRolesDto;
+    private LocalDateTime lastLogin;
+    private Boolean isRejected;
     private String userStatus;
     private LocalDateTime createdAt;
     private String modifiedBy;

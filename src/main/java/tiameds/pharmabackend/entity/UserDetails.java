@@ -67,7 +67,7 @@ public class UserDetails {
     private PharmaRoles role;
 
     @Column(name = "last_login")
-    private Boolean lastLogin;
+    private LocalDateTime lastLogin;
 
     @Column(name = "is_rejected")
     private Boolean isRejected;
