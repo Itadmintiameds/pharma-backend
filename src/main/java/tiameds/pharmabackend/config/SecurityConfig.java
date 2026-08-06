@@ -56,7 +56,8 @@ public class SecurityConfig {
                                 "/verification/**",
                                 "/user/registration",
                                 "/user/check-email",
-                                "/error"
+                                "/error",
+                                "/pharmacyDocuments"
 //                                "/pharmacy/**",
 //                                "/organization/reject/**"
                         ).permitAll()

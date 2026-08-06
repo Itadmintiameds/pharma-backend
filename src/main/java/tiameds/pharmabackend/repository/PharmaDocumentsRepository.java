@@ -6,4 +6,8 @@ import tiameds.pharmabackend.entity.PharmaDocuments;
 
 @Repository
 public interface PharmaDocumentsRepository extends JpaRepository <PharmaDocuments, Long> {
+
+    boolean existsByDocumentNo(String documentNo);
+
+
 }
