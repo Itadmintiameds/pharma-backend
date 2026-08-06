@@ -208,7 +208,9 @@ public class ProductServiceImpl implements ProductService {
         }
 
         productRepo.save(product);
-        return dto;
+        // Return the persisted entity (not the request dto) so server-derived fields
+        // like packaging.purchaseUnit and the linked PurchaseSmallestUnit names are reflected.
+        return mapper.toDto(product);
     }
 
 //    @Override
@@ -459,7 +461,11 @@ public class ProductServiceImpl implements ProductService {
                 packDto.setPackagingId(pack.getPackagingId());
                 packDto.setPurchaseUnit(pack.getPurchaseUnit());
                 packDto.setPurchaseUnitContains(pack.getPurchaseUnitContains());
-                packDto.setSmallestUnit(pack.getSmallestUnit());
+                // packDto.setSmallestUnit(pack.getSmallestUnit());
+                if (pack.getPurchaseSmallestUnit() != null) {
+                    packDto.setPurchaseSmallestUnitId(pack.getPurchaseSmallestUnit().getPurchaseSmallestUnitId());
+                    packDto.setPurchaseSmallestUnitName(pack.getPurchaseSmallestUnit().getPurchaseSmallestUnitName());
+                }
 
                 List<BatchDetailsDto> packBatches = batches.stream()
                         .filter(b -> b.getPackagingDetails() != null
@@ -499,9 +505,11 @@ public class ProductServiceImpl implements ProductService {
         PackagingDetails pkg = new PackagingDetails();
         pkg.setPackagingId(generatePackagingId(pharmacyName));
         pkg.setProduct(product);
-        pkg.setPurchaseUnit(request.getPurchaseUnit());
+        // purchaseUnit is derived from the linked PurchaseSmallestUnit master
+        // pkg.setPurchaseUnit(request.getPurchaseUnit());
         pkg.setPurchaseUnitContains(request.getPurchaseUnitContains());
-        pkg.setSmallestUnit(request.getSmallestUnit());
+        // pkg.setSmallestUnit(request.getSmallestUnit());
+        inventoryMapper.applyPurchaseSmallestUnit(pkg, request.getPurchaseSmallestUnitId());
         pkg.setCreatedBy(createdBy);
         pkg.setCreatedAt(now);
 

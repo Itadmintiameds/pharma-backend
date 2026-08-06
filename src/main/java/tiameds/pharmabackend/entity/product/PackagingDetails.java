@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.master.PurchaseSmallestUnit;
 
 @Getter
 @Setter
@@ -49,8 +50,13 @@ public class PackagingDetails {
     // @Column(name = "secondary_unit_contains")
     // private Long secondaryUnitContains;
 
-    @Column(name = "smallest_unit", length = 50)
-    private String smallestUnit;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_smallest_unit_id", referencedColumnName = "purchase_smallest_unit_id")
+    @JsonIgnore
+    private PurchaseSmallestUnit purchaseSmallestUnit;
+
+//    @Column(name = "smallest_unit", length = 50)
+//    private String smallestUnit;
 
     @Column(name = "created_by", length = 30)
     private String createdBy;

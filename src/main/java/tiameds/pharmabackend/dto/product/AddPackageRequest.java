@@ -11,9 +11,11 @@ import lombok.Data;
  */
 @Data
 public class AddPackageRequest {
-    private String purchaseUnit;
+    // purchaseUnit is now derived from PurchaseSmallestUnit.purchaseUnitName
+    // private String purchaseUnit;
     private Long purchaseUnitContains;
-    private String smallestUnit;
+    // private String smallestUnit;
+    private Long purchaseSmallestUnitId;
 
     // optional batches to create under the new package
     private List<BatchDetailsDto> batches;
