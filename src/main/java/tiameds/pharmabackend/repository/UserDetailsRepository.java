@@ -32,4 +32,17 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, Long> 
             """)
     List<UserDetails> findAllByOrganizationIdWithPharmacies(
             @Param("organizationId") Long organizationId);
+
+
+    @Query("""
+    SELECT COUNT(u) > 0
+    FROM UserDetails u
+    JOIN u.pharmacies p
+    WHERE p.pharmacyId = :pharmacyId
+      AND u.employeeId = :employeeId
+""")
+    boolean existsByEmployeeIdAndPharmacyId(
+            @Param("employeeId") String employeeId,
+            @Param("pharmacyId") String pharmacyId
+    );
 }

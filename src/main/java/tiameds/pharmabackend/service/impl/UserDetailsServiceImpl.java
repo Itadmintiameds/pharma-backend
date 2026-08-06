@@ -5,6 +5,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
@@ -56,6 +57,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final UserDetailsMapper userDetailsMapper;
     private final PasswordEncoder passwordEncoder;
     private final S3Service s3Service;
+    private final CurrentPharmacyContext pharmacyContext;
+
 
     private static final DateTimeFormatter IMAGE_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -552,5 +555,29 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     public boolean checkEmailExists(String email) {
         return userDetailsRepository.existsByUserEmail(email);
+    }
+
+
+
+    @Override
+    public boolean checkEmployeeIdExists(String employeeId, UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        return userDetailsRepository.existsByEmployeeIdAndPharmacyId(
+                employeeId,
+                pharmacyId
+        );
     }
 }

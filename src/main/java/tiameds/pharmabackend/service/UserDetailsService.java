@@ -10,6 +10,7 @@ import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
 import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
+import tiameds.pharmabackend.entity.UserDetails;
 
 import java.util.List;
 
@@ -49,6 +50,8 @@ public interface UserDetailsService {
             String userStatus);
 
     boolean checkEmailExists(String email);
+
+    boolean checkEmployeeIdExists(String employeeId, UserDetails user);
 
 //    void deleteUserByPharmacyRegistrationId(String pharmacyRegistrationId);
 

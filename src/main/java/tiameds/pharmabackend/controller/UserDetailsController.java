@@ -154,4 +154,22 @@ public class UserDetailsController {
         boolean exists = userDetailsService.checkEmailExists(email);
         return ResponseEntity.ok(exists);
     }
+
+
+    @GetMapping("/checkEmployeeId")
+    public ResponseEntity<?> checkEmployeeId(
+            @RequestParam String employeeId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        boolean exists = userDetailsService.checkEmployeeIdExists(
+                employeeId,
+                currentUser.getUser()
+        );
+
+        return ResponseEntity.ok(exists);
+    }
 }
