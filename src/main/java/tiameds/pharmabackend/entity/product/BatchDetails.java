@@ -36,7 +36,7 @@ public class BatchDetails {
     @JsonIgnore
     private ProductDetails product;
 
-    @Column(name = "batch_number", length = 100)
+    @Column(name = "batch_number", length = 100, unique = true, nullable = false)
     private String batchNumber;
 
     @Column(name = "manufacturing_date")
