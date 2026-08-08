@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface UserDetailsRepository extends JpaRepository<UserDetails, Long> {
+public interface UserDetailsRepository extends JpaRepository<UserDetails, String> {
 
     Optional<UserDetails> findByUserEmail(String email);
 
@@ -22,7 +22,7 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, Long> 
             LEFT JOIN FETCH u.organization
             WHERE u.userId = :userId
             """)
-    Optional<UserDetails> findByUserIdWithOrganization(@Param("userId") Long userId);
+    Optional<UserDetails> findByUserIdWithOrganization(@Param("userId") String userId);
 
     @Query("""
             SELECT DISTINCT u

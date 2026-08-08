@@ -19,12 +19,12 @@ public interface UserFeaturePermissionRepository
             JOIN FETCH p.permission
             WHERE p.user.userId = :userId
             """)
-    List<UserFeaturePermission> findAllByUserIdWithFeature(@Param("userId") Long userId);
+    List<UserFeaturePermission> findAllByUserIdWithFeature(@Param("userId") String userId);
 
-    void deleteByUser_UserId(Long userId);
+    void deleteByUser_UserId(String userId);
 
     boolean existsByUser_UserIdAndFeature_FeatureCodeAndPermission_PermissionName(
-            Long userId,
+            String userId,
             String featureCode,
             String permissionName);
 }

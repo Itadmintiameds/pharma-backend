@@ -19,34 +19,34 @@ public interface UserDetailsService {
     UserDetailsDto registerUser(UserDetailsDto userDetailsDto);
 
     CreateUserResponseDto createUserWithPermissions(
-            Long currentUserId,
+            String currentUserId,
             CreateUserRequestDto request);
 
-    List<UserSummaryDto> getAllUsers(Long currentUserId);
+    List<UserSummaryDto> getAllUsers(String currentUserId);
 
-    UserDetailsDto getUserById(Long currentUserId, Long userId);
+    UserDetailsDto getUserById(String currentUserId, String userId);
 
-    UserDetailsDto getById(Long userId);
+    UserDetailsDto getById(String userId);
 
     List<FeaturePermissionsDto> updateUserPermissions(
-            Long currentUserId,
-            Long userId,
+            String currentUserId,
+            String userId,
             AssignPermissionsRequestDto request);
 
     List<FeaturePermissionsDto> getUserPermissions(
-            Long currentUserId,
-            Long userId);
+            String currentUserId,
+            String userId);
 
-    CurrentUserPermissionsDto getCurrentUserPermissions(Long currentUserId);
+    CurrentUserPermissionsDto getCurrentUserPermissions(String currentUserId);
 
     UserImageDto uploadUserImage(
-            Long currentUserId,
-            Long userId,
+            String currentUserId,
+            String userId,
             MultipartFile image);
 
     UserStatusDto updateUserStatus(
-            Long currentUserId,
-            Long userId,
+            String currentUserId,
+            String userId,
             String userStatus);
 
     boolean checkEmailExists(String email);

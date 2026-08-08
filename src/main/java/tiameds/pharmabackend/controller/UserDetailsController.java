@@ -74,7 +74,7 @@ public class UserDetailsController {
     @GetMapping("/{userId}/permissions")
     public ResponseEntity<List<FeaturePermissionsDto>> getUserPermissions(
             @AuthenticationPrincipal CustomUserDetails currentUser,
-            @PathVariable Long userId) {
+            @PathVariable String userId) {
 
         return ResponseEntity.ok(
                 userDetailsService.getUserPermissions(currentUser.getUserId(), userId));
@@ -83,7 +83,7 @@ public class UserDetailsController {
     @PutMapping("/{userId}/permissions")
     public ResponseEntity<List<FeaturePermissionsDto>> updateUserPermissions(
             @AuthenticationPrincipal CustomUserDetails currentUser,
-            @PathVariable Long userId,
+            @PathVariable String userId,
             @RequestBody AssignPermissionsRequestDto request) {
 
         return ResponseEntity.ok(
@@ -98,7 +98,7 @@ public class UserDetailsController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<UserImageDto> uploadUserImage(
             @AuthenticationPrincipal CustomUserDetails currentUser,
-            @PathVariable Long userId,
+            @PathVariable String userId,
             @RequestParam("image") MultipartFile image) {
 
         return ResponseEntity.ok(
@@ -111,7 +111,7 @@ public class UserDetailsController {
     @PatchMapping("/{userId}/status")
     public ResponseEntity<UserStatusDto> updateUserStatus(
             @AuthenticationPrincipal CustomUserDetails currentUser,
-            @PathVariable Long userId,
+            @PathVariable String userId,
             @RequestBody UserStatusDto request) {
 
         return ResponseEntity.ok(
@@ -125,7 +125,7 @@ public class UserDetailsController {
     @GetMapping("/{userId}")
     public ResponseEntity<UserDetailsDto> getUserById(
             @AuthenticationPrincipal CustomUserDetails currentUser,
-            @PathVariable Long userId) {
+            @PathVariable String userId) {
 
         return ResponseEntity.ok(
                 userDetailsService.getUserById(currentUser.getUserId(), userId));
@@ -134,7 +134,7 @@ public class UserDetailsController {
     @GetMapping("/getById/{userId}")
     public ResponseEntity<UserDetailsDto> getById(
             @AuthenticationPrincipal CustomUserDetails currentUser,
-            @PathVariable Long userId) {
+            @PathVariable String userId) {
 
         return ResponseEntity.ok(
                 userDetailsService.getById(userId));

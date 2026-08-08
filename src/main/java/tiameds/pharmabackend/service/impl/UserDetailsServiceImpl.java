@@ -30,6 +30,7 @@ import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
 import tiameds.pharmabackend.service.S3Service;
 import tiameds.pharmabackend.service.UserDetailsService;
+import tiameds.pharmabackend.service.UserIdGeneratorService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -58,17 +59,46 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final S3Service s3Service;
     private final CurrentPharmacyContext pharmacyContext;
-
+    private final UserIdGeneratorService userIdGeneratorService;
 
     private static final DateTimeFormatter IMAGE_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+//    @Override
+//    public UserDetailsDto registerUser(UserDetailsDto userDetailsDto) {
+//        Long roleId = 1L;
+//
+//        if (userDetailsDto.getPharmaRolesDto() != null
+//                && userDetailsDto.getPharmaRolesDto().getRoleId() != null) {
+//            roleId = userDetailsDto.getPharmaRolesDto().getRoleId();
+//        }
+//
+//        PharmaRoles role = pharmaRolesRepository
+//                .findById(roleId)
+//                .orElseThrow(() -> new RuntimeException("Role not found"));
+//
+//        UserDetails user = userDetailsMapper.toEntity(userDetailsDto, role);
+//
+//        user.setPassword(passwordEncoder.encode(userDetailsDto.getPassword()));
+//
+//        user.setCreatedAt(LocalDateTime.now());
+//        user.setIsRejected(Boolean.FALSE);
+//        user.setUserStatus("Active");
+//
+//        UserDetails savedUser = userDetailsRepository.save(user);
+//
+//        return userDetailsMapper.toDto(savedUser);
+//    }
+
+
     @Override
     public UserDetailsDto registerUser(UserDetailsDto userDetailsDto) {
+
         Long roleId = 1L;
 
         if (userDetailsDto.getPharmaRolesDto() != null
                 && userDetailsDto.getPharmaRolesDto().getRoleId() != null) {
+
             roleId = userDetailsDto.getPharmaRolesDto().getRoleId();
         }
 
@@ -76,22 +106,99 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .findById(roleId)
                 .orElseThrow(() -> new RuntimeException("Role not found"));
 
-        UserDetails user = userDetailsMapper.toEntity(userDetailsDto, role);
+        UserDetails user =
+                userDetailsMapper.toEntity(userDetailsDto, role);
 
-        user.setPassword(passwordEncoder.encode(userDetailsDto.getPassword()));
+        // Generate user ID from backend
+        user.setUserId(userIdGeneratorService.generateUserId());
+
+        user.setPassword(
+                passwordEncoder.encode(userDetailsDto.getPassword())
+        );
 
         user.setCreatedAt(LocalDateTime.now());
         user.setIsRejected(Boolean.FALSE);
         user.setUserStatus("Active");
 
-        UserDetails savedUser = userDetailsRepository.save(user);
+        UserDetails savedUser =
+                userDetailsRepository.save(user);
 
         return userDetailsMapper.toDto(savedUser);
     }
 
+//    @Override
+//    public CreateUserResponseDto createUserWithPermissions(
+//            Long currentUserId,
+//            CreateUserRequestDto request) {
+//
+//        if (request.getUser() == null) {
+//            throw new RuntimeException("User details are required");
+//        }
+//
+//        UserDetails currentUser = userDetailsRepository
+//                .findByUserIdWithOrganization(currentUserId)
+//                .orElseThrow(() ->
+//                        new RuntimeException("User not found with id : " + currentUserId));
+//
+//        if (currentUser.getOrganization() == null) {
+//            throw new RuntimeException("User is not associated with any organization");
+//        }
+//
+//        UserDetailsDto userDto = request.getUser();
+//
+//        if (userDto.getUserEmail() == null || userDto.getUserEmail().isBlank()) {
+//            throw new RuntimeException("User email is required");
+//        }
+//
+//        if (userDto.getPassword() == null || userDto.getPassword().isBlank()) {
+//            throw new RuntimeException("Password is required");
+//        }
+//
+//        if (userDetailsRepository.existsByUserEmail(userDto.getUserEmail())) {
+//            throw new RuntimeException(
+//                    "User already exists with email : " + userDto.getUserEmail());
+//        }
+//
+//        if (userDto.getPharmaRolesDto() == null
+//                || userDto.getPharmaRolesDto().getRoleId() == null) {
+//            throw new RuntimeException("Role is required");
+//        }
+//
+//        Long roleId = userDto.getPharmaRolesDto().getRoleId();
+//
+//        PharmaRoles role = pharmaRolesRepository
+//                .findById(roleId)
+//                .orElseThrow(() ->
+//                        new RuntimeException("Role not found with id : " + roleId));
+//
+//        UserDetails user = userDetailsMapper.toEntity(userDto, role);
+//
+//        user.setUserId(null);
+//        user.setPassword(passwordEncoder.encode(userDto.getPassword()));
+//        user.setOrganization(currentUser.getOrganization());
+//        user.setCreatedAt(LocalDateTime.now());
+//        user.setIsRejected(Boolean.FALSE);
+//        user.setUserStatus("Active");
+//
+//        attachPharmacies(
+//                user,
+//                request.getPharmacyIds(),
+//                currentUser.getOrganization().getOrganizationId());
+//
+//        List<FeaturePermissionsDto> grantedPermissions =
+//                attachPermissions(user, request.getPermissions());
+//
+//        UserDetails savedUser = userDetailsRepository.save(user);
+//
+//        return new CreateUserResponseDto(
+//                userDetailsMapper.toDto(savedUser),
+//                grantedPermissions);
+//    }
+
+
     @Override
     public CreateUserResponseDto createUserWithPermissions(
-            Long currentUserId,
+            String currentUserId,
             CreateUserRequestDto request) {
 
         if (request.getUser() == null) {
@@ -101,29 +208,42 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         UserDetails currentUser = userDetailsRepository
                 .findByUserIdWithOrganization(currentUserId)
                 .orElseThrow(() ->
-                        new RuntimeException("User not found with id : " + currentUserId));
+                        new RuntimeException(
+                                "User not found with id : " + currentUserId
+                        ));
 
         if (currentUser.getOrganization() == null) {
-            throw new RuntimeException("User is not associated with any organization");
+            throw new RuntimeException(
+                    "User is not associated with any organization"
+            );
         }
 
         UserDetailsDto userDto = request.getUser();
 
-        if (userDto.getUserEmail() == null || userDto.getUserEmail().isBlank()) {
+        if (userDto.getUserEmail() == null
+                || userDto.getUserEmail().isBlank()) {
+
             throw new RuntimeException("User email is required");
         }
 
-        if (userDto.getPassword() == null || userDto.getPassword().isBlank()) {
+        if (userDto.getPassword() == null
+                || userDto.getPassword().isBlank()) {
+
             throw new RuntimeException("Password is required");
         }
 
-        if (userDetailsRepository.existsByUserEmail(userDto.getUserEmail())) {
+        if (userDetailsRepository.existsByUserEmail(
+                userDto.getUserEmail())) {
+
             throw new RuntimeException(
-                    "User already exists with email : " + userDto.getUserEmail());
+                    "User already exists with email : "
+                            + userDto.getUserEmail()
+            );
         }
 
         if (userDto.getPharmaRolesDto() == null
                 || userDto.getPharmaRolesDto().getRoleId() == null) {
+
             throw new RuntimeException("Role is required");
         }
 
@@ -132,13 +252,26 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         PharmaRoles role = pharmaRolesRepository
                 .findById(roleId)
                 .orElseThrow(() ->
-                        new RuntimeException("Role not found with id : " + roleId));
+                        new RuntimeException(
+                                "Role not found with id : " + roleId
+                        ));
 
-        UserDetails user = userDetailsMapper.toEntity(userDto, role);
+        UserDetails user =
+                userDetailsMapper.toEntity(userDto, role);
 
-        user.setUserId(null);
-        user.setPassword(passwordEncoder.encode(userDto.getPassword()));
-        user.setOrganization(currentUser.getOrganization());
+        // Generate backend user ID
+        user.setUserId(
+                userIdGeneratorService.generateUserId()
+        );
+
+        user.setPassword(
+                passwordEncoder.encode(userDto.getPassword())
+        );
+
+        user.setOrganization(
+                currentUser.getOrganization()
+        );
+
         user.setCreatedAt(LocalDateTime.now());
         user.setIsRejected(Boolean.FALSE);
         user.setUserStatus("Active");
@@ -146,16 +279,22 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         attachPharmacies(
                 user,
                 request.getPharmacyIds(),
-                currentUser.getOrganization().getOrganizationId());
+                currentUser.getOrganization().getOrganizationId()
+        );
 
         List<FeaturePermissionsDto> grantedPermissions =
-                attachPermissions(user, request.getPermissions());
+                attachPermissions(
+                        user,
+                        request.getPermissions()
+                );
 
-        UserDetails savedUser = userDetailsRepository.save(user);
+        UserDetails savedUser =
+                userDetailsRepository.save(user);
 
         return new CreateUserResponseDto(
                 userDetailsMapper.toDto(savedUser),
-                grantedPermissions);
+                grantedPermissions
+        );
     }
 
     private void attachPharmacies(
@@ -293,7 +432,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserSummaryDto> getAllUsers(Long currentUserId) {
+    public List<UserSummaryDto> getAllUsers(String currentUserId) {
 
         Long organizationId = getOrganizationIdOfUser(currentUserId);
 
@@ -306,7 +445,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserDetailsDto getUserById(Long currentUserId, Long userId) {
+    public UserDetailsDto getUserById(String currentUserId, String userId) {
 
         UserDetails user = getUserInSameOrganization(currentUserId, userId);
 
@@ -315,7 +454,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
 
     @Override
-    public UserDetailsDto getById(Long userId) {
+    public UserDetailsDto getById(String userId) {
 
         UserDetails user = userDetailsRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -325,8 +464,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public List<FeaturePermissionsDto> updateUserPermissions(
-            Long currentUserId,
-            Long userId,
+            String currentUserId,
+            String userId,
             AssignPermissionsRequestDto request) {
 
         UserDetails user = getUserInSameOrganization(currentUserId, userId);
@@ -348,8 +487,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public List<FeaturePermissionsDto> getUserPermissions(
-            Long currentUserId,
-            Long userId) {
+            String currentUserId,
+            String userId) {
 
         getUserInSameOrganization(currentUserId, userId);
 
@@ -379,7 +518,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     @Transactional(readOnly = true)
-    public CurrentUserPermissionsDto getCurrentUserPermissions(Long currentUserId) {
+    public CurrentUserPermissionsDto getCurrentUserPermissions(String currentUserId) {
 
         UserDetails user = userDetailsRepository
                 .findById(currentUserId)
@@ -406,8 +545,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserImageDto uploadUserImage(
-            Long currentUserId,
-            Long userId,
+            String currentUserId,
+            String userId,
             MultipartFile image) {
 
         if (image == null || image.isEmpty()) {
@@ -444,8 +583,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserStatusDto updateUserStatus(
-            Long currentUserId,
-            Long userId,
+            String currentUserId,
+            String userId,
             String userStatus) {
 
         String normalizedStatus = normalizeStatus(userStatus);
@@ -459,7 +598,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         user.setUserStatus(normalizedStatus);
         user.setModifiedAt(LocalDateTime.now());
-        user.setModifiedBy(currentUserId.toString());
+        user.setModifiedBy(currentUserId);
 
         userDetailsRepository.save(user);
 
@@ -486,7 +625,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 "Invalid user status : " + status + ". Allowed values are Active, Inactive");
     }
 
-    private String buildUserImageKey(Long userId, String originalFilename) {
+    private String buildUserImageKey(String userId, String originalFilename) {
 
         String extension = "";
 
@@ -515,7 +654,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         }
     }
 
-    private UserDetails getUserInSameOrganization(Long currentUserId, Long userId) {
+    private UserDetails getUserInSameOrganization(String currentUserId, String userId) {
 
         Long organizationId = getOrganizationIdOfUser(currentUserId);
 
@@ -527,7 +666,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                         new RuntimeException("User not found in your organization with id : " + userId));
     }
 
-    private Long getOrganizationIdOfUser(Long userId) {
+    private Long getOrganizationIdOfUser(String userId) {
 
         UserDetails user = userDetailsRepository
                 .findByUserIdWithOrganization(userId)

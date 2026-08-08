@@ -9,6 +9,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UserStatusDto {
 
-    private Long userId;
+    private String userId;
     private String userStatus;  // Active or Inactive
 }

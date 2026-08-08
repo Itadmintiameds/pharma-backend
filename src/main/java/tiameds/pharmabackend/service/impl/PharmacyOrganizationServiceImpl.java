@@ -110,7 +110,7 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
     }
 
     @Override
-    public void rejectRequest(Long userId) {
+    public void rejectRequest(String userId) {
 
         UserDetails user = userDetailsRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -144,7 +144,7 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
     }
 
     @Override
-    public PharmacyOrganization getUserOrganization(Long userId) {
+    public PharmacyOrganization getUserOrganization(String userId) {
 
         UserDetails user = userDetailsRepository.findByUserIdWithOrganization(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));

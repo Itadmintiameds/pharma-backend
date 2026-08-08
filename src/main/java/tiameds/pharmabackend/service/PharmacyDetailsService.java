@@ -11,7 +11,7 @@ public interface PharmacyDetailsService {
 
     PharmacyDetailsDto createPharmacy(PharmacyDetailsDto pharmacyDetailsDto);
 
-    List<PharmacySummaryDto> getPharmacyCitiesOfTheOrganization(Long currentUserId);
+    List<PharmacySummaryDto> getPharmacyCitiesOfTheOrganization(String currentUserId);
 
-    List<LoggedInUserPharmacyDto> getLoggedInUserPharmacies(Long userId);
+    List<LoggedInUserPharmacyDto> getLoggedInUserPharmacies(String userId);
 }

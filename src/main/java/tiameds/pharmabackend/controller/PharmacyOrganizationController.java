@@ -41,7 +41,7 @@ public class PharmacyOrganizationController {
 
     @PutMapping("/reject/{userId}")
     public ResponseEntity<?> rejectRequest(
-            @PathVariable Long userId) {
+            @PathVariable String userId) {
 
         organizationService.rejectRequest(userId);
 
