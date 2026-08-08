@@ -26,6 +26,7 @@ public class PharmacyOrganizationMapper {
         organization.setCreatedAt(dto.getCreatedAt());
         organization.setIsActive(dto.getIsActive());
         organization.setIsRejected(dto.getIsRejected());
+        organization.setCentralizedInventory(dto.getCentralizedInventory());
 
         return organization;
     }
@@ -47,6 +48,7 @@ public class PharmacyOrganizationMapper {
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setIsActive(entity.getIsActive());
         dto.setIsRejected(entity.getIsRejected());
+        dto.setCentralizedInventory(entity.getCentralizedInventory());
 
         return dto;
     }

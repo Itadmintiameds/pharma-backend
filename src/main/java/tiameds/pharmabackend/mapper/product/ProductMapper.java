@@ -163,8 +163,12 @@ public class ProductMapper {
         ProductDetailsDto dto = new ProductDetailsDto();
         dto.setProductId(entity.getProductId());
         
-        if (entity.getPharmacy() != null) {
-            dto.setPharmacyId(entity.getPharmacy().getPharmacyId());
+        // OLD single-pharmacy DTO mapping:
+        // if (entity.getPharmacy() != null) {
+        //     dto.setPharmacyId(entity.getPharmacy().getPharmacyId());
+        // }
+        if (entity.getPharmacies() != null && !entity.getPharmacies().isEmpty()) {
+            dto.setPharmacyId(entity.getPharmacies().get(0).getPharmacyId());
         }
         if (entity.getProductCategory() != null) {
             dto.setProductCategoryId(entity.getProductCategory().getProductCategoryId());

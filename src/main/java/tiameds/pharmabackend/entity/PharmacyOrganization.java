@@ -47,6 +47,12 @@ public class PharmacyOrganization {
     @Column(name = "is_rejected")
     private Boolean isRejected;
 
+    // Flow 3 flag: for a multi-location organization, when true products are managed
+    // centrally in a warehouse (purchase into warehouse, then transfer to pharmacies).
+    // When false (or single-location), products are managed per pharmacy.
+    @Column(name = "centralized_inventory")
+    private Boolean centralizedInventory;
+
     @OneToMany(
             mappedBy = "organization",
             cascade = CascadeType.ALL,
@@ -62,4 +68,13 @@ public class PharmacyOrganization {
     )
     @JsonIgnore
     private List<UserDetails> users;
+
+    // An organization owns many warehouses
+    @OneToMany(
+            mappedBy = "organization",
+            cascade = CascadeType.ALL,
+            fetch = FetchType.LAZY
+    )
+    @JsonIgnore
+    private List<Warehouse> warehouses;
 }

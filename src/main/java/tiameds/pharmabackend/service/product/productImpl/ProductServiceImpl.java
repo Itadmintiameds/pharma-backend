@@ -91,7 +91,12 @@ public class ProductServiceImpl implements ProductService {
 
         ProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
 
-        product.setPharmacy(pharmacy);
+        // OLD single-pharmacy assignment: product.setPharmacy(pharmacy);
+        // Product now maps to many pharmacies via ManyToMany.
+        if (product.getPharmacies() == null) {
+            product.setPharmacies(new ArrayList<>());
+        }
+        product.getPharmacies().add(pharmacy);
         dto.setProductId(productId);
 
         // Generate IDs and set bidirectional relationships
@@ -238,7 +243,7 @@ public class ProductServiceImpl implements ProductService {
 
         String pharmacyId = pharmacyContext.getCurrentPharmacy();
 
-        return productRepo.findByPharmacy_PharmacyId(pharmacyId)
+        return productRepo.findByPharmacies_PharmacyId(pharmacyId)
                 .stream()
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
@@ -259,7 +264,7 @@ public class ProductServiceImpl implements ProductService {
                         .filter(inv -> inv.getProduct() != null)
                         .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
 
-        return productRepo.findByPharmacy_PharmacyId(pharmacyId)
+        return productRepo.findByPharmacies_PharmacyId(pharmacyId)
                 .stream()
                 .map(product -> toStockSummary(
                         product,
@@ -349,7 +354,7 @@ public class ProductServiceImpl implements ProductService {
                         .filter(inv -> inv.getProduct() != null)
                         .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
 
-        List<ProductDetails> products = productRepo.findByPharmacy_PharmacyId(pharmacyId);
+        List<ProductDetails> products = productRepo.findByPharmacies_PharmacyId(pharmacyId);
 
         LocalDate today = LocalDate.now();
         LocalDate in30Days = today.plusDays(30);
@@ -422,8 +427,19 @@ public class ProductServiceImpl implements ProductService {
 
         ProductDetailResponseDto dto = new ProductDetailResponseDto();
         dto.setProductId(product.getProductId());
-        if (product.getPharmacy() != null) {
-            dto.setPharmacyId(product.getPharmacy().getPharmacyId());
+        // OLD single-pharmacy DTO mapping:
+        // if (product.getPharmacy() != null) {
+        //     dto.setPharmacyId(product.getPharmacy().getPharmacyId());
+        // }
+        // Prefer the current pharmacy (validated by checkAuthorization); fall back to the first mapping.
+        if (product.getPharmacies() != null && !product.getPharmacies().isEmpty()) {
+            String currentPharmacy = pharmacyContext.getCurrentPharmacy();
+            String pharmacyId = product.getPharmacies().stream()
+                    .map(PharmacyDetails::getPharmacyId)
+                    .filter(id -> id.equals(currentPharmacy))
+                    .findFirst()
+                    .orElse(product.getPharmacies().get(0).getPharmacyId());
+            dto.setPharmacyId(pharmacyId);
         }
         if (product.getProductCategory() != null) {
             dto.setProductCategoryId(product.getProductCategory().getProductCategoryId());
@@ -629,11 +645,20 @@ public class ProductServiceImpl implements ProductService {
         String currentPharmacy =
                 pharmacyContext.getCurrentPharmacy();
 
-        if (product.getPharmacy() == null) {
+        // OLD single-pharmacy authorization:
+        // if (product.getPharmacy() == null) {
+        //     throw new RuntimeException("Product is not mapped to any pharmacy.");
+        // }
+        // if (!product.getPharmacy().getPharmacyId().equals(currentPharmacy)) {
+        //     throw new RuntimeException("You are not authorized to access this product.");
+        // }
+        if (product.getPharmacies() == null || product.getPharmacies().isEmpty()) {
             throw new RuntimeException("Product is not mapped to any pharmacy.");
         }
 
-        if (!product.getPharmacy().getPharmacyId().equals(currentPharmacy)) {
+        boolean authorized = product.getPharmacies().stream()
+                .anyMatch(p -> p.getPharmacyId().equals(currentPharmacy));
+        if (!authorized) {
             throw new RuntimeException(
                     "You are not authorized to access this product.");
         }
@@ -652,7 +677,15 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private String resolvePharmacyName(ProductDetails product) {
-        String name = product.getPharmacy() == null ? null : product.getPharmacy().getPharmacyName();
+        // OLD: product.getPharmacy() == null ? null : product.getPharmacy().getPharmacyName();
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        String name = (product.getPharmacies() == null)
+                ? null
+                : product.getPharmacies().stream()
+                        .filter(p -> p.getPharmacyId().equals(pharmacyId))
+                        .map(PharmacyDetails::getPharmacyName)
+                        .findFirst()
+                        .orElse(null);
         return name == null ? "XX" : name;
     }
 

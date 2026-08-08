@@ -17,5 +17,9 @@ public interface ProductDetailsRepository extends JpaRepository<ProductDetails, 
     Integer findMaxProductNumber();
 
     // all products belonging to a single pharmacy
-    List<ProductDetails> findByPharmacy_PharmacyId(String pharmacyId);
+    // OLD (single-pharmacy ManyToOne, property no longer exists):
+    // List<ProductDetails> findByPharmacy_PharmacyId(String pharmacyId);
+
+    // Product now maps to many pharmacies via ManyToMany -> traverse the collection.
+    List<ProductDetails> findByPharmacies_PharmacyId(String pharmacyId);
 }

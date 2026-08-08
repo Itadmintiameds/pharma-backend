@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.Warehouse;
 import tiameds.pharmabackend.entity.master.ProductCategory;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 
@@ -27,10 +28,32 @@ public class ProductDetails {
     @Column(name = "product_id", length = 30)
     private String productId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
+    // OLD: single-pharmacy mapping (ManyToOne). Replaced by ManyToMany below so a
+    // product can be shared across multiple pharmacies and warehouses.
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
+    // @JsonIgnore
+    // private PharmacyDetails pharmacy;
+
+    // Product <-> Pharmacy ManyToMany (this side owns the join table)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "pharma_pharmacy_product",
+            joinColumns = @JoinColumn(name = "product_id", referencedColumnName = "product_id"),
+            inverseJoinColumns = @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
+    )
     @JsonIgnore
-    private PharmacyDetails pharmacy;
+    private List<PharmacyDetails> pharmacies = new ArrayList<>();
+
+    // Product <-> Warehouse ManyToMany (this side owns the join table)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "pharma_warehouse_product",
+            joinColumns = @JoinColumn(name = "product_id", referencedColumnName = "product_id"),
+            inverseJoinColumns = @JoinColumn(name = "warehouse_id", referencedColumnName = "warehouse_id")
+    )
+    @JsonIgnore
+    private List<Warehouse> warehouses = new ArrayList<>();
 
     //join product category master table
     @ManyToOne(fetch = FetchType.LAZY)
