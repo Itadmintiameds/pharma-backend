@@ -754,7 +754,7 @@ public class ProductServiceImpl implements ProductService {
                                 Collectors.summingLong(inv ->
                                         inv.getTotalStock() == null ? 0L : inv.getTotalStock())));
 
-        return batchRepo.findByProduct_Pharmacy_PharmacyId(pharmacyId)
+        return batchRepo.findByProduct_Pharmacies_PharmacyId(pharmacyId)
                 .stream()
                 .map(batch -> toBatchStock(
                         batch,
@@ -769,7 +769,7 @@ public class ProductServiceImpl implements ProductService {
         String pharmacyId = pharmacyContext.getCurrentPharmacy();
 
         BatchDetails batch = batchRepo
-                .findByBatchIdAndProduct_Pharmacy_PharmacyId(batchId, pharmacyId)
+                .findByBatchIdAndProduct_Pharmacies_PharmacyId(batchId, pharmacyId)
                 .orElseThrow(() -> new RuntimeException(
                         "Batch not found in this pharmacy with id : " + batchId));
 

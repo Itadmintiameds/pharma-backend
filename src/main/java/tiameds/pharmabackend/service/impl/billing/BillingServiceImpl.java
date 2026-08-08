@@ -309,8 +309,18 @@ public class BillingServiceImpl implements BillingService {
                     .orElseThrow(() ->
                             new RuntimeException("Product not found: " + dto.getProductId()));
 
-            if (product.getPharmacy() == null
-                    || !context.pharmacyId().equals(product.getPharmacy().getPharmacyId())) {
+            // OLD: single-pharmacy check, broke when ProductDetails.pharmacy (ManyToOne)
+            // was replaced by pharmacies (ManyToMany).
+            // if (product.getPharmacies() == null
+            //         || !context.pharmacyId().equals(product.getPharmacy().getPharmacyId())) {
+            //     throw new RuntimeException(
+            //             "Product does not belong to this pharmacy: " + dto.getProductId());
+            // }
+            boolean belongsToPharmacy = product.getPharmacies() != null
+                    && product.getPharmacies().stream()
+                            .anyMatch(p -> context.pharmacyId().equals(p.getPharmacyId()));
+
+            if (!belongsToPharmacy) {
                 throw new RuntimeException(
                         "Product does not belong to this pharmacy: " + dto.getProductId());
             }
