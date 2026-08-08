@@ -9,6 +9,7 @@ import tiameds.pharmabackend.dto.PharmacySummaryDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
+import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.mapper.PharmacyDetailsMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
@@ -32,6 +33,7 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyOrganizationRepository pharmacyOrganizationRepository;
     private final S3Service s3Service;
+    private final CurrentPharmacyContext pharmacyContext;
 
     private static final DateTimeFormatter DOCUMENT_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -85,6 +87,26 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
                 pharmacyDetailsRepository.save(pharmacy);
 
         return pharmacyDetailsMapper.toDto(savedPharmacy);
+    }
+
+    @Override
+    public PharmacyDetailsDto getCurrentPharmacy(String currentUserId) {
+
+        // pharmacyId comes from the X-Pharmacy-Id header via CurrentPharmacyContext.
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        // The logged-in user must belong to the pharmacy named in the header.
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(pharmacyId, currentUserId);
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to access this pharmacy.");
+        }
+
+        PharmacyDetails pharmacy = pharmacyDetailsRepository.findById(pharmacyId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Pharmacy not found with id : " + pharmacyId));
+
+        return pharmacyDetailsMapper.toDto(pharmacy);
     }
 
     @Override

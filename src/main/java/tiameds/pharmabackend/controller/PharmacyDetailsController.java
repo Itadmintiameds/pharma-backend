@@ -32,6 +32,17 @@ public class PharmacyDetailsController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    // Pharmacy is taken from the X-Pharmacy-Id header (resolved into
+    // CurrentPharmacyContext by CurrentPharmacyFilter), not from the path, and
+    // the service verifies the logged-in user belongs to that pharmacy.
+    @GetMapping("/getCurrentPharmacy")
+    public ResponseEntity<PharmacyDetailsDto> getCurrentPharmacy(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        return ResponseEntity.ok(
+                pharmacyDetailsService.getCurrentPharmacy(currentUser.getUserId()));
+    }
+
     @GetMapping("/cities")
     public ResponseEntity<List<PharmacySummaryDto>> getPharmacyCitiesOfTheOrganization(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
