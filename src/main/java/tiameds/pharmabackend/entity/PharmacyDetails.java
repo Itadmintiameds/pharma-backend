@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -103,4 +104,9 @@ public class PharmacyDetails {
     @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
     @JsonIgnore
     private PharmacyOrganization organization;
+
+    // Pharmacy <-> Product ManyToMany (inverse side; ProductDetails owns the join table)
+    @ManyToMany(mappedBy = "pharmacies", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<ProductDetails> products = new ArrayList<>();
 }

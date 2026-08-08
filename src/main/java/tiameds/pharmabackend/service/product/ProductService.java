@@ -2,6 +2,7 @@ package tiameds.pharmabackend.service.product;
 
 import tiameds.pharmabackend.dto.product.AddPackageRequest;
 import tiameds.pharmabackend.dto.product.BatchDetailsDto;
+import tiameds.pharmabackend.dto.product.BatchStockDto;
 import tiameds.pharmabackend.dto.product.ProductDetailResponseDto;
 import tiameds.pharmabackend.dto.product.ProductDetailsDto;
 import tiameds.pharmabackend.dto.product.ProductExpiryKpiDto;
@@ -29,4 +30,10 @@ public interface ProductService {
 
     // Add one or more batches to existing packages of a product (each batch carries its packagingId)
     ProductDetailResponseDto addBatches(String productId, List<BatchDetailsDto> batches);
+
+    // All batches of the current pharmacy with product, packaging, stock and pricing
+    List<BatchStockDto> getAllBatches();
+
+    // One batch with the same detail as the listing
+    BatchStockDto getBatchById(String batchId);
 }

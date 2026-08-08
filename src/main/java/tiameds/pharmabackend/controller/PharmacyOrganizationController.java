@@ -8,7 +8,11 @@ import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.PharmacyOrganizationDto;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.service.OrganizationDeletionService;
 import tiameds.pharmabackend.service.PharmacyOrganizationService;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/organization")
@@ -16,6 +20,7 @@ import tiameds.pharmabackend.service.PharmacyOrganizationService;
 public class PharmacyOrganizationController {
 
     private final PharmacyOrganizationService organizationService;
+    private final OrganizationDeletionService organizationDeletionService;
 
     @PostMapping("/create")
     public ResponseEntity<?> createOrganization(
@@ -51,5 +56,26 @@ public class PharmacyOrganizationController {
                 organizationService.getUserOrganization(userDetails.getUserId());
 
         return ResponseEntity.ok(organization);
+    }
+
+    // Hard-deletes an organization and EVERYTHING under it: pharmacies, warehouses,
+    // users, products (with all children), inventory, purchases and suppliers. Irreversible.
+    @DeleteMapping("/delete-all-data/{organizationId}")
+    public ResponseEntity<?> deleteOrganizationData(
+            @PathVariable Long organizationId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Map<String, Integer> deletedCounts =
+                organizationDeletionService.deleteOrganizationData(organizationId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "All data for organization " + organizationId + " has been deleted.");
+        response.put("deletedCounts", deletedCounts);
+
+        return ResponseEntity.ok(response);
     }
 }

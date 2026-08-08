@@ -13,7 +13,9 @@ public class PackageWithBatchesDto {
     private String packagingId;
     private String purchaseUnit;
     private Long purchaseUnitContains;
-    private String smallestUnit;
+    // private String smallestUnit;
+    private Long purchaseSmallestUnitId;
+    private String purchaseSmallestUnitName;
 
     private List<BatchDetailsDto> batches;
 }

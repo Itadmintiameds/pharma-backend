@@ -91,7 +91,12 @@ public class ProductServiceImpl implements ProductService {
 
         ProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
 
-        product.setPharmacy(pharmacy);
+        // OLD single-pharmacy assignment: product.setPharmacy(pharmacy);
+        // Product now maps to many pharmacies via ManyToMany.
+        if (product.getPharmacies() == null) {
+            product.setPharmacies(new ArrayList<>());
+        }
+        product.getPharmacies().add(pharmacy);
         dto.setProductId(productId);
 
         // Generate IDs and set bidirectional relationships
@@ -208,7 +213,9 @@ public class ProductServiceImpl implements ProductService {
         }
 
         productRepo.save(product);
-        return dto;
+        // Return the persisted entity (not the request dto) so server-derived fields
+        // like packaging.purchaseUnit and the linked PurchaseSmallestUnit names are reflected.
+        return mapper.toDto(product);
     }
 
 //    @Override
@@ -236,7 +243,7 @@ public class ProductServiceImpl implements ProductService {
 
         String pharmacyId = pharmacyContext.getCurrentPharmacy();
 
-        return productRepo.findByPharmacy_PharmacyId(pharmacyId)
+        return productRepo.findByPharmacies_PharmacyId(pharmacyId)
                 .stream()
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
@@ -257,7 +264,7 @@ public class ProductServiceImpl implements ProductService {
                         .filter(inv -> inv.getProduct() != null)
                         .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
 
-        return productRepo.findByPharmacy_PharmacyId(pharmacyId)
+        return productRepo.findByPharmacies_PharmacyId(pharmacyId)
                 .stream()
                 .map(product -> toStockSummary(
                         product,
@@ -347,7 +354,7 @@ public class ProductServiceImpl implements ProductService {
                         .filter(inv -> inv.getProduct() != null)
                         .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
 
-        List<ProductDetails> products = productRepo.findByPharmacy_PharmacyId(pharmacyId);
+        List<ProductDetails> products = productRepo.findByPharmacies_PharmacyId(pharmacyId);
 
         LocalDate today = LocalDate.now();
         LocalDate in30Days = today.plusDays(30);
@@ -420,8 +427,19 @@ public class ProductServiceImpl implements ProductService {
 
         ProductDetailResponseDto dto = new ProductDetailResponseDto();
         dto.setProductId(product.getProductId());
-        if (product.getPharmacy() != null) {
-            dto.setPharmacyId(product.getPharmacy().getPharmacyId());
+        // OLD single-pharmacy DTO mapping:
+        // if (product.getPharmacy() != null) {
+        //     dto.setPharmacyId(product.getPharmacy().getPharmacyId());
+        // }
+        // Prefer the current pharmacy (validated by checkAuthorization); fall back to the first mapping.
+        if (product.getPharmacies() != null && !product.getPharmacies().isEmpty()) {
+            String currentPharmacy = pharmacyContext.getCurrentPharmacy();
+            String pharmacyId = product.getPharmacies().stream()
+                    .map(PharmacyDetails::getPharmacyId)
+                    .filter(id -> id.equals(currentPharmacy))
+                    .findFirst()
+                    .orElse(product.getPharmacies().get(0).getPharmacyId());
+            dto.setPharmacyId(pharmacyId);
         }
         if (product.getProductCategory() != null) {
             dto.setProductCategoryId(product.getProductCategory().getProductCategoryId());
@@ -459,7 +477,11 @@ public class ProductServiceImpl implements ProductService {
                 packDto.setPackagingId(pack.getPackagingId());
                 packDto.setPurchaseUnit(pack.getPurchaseUnit());
                 packDto.setPurchaseUnitContains(pack.getPurchaseUnitContains());
-                packDto.setSmallestUnit(pack.getSmallestUnit());
+                // packDto.setSmallestUnit(pack.getSmallestUnit());
+                if (pack.getPurchaseSmallestUnit() != null) {
+                    packDto.setPurchaseSmallestUnitId(pack.getPurchaseSmallestUnit().getPurchaseSmallestUnitId());
+                    packDto.setPurchaseSmallestUnitName(pack.getPurchaseSmallestUnit().getPurchaseSmallestUnitName());
+                }
 
                 List<BatchDetailsDto> packBatches = batches.stream()
                         .filter(b -> b.getPackagingDetails() != null
@@ -499,9 +521,11 @@ public class ProductServiceImpl implements ProductService {
         PackagingDetails pkg = new PackagingDetails();
         pkg.setPackagingId(generatePackagingId(pharmacyName));
         pkg.setProduct(product);
-        pkg.setPurchaseUnit(request.getPurchaseUnit());
+        // purchaseUnit is derived from the linked PurchaseSmallestUnit master
+        // pkg.setPurchaseUnit(request.getPurchaseUnit());
         pkg.setPurchaseUnitContains(request.getPurchaseUnitContains());
-        pkg.setSmallestUnit(request.getSmallestUnit());
+        // pkg.setSmallestUnit(request.getSmallestUnit());
+        inventoryMapper.applyPurchaseSmallestUnit(pkg, request.getPurchaseSmallestUnitId());
         pkg.setCreatedBy(createdBy);
         pkg.setCreatedAt(now);
 
@@ -621,11 +645,20 @@ public class ProductServiceImpl implements ProductService {
         String currentPharmacy =
                 pharmacyContext.getCurrentPharmacy();
 
-        if (product.getPharmacy() == null) {
+        // OLD single-pharmacy authorization:
+        // if (product.getPharmacy() == null) {
+        //     throw new RuntimeException("Product is not mapped to any pharmacy.");
+        // }
+        // if (!product.getPharmacy().getPharmacyId().equals(currentPharmacy)) {
+        //     throw new RuntimeException("You are not authorized to access this product.");
+        // }
+        if (product.getPharmacies() == null || product.getPharmacies().isEmpty()) {
             throw new RuntimeException("Product is not mapped to any pharmacy.");
         }
 
-        if (!product.getPharmacy().getPharmacyId().equals(currentPharmacy)) {
+        boolean authorized = product.getPharmacies().stream()
+                .anyMatch(p -> p.getPharmacyId().equals(currentPharmacy));
+        if (!authorized) {
             throw new RuntimeException(
                     "You are not authorized to access this product.");
         }
@@ -644,7 +677,15 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private String resolvePharmacyName(ProductDetails product) {
-        String name = product.getPharmacy() == null ? null : product.getPharmacy().getPharmacyName();
+        // OLD: product.getPharmacy() == null ? null : product.getPharmacy().getPharmacyName();
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        String name = (product.getPharmacies() == null)
+                ? null
+                : product.getPharmacies().stream()
+                        .filter(p -> p.getPharmacyId().equals(pharmacyId))
+                        .map(PharmacyDetails::getPharmacyName)
+                        .findFirst()
+                        .orElse(null);
         return name == null ? "XX" : name;
     }
 
@@ -693,5 +734,123 @@ public class ProductServiceImpl implements ProductService {
         Integer lastNumber = batchRepo.findMaxBatchNumber();
         int nextNumber = (lastNumber == null) ? 1 : lastNumber + 1;
         return prefix + "BTCH" + String.format("%05d", nextNumber);
+    }
+
+    // ===== Batch listing: batch + product + packaging + available stock =====
+    @Override
+    @Transactional(readOnly = true)
+    public List<BatchStockDto> getAllBatches() {
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        // stock lives in pharma_inventory, not on the batch -> load the pharmacy's
+        // stock rows once and total them per batch.
+        Map<String, Long> stockByBatch =
+                inventoryRepo.findByPharmacy_PharmacyId(pharmacyId)
+                        .stream()
+                        .filter(inv -> inv.getBatch() != null)
+                        .collect(Collectors.groupingBy(
+                                inv -> inv.getBatch().getBatchId(),
+                                Collectors.summingLong(inv ->
+                                        inv.getTotalStock() == null ? 0L : inv.getTotalStock())));
+
+        return batchRepo.findByProduct_Pharmacy_PharmacyId(pharmacyId)
+                .stream()
+                .map(batch -> toBatchStock(
+                        batch,
+                        stockByBatch.getOrDefault(batch.getBatchId(), 0L)))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BatchStockDto getBatchById(String batchId) {
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        BatchDetails batch = batchRepo
+                .findByBatchIdAndProduct_Pharmacy_PharmacyId(batchId, pharmacyId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Batch not found in this pharmacy with id : " + batchId));
+
+        long totalStock = inventoryRepo
+                .findByPharmacy_PharmacyIdAndBatch_BatchId(pharmacyId, batchId)
+                .stream()
+                .mapToLong(inv -> inv.getTotalStock() == null ? 0L : inv.getTotalStock())
+                .sum();
+
+        return toBatchStock(batch, totalStock);
+    }
+
+    private BatchStockDto toBatchStock(BatchDetails batch, long totalStock) {
+
+        BatchStockDto dto = new BatchStockDto();
+
+        dto.setBatchId(batch.getBatchId());
+        dto.setBatchNumber(batch.getBatchNumber());
+        dto.setManufacturingDate(batch.getManufacturingDate());
+        dto.setExpiryDate(batch.getExpiryDate());
+        dto.setRackLocation(batch.getRackLocation());
+
+        ProductDetails product = batch.getProduct();
+
+        if (product != null) {
+            dto.setProductId(product.getProductId());
+            dto.setProductName(product.getProductName());
+            dto.setBrandName(product.getBrandName());
+            dto.setGstPercentage(product.getGstPercentage());
+            dto.setHsnNo(product.getHsnNo());
+        }
+
+        PackagingDetails packaging = batch.getPackagingDetails();
+
+        if (packaging != null) {
+            dto.setPackagingId(packaging.getPackagingId());
+            dto.setPurchaseUnit(packaging.getPurchaseUnit());
+            dto.setPurchaseUnitContains(packaging.getPurchaseUnitContains());
+
+            if (packaging.getPurchaseSmallestUnit() != null) {
+                dto.setPurchaseSmallestUnitId(
+                        packaging.getPurchaseSmallestUnit().getPurchaseSmallestUnitId());
+                dto.setPurchaseSmallestUnitName(
+                        packaging.getPurchaseSmallestUnit().getPurchaseSmallestUnitName());
+            }
+        }
+
+        dto.setTotalStock(totalStock);
+
+        dto.setPurchasePrice(batch.getPurchasePrice());
+        dto.setMrp(batch.getMrp());
+        dto.setSellingPrice(batch.getSellingPrice());
+        dto.setPurchasePricePerUnit(batch.getPurchasePricePerUnit());
+        dto.setMrpPerUnit(batch.getMrpPerUnit());
+        dto.setSellingPricePerUnit(batch.getSellingPricePerUnit());
+
+        dto.setStatus(resolveBatchStatus(batch.getExpiryDate(), totalStock));
+
+        return dto;
+    }
+
+    private String resolveBatchStatus(LocalDate expiryDate, long totalStock) {
+
+        if (totalStock <= 0L) {
+            return "OUT_OF_STOCK";
+        }
+
+        if (expiryDate == null) {
+            return "ACTIVE";
+        }
+
+        LocalDate today = LocalDate.now();
+
+        if (expiryDate.isBefore(today)) {
+            return "EXPIRED";
+        }
+
+        if (!expiryDate.isAfter(today.plusDays(NEAR_EXPIRY_DAYS))) {
+            return "NEAR_EXPIRY";
+        }
+
+        return "ACTIVE";
     }
 }

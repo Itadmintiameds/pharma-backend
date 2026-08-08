@@ -11,12 +11,14 @@ import tiameds.pharmabackend.dto.master.NetQuantityUnitDto;
 import tiameds.pharmabackend.dto.master.ProductCategoryDto;
 import tiameds.pharmabackend.dto.master.ProductFormDto;
 import tiameds.pharmabackend.dto.master.ProductTypeDto;
+import tiameds.pharmabackend.dto.master.PurchaseSmallestUnitDto;
 import tiameds.pharmabackend.service.master.DeviceCategoryService;
 import tiameds.pharmabackend.service.master.MaterialTypeService;
 import tiameds.pharmabackend.service.master.NetQuantityUnitService;
 import tiameds.pharmabackend.service.master.ProductCategoryService;
 import tiameds.pharmabackend.service.master.ProductFormService;
 import tiameds.pharmabackend.service.master.ProductTypeService;
+import tiameds.pharmabackend.service.master.PurchaseSmallestUnitService;
 
 import java.util.List;
 
@@ -31,6 +33,7 @@ public class ProductCategoryController {
     private final ProductFormService productFormService;
     private final DeviceCategoryService deviceCategoryService;
     private final MaterialTypeService materialTypeService;
+    private final PurchaseSmallestUnitService purchaseSmallestUnitService;
 
     @GetMapping
     public ResponseEntity<List<ProductCategoryDto>> getAllProductCategories() {
@@ -75,6 +78,13 @@ public class ProductCategoryController {
             @PathVariable Long productCategoryId) {
 
         return ResponseEntity.ok(materialTypeService.getMaterialTypesByCategoryId(productCategoryId));
+    }
+
+    @GetMapping("/{productCategoryId}/purchase-smallest-units")
+    public ResponseEntity<List<PurchaseSmallestUnitDto>> getPurchaseSmallestUnitsByCategoryId(
+            @PathVariable Long productCategoryId) {
+
+        return ResponseEntity.ok(purchaseSmallestUnitService.getPurchaseSmallestUnitsByCategoryId(productCategoryId));
     }
 
     @PostMapping
