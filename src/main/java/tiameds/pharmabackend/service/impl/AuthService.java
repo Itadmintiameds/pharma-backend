@@ -46,6 +46,12 @@ public class AuthService {
                     "Invalid Credentials");
         }
 
+        if(!"Active".equalsIgnoreCase(user.getUserStatus())){
+
+            throw new RuntimeException(
+                    "Your account has been deactivated. Please contact your administrator.");
+        }
+
         String otp =
                 otpGenerator.generateOtp();
 
