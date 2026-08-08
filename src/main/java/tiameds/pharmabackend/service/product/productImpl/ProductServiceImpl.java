@@ -281,6 +281,14 @@ public class ProductServiceImpl implements ProductService {
         ProductStockSummaryDto dto = new ProductStockSummaryDto();
         dto.setProductId(product.getProductId());
         dto.setProductName(product.getProductName());
+        dto.setBrandName(product.getBrandName());
+
+        if (product.getProductCategory() != null) {
+            dto.setProductCategoryId(product.getProductCategory().getProductCategoryId());
+            dto.setProductCategoryName(product.getProductCategory().getProductCategoryName());
+        }
+
+        dto.setManufacturerName(resolveManufacturerName(product));
 
         LocalDate today = LocalDate.now();
         LocalDate nearExpiryCutoff = today.plusDays(NEAR_EXPIRY_DAYS);
@@ -330,6 +338,56 @@ public class ProductServiceImpl implements ProductService {
         dto.setOverallStatus(resolveOverallStatus(active, nearExpiry, expired));
 
         return dto;
+    }
+
+    /**
+     * The manufacturer is stored on the category-specific attribute row, not on the
+     * product itself, so it is read from whichever attribute list is populated for
+     * this product. Drugs have no manufacturer attribute, so they return null.
+     */
+    private String resolveManufacturerName(ProductDetails product) {
+
+        if (product.getProductAttributeNonConsumableMedicals() != null) {
+            for (var attr : product.getProductAttributeNonConsumableMedicals()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeConsumableMedicals() != null) {
+            for (var attr : product.getProductAttributeConsumableMedicals()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeSupplements() != null) {
+            for (var attr : product.getProductAttributeSupplements()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeFoodInfants() != null) {
+            for (var attr : product.getProductAttributeFoodInfants()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeCosmetics() != null) {
+            for (var attr : product.getProductAttributeCosmetics()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        return null;
     }
 
     private String resolveOverallStatus(long active, long nearExpiry, long expired) {
