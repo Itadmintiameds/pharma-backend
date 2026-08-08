@@ -1,4 +1,4 @@
-package tiameds.pharmabackend.service;
+package tiameds.pharmabackend.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -30,7 +30,6 @@ import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
 import tiameds.pharmabackend.service.S3Service;
 import tiameds.pharmabackend.service.UserDetailsService;
-import tiameds.pharmabackend.service.UserIdGeneratorService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
