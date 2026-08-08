@@ -9,7 +9,7 @@ import java.util.List;
 @AllArgsConstructor
 public class CurrentUserPermissionsDto {
 
-    private Long userId;
+    private String userId;
     private String roleName;
     private List<String> permissions;
 }

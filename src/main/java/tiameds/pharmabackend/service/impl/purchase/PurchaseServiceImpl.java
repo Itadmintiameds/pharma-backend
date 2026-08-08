@@ -103,7 +103,7 @@ public class PurchaseServiceImpl implements PurchaseService {
             }
         }
 
-        purchase.setGrnNo(generateGrnNo());
+        purchase.setGrnNo(generateGrnNo(pharmacyId));
         purchase.setCreatedBy(String.valueOf(persistentUser.getUserId()));
         purchase.setCreatedAt(LocalDateTime.now());
         purchase.setModifiedBy(null);
@@ -227,13 +227,14 @@ public class PurchaseServiceImpl implements PurchaseService {
                 .collect(Collectors.toList());
     }
 
-    private String generateGrnNo() {
+    private String generateGrnNo(String pharmacyId) {
 
         int year = LocalDate.now().getYear();
         String prefix = "GRN-" + year + "-";
 
         List<String> latest = purchaseRepository.findLatestGrn(
                 prefix,
+                pharmacyId,
                 PageRequest.of(0, 1)
         );
 

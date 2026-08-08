@@ -8,8 +8,8 @@ public interface PharmacyOrganizationService {
 
     PharmacyOrganizationDto createOrganization(PharmacyOrganizationDto organizationDto, UserDetails user);
 
-    void rejectRequest(Long userId);
+    void rejectRequest(String userId);
 
-    PharmacyOrganization getUserOrganization(Long userId);
+    PharmacyOrganization getUserOrganization(String userId);
 
 }

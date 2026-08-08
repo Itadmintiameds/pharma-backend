@@ -17,7 +17,7 @@ public class CustomUserDetails implements org.springframework.security.core.user
         this.user = user;
     }
 
-    public Long getUserId() {
+    public String getUserId() {
         return user.getUserId();
     }
 

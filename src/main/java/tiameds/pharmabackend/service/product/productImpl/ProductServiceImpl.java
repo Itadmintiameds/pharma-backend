@@ -77,9 +77,9 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
 
         String createdBy = "System";
-        Long userId = getCurrentUserId();
+        String userId = getCurrentUserId();
         if (userId != null) {
-            createdBy = String.valueOf(userId);
+            createdBy = userId;
         }
 
 //        if (userId != null) {
@@ -627,7 +627,7 @@ public class ProductServiceImpl implements ProductService {
         productRepo.deleteById(productId);
     }
 
-    private Long getCurrentUserId() {
+    private String getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof CustomUserDetails) {
             return ((CustomUserDetails) auth.getPrincipal()).getUserId();
@@ -695,8 +695,8 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private String resolveCreatedBy() {
-        Long userId = getCurrentUserId();
-        return userId != null ? String.valueOf(userId) : "System";
+        String userId = getCurrentUserId();
+        return userId != null ? userId : "System";
     }
 
     private String pharmacyPrefix(String pharmacyName) {

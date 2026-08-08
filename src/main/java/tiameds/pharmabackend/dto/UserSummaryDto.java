@@ -7,7 +7,7 @@ import java.util.List;
 @Data
 public class UserSummaryDto {
 
-    private Long userId;
+    private String userId;
     private String fullName;
     private String userEmail;
     private String employeeId;

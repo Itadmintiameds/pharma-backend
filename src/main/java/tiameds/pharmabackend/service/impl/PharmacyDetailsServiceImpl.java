@@ -88,7 +88,7 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
     }
 
     @Override
-    public List<PharmacySummaryDto> getPharmacyCitiesOfTheOrganization(Long currentUserId) {
+    public List<PharmacySummaryDto> getPharmacyCitiesOfTheOrganization(String currentUserId) {
 
         UserDetails currentUser = userDetailsRepository
                 .findByUserIdWithOrganization(currentUserId)
@@ -167,7 +167,7 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
 
 
     @Override
-    public List<LoggedInUserPharmacyDto> getLoggedInUserPharmacies(Long userId) {
+    public List<LoggedInUserPharmacyDto> getLoggedInUserPharmacies(String userId) {
 
         UserDetails persistentUser = userDetailsRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));

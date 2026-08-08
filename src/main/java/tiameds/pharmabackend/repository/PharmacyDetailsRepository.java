@@ -31,7 +31,7 @@ public interface PharmacyDetailsRepository extends JpaRepository<PharmacyDetails
 """)
     boolean existsUserPharmacy(
             @Param("pharmacyId") String pharmacyId,
-            @Param("userId") Long userId);
+            @Param("userId") String userId);
 
     @Query("""
     SELECT p.pharmacyId
@@ -39,5 +39,5 @@ public interface PharmacyDetailsRepository extends JpaRepository<PharmacyDetails
     JOIN p.users u
     WHERE u.userId = :userId
 """)
-    List<String> findPharmacyIdsByUserId(@Param("userId") Long userId);
+    List<String> findPharmacyIdsByUserId(@Param("userId") String userId);
 }

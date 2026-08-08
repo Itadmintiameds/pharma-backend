@@ -7,6 +7,6 @@ import lombok.Data;
 @AllArgsConstructor
 public class UserImageDto {
 
-    private Long userId;
+    private String userId;
     private String imageUrl;
 }

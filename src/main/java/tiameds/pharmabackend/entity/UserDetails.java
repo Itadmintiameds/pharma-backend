@@ -21,9 +21,8 @@ import java.util.List;
 public class UserDetails {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
-    private Long userId;
+    @Column(name = "user_id", length = 20, nullable = false, updatable = false)
+    private String userId;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

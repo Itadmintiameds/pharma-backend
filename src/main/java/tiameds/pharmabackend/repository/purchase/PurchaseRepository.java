@@ -18,8 +18,12 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         SELECT p.grnNo
         FROM Purchase p
         WHERE p.grnNo LIKE CONCAT(:prefix, '%')
+          AND p.pharmacyId = :pharmacyId
         ORDER BY p.grnNo DESC
     """)
-    List<String> findLatestGrn(@Param("prefix") String prefix, Pageable pageable);
+    List<String> findLatestGrn(
+            @Param("prefix") String prefix,
+            @Param("pharmacyId") String pharmacyId,
+            Pageable pageable);
 
 }

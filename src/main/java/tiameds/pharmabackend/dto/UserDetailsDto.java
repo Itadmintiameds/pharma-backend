@@ -12,8 +12,7 @@ import java.util.List;
 @Data
 public class UserDetailsDto {
 
-    private Long userId;
-    
+    private String userId;
     @JsonIgnoreProperties("users")
     private List<PharmacyDetailsDto> pharmacies;
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
