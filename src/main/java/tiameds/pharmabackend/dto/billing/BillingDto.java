@@ -11,6 +11,7 @@ import java.util.List;
 public class BillingDto {
 
     private Long billingId;
+    private String billNo;
     private String pharmacyId;
     private Long customerId;
     private String customerName;

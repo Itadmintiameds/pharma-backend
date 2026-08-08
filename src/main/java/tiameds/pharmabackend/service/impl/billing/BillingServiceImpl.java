@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.service.impl.billing;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -82,6 +84,7 @@ public class BillingServiceImpl implements BillingService {
 
         billing.setPharmacy(context.pharmacy());
         billing.setCustomer(customer);
+        billing.setBillNo(generateBillNo(context.pharmacyId()));
         billing.setCreatedBy(context.currentUserId());
         billing.setCreatedAt(LocalDateTime.now());
         billing.setModifiedBy(null);
@@ -561,26 +564,45 @@ public class BillingServiceImpl implements BillingService {
             return customer;
         }
 
-        String phoneNo = billingDto.getCustomerPhoneNo();
-        String name = billingDto.getCustomerName();
+        String phoneNo = billingDto.getCustomerPhoneNo() != null
+                ? billingDto.getCustomerPhoneNo().trim()
+                : null;
 
-        boolean hasPhone = phoneNo != null && !phoneNo.isBlank();
-        boolean hasName = name != null && !name.isBlank();
+        String name = billingDto.getCustomerName() != null
+                ? billingDto.getCustomerName().trim()
+                : null;
+
+        boolean hasPhone = phoneNo != null && !phoneNo.isEmpty();
+        boolean hasName = name != null && !name.isEmpty();
 
         // Anonymous walk-in: no customer row is created.
         if (!hasPhone && !hasName) {
             return null;
         }
 
-        // Reuse the existing customer when the phone number is already known.
-        if (hasPhone) {
+        // A customer is identified by phone AND name, so one number can carry
+        // several people. The same pair is reused; a new name on a known number
+        // becomes a new customer row.
+        if (hasPhone && hasName) {
 
-            CustomerManagement existing = customerManagementRepository
-                    .findByPharmacy_PharmacyIdAndCustomerPhoneNo(pharmacyId, phoneNo)
-                    .orElse(null);
+            List<CustomerManagement> matches = customerManagementRepository
+                    .findByPharmacy_PharmacyIdAndCustomerPhoneNoAndCustomerNameIgnoreCase(
+                            pharmacyId, phoneNo, name);
 
-            if (existing != null) {
-                return existing;
+            if (!matches.isEmpty()) {
+                return matches.get(0);
+            }
+        }
+
+        // Phone with no name: reuse whoever is already on that number rather than
+        // piling up nameless rows.
+        else if (hasPhone) {
+
+            List<CustomerManagement> matches = customerManagementRepository
+                    .findByPharmacy_PharmacyIdAndCustomerPhoneNo(pharmacyId, phoneNo);
+
+            if (!matches.isEmpty()) {
+                return matches.get(0);
             }
         }
 
@@ -620,6 +642,32 @@ public class BillingServiceImpl implements BillingService {
                 pharmacy,
                 pharmacyId,
                 String.valueOf(persistentUser.getUserId()));
+    }
+
+
+    private String generateBillNo(String pharmacyId) {
+
+        int year = LocalDate.now().getYear();
+        String prefix = "BILL-" + year + "-";
+
+        List<String> latest = billingRepository.findLatestBillNo(
+                prefix,
+                pharmacyId,
+                PageRequest.of(0, 1)
+        );
+
+        int nextNumber = 1;
+
+        if (!latest.isEmpty()) {
+
+            String latestBillNo = latest.get(0);
+
+            String numberPart = latestBillNo.substring(prefix.length());
+
+            nextNumber = Integer.parseInt(numberPart) + 1;
+        }
+
+        return prefix + String.format("%05d", nextNumber);
     }
 
 

@@ -20,6 +20,7 @@ public class BillingMapper {
         BillingDto dto = new BillingDto();
 
         dto.setBillingId(entity.getBillingId());
+        dto.setBillNo(entity.getBillNo());
         dto.setPharmacyId(
                 entity.getPharmacy() != null
                         ? entity.getPharmacy().getPharmacyId()

@@ -27,6 +27,9 @@ public class Billing {
     @Column(name = "billing_id")
     private Long billingId;
 
+    @Column(name = "bill_no")
+    private String billNo;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
     @JsonIgnore
