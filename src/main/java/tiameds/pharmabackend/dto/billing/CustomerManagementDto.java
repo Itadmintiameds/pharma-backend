@@ -12,6 +12,7 @@ public class CustomerManagementDto {
     private String customerName;
     private String customerPhoneNo;
     private String customerAddress;
+    private String patientNumber;
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;

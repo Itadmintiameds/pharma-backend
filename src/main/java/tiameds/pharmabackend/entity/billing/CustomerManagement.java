@@ -38,7 +38,10 @@ public class CustomerManagement {
 
     @Column(name = "customer_address")
     private String customerAddress;
-    
+
+    @Column(name = "patient_number")
+    private String patientNumber;
+
     @Column(name = "created_by")
     private String createdBy;
 

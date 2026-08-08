@@ -32,6 +32,7 @@ public class BillingMapper {
             dto.setCustomerName(entity.getCustomer().getCustomerName());
             dto.setCustomerPhoneNo(entity.getCustomer().getCustomerPhoneNo());
             dto.setCustomerAddress(entity.getCustomer().getCustomerAddress());
+            dto.setPatientNumber(entity.getCustomer().getPatientNumber());
         }
 
         if (entity.getDoctor() != null) {
@@ -40,6 +41,7 @@ public class BillingMapper {
         }
 
         dto.setCustomerType(entity.getCustomerType());
+        dto.setOpIpNumber(entity.getOpIpNumber());
         dto.setPrescriptionUrl(entity.getPrescriptionUrl());
         dto.setTotalDiscountPercentage(entity.getTotalDiscountPercentage());
         dto.setTotalDiscountAmount(entity.getTotalDiscountAmount());
@@ -86,6 +88,7 @@ public class BillingMapper {
         // pharmacy and customer are resolved and attached by the service
 
         entity.setCustomerType(dto.getCustomerType());
+        entity.setOpIpNumber(dto.getOpIpNumber());
         entity.setPrescriptionUrl(dto.getPrescriptionUrl());
         entity.setTotalDiscountPercentage(dto.getTotalDiscountPercentage());
         entity.setTotalDiscountAmount(dto.getTotalDiscountAmount());

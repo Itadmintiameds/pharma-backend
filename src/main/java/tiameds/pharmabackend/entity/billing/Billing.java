@@ -45,6 +45,9 @@ public class Billing {
     @JsonIgnore
     private DoctorDetails doctor;
 
+    @Column(name = "op_ip_number")
+    private String opIpNumber;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "customer_type")
     private CustomerType customerType;

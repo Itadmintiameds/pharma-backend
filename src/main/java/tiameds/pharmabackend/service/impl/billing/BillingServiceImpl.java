@@ -157,6 +157,7 @@ public class BillingServiceImpl implements BillingService {
 
         billing.setDoctor(resolveDoctor(billingDto, context.pharmacyId()));
         billing.setCustomerType(billingDto.getCustomerType());
+        billing.setOpIpNumber(billingDto.getOpIpNumber());
         billing.setSellingType(billingDto.getSellingType());
         billing.setTotalGrossAmount(billingDto.getTotalGrossAmount());
         billing.setTotalDiscountPercentage(billingDto.getTotalDiscountPercentage());
@@ -596,6 +597,23 @@ public class BillingServiceImpl implements BillingService {
                                 + billingDto.getCustomerId());
             }
 
+            // The customer was picked deliberately, so a patient number sent with
+            // it is stored against that customer.
+            String pickedPatientNumber = billingDto.getPatientNumber() != null
+                    ? billingDto.getPatientNumber().trim()
+                    : null;
+
+            if (pickedPatientNumber != null
+                    && !pickedPatientNumber.isEmpty()
+                    && !pickedPatientNumber.equals(customer.getPatientNumber())) {
+
+                customer.setPatientNumber(pickedPatientNumber);
+                customer.setModifiedBy(currentUserId);
+                customer.setModifiedAt(LocalDateTime.now());
+
+                return customerManagementRepository.save(customer);
+            }
+
             return customer;
         }
 
@@ -615,6 +633,12 @@ public class BillingServiceImpl implements BillingService {
             return null;
         }
 
+        String patientNumber = billingDto.getPatientNumber() != null
+                ? billingDto.getPatientNumber().trim()
+                : null;
+
+        boolean hasPatientNumber = patientNumber != null && !patientNumber.isEmpty();
+
         // A customer is identified by phone AND name, so one number can carry
         // several people. The same pair is reused; a new name on a known number
         // becomes a new customer row.
@@ -624,8 +648,39 @@ public class BillingServiceImpl implements BillingService {
                     .findByPharmacy_PharmacyIdAndCustomerPhoneNoAndCustomerNameIgnoreCase(
                             pharmacyId, phoneNo, name);
 
-            if (!matches.isEmpty()) {
-                return matches.get(0);
+            if (!hasPatientNumber) {
+
+                if (!matches.isEmpty()) {
+                    return matches.get(0);
+                }
+            }
+
+            else {
+
+                // Same person, already carrying this patient number.
+                for (CustomerManagement match : matches) {
+                    if (patientNumber.equalsIgnoreCase(match.getPatientNumber())) {
+                        return match;
+                    }
+                }
+
+                // Known person who has no patient number yet: fill it in rather
+                // than creating a second row for them.
+                for (CustomerManagement match : matches) {
+
+                    if (match.getPatientNumber() == null
+                            || match.getPatientNumber().isBlank()) {
+
+                        match.setPatientNumber(patientNumber);
+                        match.setModifiedBy(currentUserId);
+                        match.setModifiedAt(LocalDateTime.now());
+
+                        return customerManagementRepository.save(match);
+                    }
+                }
+
+                // Every match already has a different patient number, so this is a
+                // different person -> fall through and register a new customer.
             }
         }
 
@@ -647,6 +702,7 @@ public class BillingServiceImpl implements BillingService {
         customer.setCustomerName(name);
         customer.setCustomerPhoneNo(hasPhone ? phoneNo : null);
         customer.setCustomerAddress(billingDto.getCustomerAddress());
+        customer.setPatientNumber(hasPatientNumber ? patientNumber : null);
         customer.setCreatedBy(currentUserId);
         customer.setCreatedAt(LocalDateTime.now());
         customer.setModifiedBy(null);

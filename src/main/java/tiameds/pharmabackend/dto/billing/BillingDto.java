@@ -17,7 +17,9 @@ public class BillingDto {
     private String customerName;
     private String customerPhoneNo;
     private String customerAddress;
+    private String patientNumber;
     private CustomerType customerType;
+    private String opIpNumber;
     private Long doctorId;
     private String doctorName;
     private String prescriptionUrl;
