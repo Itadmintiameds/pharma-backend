@@ -7,7 +7,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.enums.PaymentMode;
-import tiameds.pharmabackend.enums.PaymentType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -40,9 +39,9 @@ public class BillingPayment {
     @Column(name = "received_amount")
     private BigDecimal receivedAmount;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "payment_type")
-    private PaymentType paymentType;
+    // What is still outstanding on the bill after this receipt.
+    @Column(name = "pending_amount")
+    private BigDecimal pendingAmount;
 
     @Column(name = "created_by")
     private String createdBy;

@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.enums.CustomerType;
+import tiameds.pharmabackend.enums.PaymentType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -51,6 +52,12 @@ public class Billing {
     @Enumerated(EnumType.STRING)
     @Column(name = "customer_type")
     private CustomerType customerType;
+
+    // Settlement status of the bill as a whole. Individual receipts live in
+    // pharma_billing_payment; this says whether they add up to the net amount.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type")
+    private PaymentType paymentType;
 
     @Column(name = "prescription_url")
     private String prescriptionUrl;

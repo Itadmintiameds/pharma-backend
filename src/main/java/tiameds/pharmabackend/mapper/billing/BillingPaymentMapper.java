@@ -22,7 +22,7 @@ public class BillingPaymentMapper {
         dto.setPaymentMode(entity.getPaymentMode());
         dto.setTransactionId(entity.getTransactionId());
         dto.setReceivedAmount(entity.getReceivedAmount());
-        dto.setPaymentType(entity.getPaymentType());
+        dto.setPendingAmount(entity.getPendingAmount());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());
@@ -43,7 +43,7 @@ public class BillingPaymentMapper {
         entity.setPaymentMode(dto.getPaymentMode());
         entity.setTransactionId(dto.getTransactionId());
         entity.setReceivedAmount(dto.getReceivedAmount());
-        entity.setPaymentType(dto.getPaymentType());
+        entity.setPendingAmount(dto.getPendingAmount());
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedAt(dto.getCreatedAt());
         entity.setModifiedBy(dto.getModifiedBy());

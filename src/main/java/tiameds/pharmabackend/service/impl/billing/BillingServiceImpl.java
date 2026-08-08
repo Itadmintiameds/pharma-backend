@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.service.impl.billing;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,6 +34,7 @@ import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.entity.purchase.InventoryAudit;
+import tiameds.pharmabackend.enums.PaymentType;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
 import tiameds.pharmabackend.mapper.billing.BillingDetailsMapper;
@@ -157,6 +159,7 @@ public class BillingServiceImpl implements BillingService {
 
         billing.setDoctor(resolveDoctor(billingDto, context.pharmacyId()));
         billing.setCustomerType(billingDto.getCustomerType());
+        billing.setPaymentType(billingDto.getPaymentType());
         billing.setOpIpNumber(billingDto.getOpIpNumber());
         billing.setSellingType(billingDto.getSellingType());
         billing.setTotalGrossAmount(billingDto.getTotalGrossAmount());
@@ -233,6 +236,103 @@ public class BillingServiceImpl implements BillingService {
         billingRepository.delete(billing);
 
         deleteOldPrescriptionQuietly(prescriptionUrl);
+    }
+
+
+    @Override
+    public BillingDto addPayment(
+            Long billingId,
+            BillingPaymentDto paymentDto,
+            UserDetails user) {
+
+        BillingContext context = resolveContext(user);
+
+        Billing billing = requireBilling(billingId, context.pharmacyId());
+
+        if (paymentDto == null
+                || paymentDto.getReceivedAmount() == null
+                || paymentDto.getReceivedAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Received amount must be greater than zero");
+        }
+
+        BigDecimal netAmount = billing.getTotalNetAmount() != null
+                ? billing.getTotalNetAmount()
+                : BigDecimal.ZERO;
+
+        BigDecimal alreadyReceived = totalReceived(billing);
+
+        BigDecimal outstanding = netAmount.subtract(alreadyReceived);
+
+        if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException(
+                    "Bill " + billing.getBillNo() + " is already settled");
+        }
+
+        if (paymentDto.getReceivedAmount().compareTo(outstanding) > 0) {
+            throw new RuntimeException(
+                    "Received amount " + paymentDto.getReceivedAmount()
+                            + " exceeds the outstanding amount " + outstanding);
+        }
+
+        BigDecimal pendingAmount = outstanding.subtract(paymentDto.getReceivedAmount());
+
+        BillingPayment payment = new BillingPayment();
+
+        payment.setBilling(billing);
+        payment.setPaymentMode(paymentDto.getPaymentMode());
+        payment.setTransactionId(paymentDto.getTransactionId());
+        payment.setReceivedAmount(paymentDto.getReceivedAmount());
+
+        // Derived here rather than trusted from the client: an outstanding balance
+        // is what the customer still owes.
+        payment.setPendingAmount(pendingAmount);
+
+        payment.setCreatedBy(context.currentUserId());
+        payment.setCreatedAt(LocalDateTime.now());
+        payment.setModifiedBy(null);
+        payment.setModifiedAt(null);
+
+        billing.getBillingPayments().add(payment);
+
+        billing.setPaymentType(resolvePaymentType(
+                netAmount,
+                alreadyReceived.add(paymentDto.getReceivedAmount())));
+
+        billing.setModifiedBy(context.currentUserId());
+        billing.setModifiedAt(LocalDateTime.now());
+
+        Billing savedBilling = billingRepository.save(billing);
+
+        return BillingMapper.toDto(savedBilling);
+    }
+
+
+    private BigDecimal totalReceived(Billing billing) {
+
+        if (billing.getBillingPayments() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        return billing.getBillingPayments()
+                .stream()
+                .map(payment -> payment.getReceivedAmount() != null
+                        ? payment.getReceivedAmount()
+                        : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+
+    private PaymentType resolvePaymentType(BigDecimal netAmount, BigDecimal received) {
+
+        if (received.compareTo(BigDecimal.ZERO) <= 0) {
+            return PaymentType.UNPAID;
+        }
+
+        if (received.compareTo(netAmount) >= 0) {
+            return PaymentType.PAID;
+        }
+
+        return PaymentType.PARTIAL;
     }
 
 

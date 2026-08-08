@@ -2,6 +2,7 @@ package tiameds.pharmabackend.dto.billing;
 
 import lombok.Data;
 import tiameds.pharmabackend.enums.CustomerType;
+import tiameds.pharmabackend.enums.PaymentType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -19,6 +20,7 @@ public class BillingDto {
     private String customerAddress;
     private String patientNumber;
     private CustomerType customerType;
+    private PaymentType paymentType;
     private String opIpNumber;
     private Long doctorId;
     private String doctorName;

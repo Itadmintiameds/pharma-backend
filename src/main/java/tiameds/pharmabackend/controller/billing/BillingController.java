@@ -8,6 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.billing.BillingDto;
+import tiameds.pharmabackend.dto.billing.BillingPaymentDto;
 import tiameds.pharmabackend.dto.billing.PrescriptionUploadDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.billing.BillingService;
@@ -107,6 +108,25 @@ public class BillingController {
                 currentUser.getUser());
 
         return ResponseEntity.ok(response);
+    }
+
+
+    @PostMapping("/{billingId}/payment")
+    public ResponseEntity<?> addPayment(
+            @PathVariable Long billingId,
+            @RequestBody BillingPaymentDto paymentDto,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        BillingDto response = billingService.addPayment(
+                billingId,
+                paymentDto,
+                currentUser.getUser());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
 
