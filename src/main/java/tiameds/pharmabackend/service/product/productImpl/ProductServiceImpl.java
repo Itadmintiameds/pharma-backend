@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.product.*;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
@@ -15,6 +16,7 @@ import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.mapper.product.ProductMapper;
 import tiameds.pharmabackend.mapper.product.category.ProductInventoryMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.PackagingDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
@@ -55,6 +57,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Autowired
     private CurrentPharmacyContext pharmacyContext;
+
+    @Autowired
+    private UserDetailsRepository userDetailsRepository;
 
     // A batch is "near expiry" when it expires within this many days from today.
     private static final long NEAR_EXPIRY_DAYS = 30;
@@ -276,6 +281,14 @@ public class ProductServiceImpl implements ProductService {
         ProductStockSummaryDto dto = new ProductStockSummaryDto();
         dto.setProductId(product.getProductId());
         dto.setProductName(product.getProductName());
+        dto.setBrandName(product.getBrandName());
+
+        if (product.getProductCategory() != null) {
+            dto.setProductCategoryId(product.getProductCategory().getProductCategoryId());
+            dto.setProductCategoryName(product.getProductCategory().getProductCategoryName());
+        }
+
+        dto.setManufacturerName(resolveManufacturerName(product));
 
         LocalDate today = LocalDate.now();
         LocalDate nearExpiryCutoff = today.plusDays(NEAR_EXPIRY_DAYS);
@@ -325,6 +338,56 @@ public class ProductServiceImpl implements ProductService {
         dto.setOverallStatus(resolveOverallStatus(active, nearExpiry, expired));
 
         return dto;
+    }
+
+    /**
+     * The manufacturer is stored on the category-specific attribute row, not on the
+     * product itself, so it is read from whichever attribute list is populated for
+     * this product. Drugs have no manufacturer attribute, so they return null.
+     */
+    private String resolveManufacturerName(ProductDetails product) {
+
+        if (product.getProductAttributeNonConsumableMedicals() != null) {
+            for (var attr : product.getProductAttributeNonConsumableMedicals()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeConsumableMedicals() != null) {
+            for (var attr : product.getProductAttributeConsumableMedicals()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeSupplements() != null) {
+            for (var attr : product.getProductAttributeSupplements()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeFoodInfants() != null) {
+            for (var attr : product.getProductAttributeFoodInfants()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        if (product.getProductAttributeCosmetics() != null) {
+            for (var attr : product.getProductAttributeCosmetics()) {
+                if (attr.getManufacturerName() != null) {
+                    return attr.getManufacturerName();
+                }
+            }
+        }
+
+        return null;
     }
 
     private String resolveOverallStatus(long active, long nearExpiry, long expired) {
@@ -852,5 +915,37 @@ public class ProductServiceImpl implements ProductService {
         }
 
         return "ACTIVE";
+    }
+
+
+    @Override
+    public boolean existsByBatchNumber(
+            UserDetails user,
+            String batchNumber,
+            String productId,
+            String packagingId) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyRepo.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId()
+        );
+
+        if (!valid) {
+            throw new RuntimeException(
+                    "You are not authorized to use this pharmacy."
+            );
+        }
+
+        return batchRepo
+                .existsByBatchNumberAndProduct_ProductIdAndPackagingDetails_PackagingId(
+                        batchNumber,
+                        productId,
+                        packagingId
+                );
     }
 }

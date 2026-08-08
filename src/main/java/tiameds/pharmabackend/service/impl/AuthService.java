@@ -46,6 +46,12 @@ public class AuthService {
                     "Invalid Credentials");
         }
 
+        if(!"Active".equalsIgnoreCase(user.getUserStatus())){
+
+            throw new RuntimeException(
+                    "Your account has been deactivated. Please contact your administrator.");
+        }
+
         String otp =
                 otpGenerator.generateOtp();
 
@@ -138,7 +144,8 @@ public class AuthService {
         otpEntity.setIsUsed(true);
         otpEntity.setUsedAt(
                 LocalDateTime.now());
-
+        user.setLastLogin(LocalDateTime.now());
+        userRepository.save(user);
         otpRepository.save(otpEntity);
 
         // Revoke Existing Active Refresh Tokens

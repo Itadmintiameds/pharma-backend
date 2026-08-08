@@ -1,9 +1,12 @@
 package tiameds.pharmabackend.controller.product;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.product.*;
+import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.product.ProductService;
 
 import java.util.HashMap;
@@ -129,5 +132,27 @@ public class ProductController {
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Product successfully deleted");
         return ResponseEntity.ok(response);
+    }
+
+
+    @GetMapping("/batchExists")
+    public ResponseEntity<?> checkBatchNumberExists(
+            @RequestParam String batchNumber,
+            @RequestParam String productId,
+            @RequestParam String packagingId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        boolean exists = pharmaProductService.existsByBatchNumber(
+                currentUser.getUser(),
+                batchNumber,
+                productId,
+                packagingId
+        );
+
+        return ResponseEntity.ok(exists);
     }
 }

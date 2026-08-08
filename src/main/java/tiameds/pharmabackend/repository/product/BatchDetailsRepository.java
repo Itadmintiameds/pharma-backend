@@ -32,4 +32,12 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetails, Stri
         FROM pharma_batch_details
     """, nativeQuery = true)
     Integer findMaxBatchNumber();
+
+    boolean existsByBatchNumberAndProduct_ProductIdAndPackagingDetails_PackagingId(
+            String batchNumber,
+            String productId,
+            String packagingId
+    );
+
+
 }

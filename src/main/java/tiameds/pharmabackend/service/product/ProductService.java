@@ -7,6 +7,7 @@ import tiameds.pharmabackend.dto.product.ProductDetailResponseDto;
 import tiameds.pharmabackend.dto.product.ProductDetailsDto;
 import tiameds.pharmabackend.dto.product.ProductExpiryKpiDto;
 import tiameds.pharmabackend.dto.product.ProductStockSummaryDto;
+import tiameds.pharmabackend.entity.UserDetails;
 
 import java.util.List;
 
@@ -36,4 +37,11 @@ public interface ProductService {
 
     // One batch with the same detail as the listing
     BatchStockDto getBatchById(String batchId);
+
+    boolean existsByBatchNumber(
+            UserDetails user,
+            String batchNumber,
+            String productId,
+            String packagingId
+    );
 }

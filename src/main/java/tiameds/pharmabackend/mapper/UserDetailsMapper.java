@@ -33,6 +33,8 @@ public class UserDetailsMapper {
         user.setGender(dto.getGender());
         user.setDepartment(dto.getDepartment());
         user.setImageUrl(dto.getImageUrl());
+        user.setLastLogin(dto.getLastLogin());
+        user.setIsRejected(dto.getIsRejected());
         user.setUserStatus(dto.getUserStatus());
         user.setCreatedAt(dto.getCreatedAt());
         user.setModifiedBy(dto.getModifiedBy());
@@ -62,6 +64,8 @@ public class UserDetailsMapper {
         dto.setGender(user.getGender());
         dto.setDepartment(user.getDepartment());
         dto.setImageUrl(user.getImageUrl());
+        dto.setLastLogin(user.getLastLogin());
+        dto.setIsRejected(user.getIsRejected());
         dto.setUserStatus(user.getUserStatus());
         dto.setCreatedAt(user.getCreatedAt());
         dto.setModifiedBy(user.getModifiedBy());
