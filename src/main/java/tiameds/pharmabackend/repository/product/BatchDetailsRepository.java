@@ -12,9 +12,17 @@ import java.util.Optional;
 public interface BatchDetailsRepository extends JpaRepository<BatchDetails, String> {
 
     // every batch belonging to the products of one pharmacy
-    List<BatchDetails> findByProduct_Pharmacy_PharmacyId(String pharmacyId);
+    // OLD: traversed ProductDetails.pharmacy (ManyToOne), removed in favour of the
+    // pharmacies (ManyToMany) collection.
+    // List<BatchDetails> findByProduct_Pharmacy_PharmacyId(String pharmacyId);
+    List<BatchDetails> findByProduct_Pharmacies_PharmacyId(String pharmacyId);
 
-    Optional<BatchDetails> findByBatchIdAndProduct_Pharmacy_PharmacyId(
+    // OLD: traversed ProductDetails.pharmacy (ManyToOne).
+    // Optional<BatchDetails> findByBatchIdAndProduct_Pharmacy_PharmacyId(
+    //         String batchId,
+    //         String pharmacyId
+    // );
+    Optional<BatchDetails> findByBatchIdAndProduct_Pharmacies_PharmacyId(
             String batchId,
             String pharmacyId
     );
