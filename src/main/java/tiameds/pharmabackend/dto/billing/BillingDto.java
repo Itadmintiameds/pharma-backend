@@ -16,7 +16,10 @@ public class BillingDto {
     private Long customerId;
     private String customerName;
     private String customerPhoneNo;
+    private String customerAddress;
     private CustomerType customerType;
+    private Long doctorId;
+    private String doctorName;
     private String prescriptionUrl;
     private BigDecimal totalDiscountPercentage;
     private BigDecimal totalDiscountAmount;

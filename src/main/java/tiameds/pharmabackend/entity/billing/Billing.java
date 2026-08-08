@@ -40,6 +40,11 @@ public class Billing {
     @JsonIgnore
     private CustomerManagement customer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "doctor_id", referencedColumnName = "doctor_id")
+    @JsonIgnore
+    private DoctorDetails doctor;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "customer_type")
     private CustomerType customerType;

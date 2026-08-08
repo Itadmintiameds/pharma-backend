@@ -21,6 +21,7 @@ public class CustomerManagementMapper {
         );
         dto.setCustomerName(entity.getCustomerName());
         dto.setCustomerPhoneNo(entity.getCustomerPhoneNo());
+        dto.setCustomerAddress(entity.getCustomerAddress());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());
@@ -40,6 +41,7 @@ public class CustomerManagementMapper {
         entity.setCustomerId(dto.getCustomerId());
         entity.setCustomerName(dto.getCustomerName());
         entity.setCustomerPhoneNo(dto.getCustomerPhoneNo());
+        entity.setCustomerAddress(dto.getCustomerAddress());
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedAt(dto.getCreatedAt());
         entity.setModifiedBy(dto.getModifiedBy());

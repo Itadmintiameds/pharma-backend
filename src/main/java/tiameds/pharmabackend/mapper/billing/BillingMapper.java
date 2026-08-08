@@ -31,6 +31,12 @@ public class BillingMapper {
             dto.setCustomerId(entity.getCustomer().getCustomerId());
             dto.setCustomerName(entity.getCustomer().getCustomerName());
             dto.setCustomerPhoneNo(entity.getCustomer().getCustomerPhoneNo());
+            dto.setCustomerAddress(entity.getCustomer().getCustomerAddress());
+        }
+
+        if (entity.getDoctor() != null) {
+            dto.setDoctorId(entity.getDoctor().getDoctorId());
+            dto.setDoctorName(entity.getDoctor().getDoctorName());
         }
 
         dto.setCustomerType(entity.getCustomerType());

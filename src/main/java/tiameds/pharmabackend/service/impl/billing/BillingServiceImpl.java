@@ -27,6 +27,7 @@ import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.billing.BillingDetails;
 import tiameds.pharmabackend.entity.billing.BillingPayment;
 import tiameds.pharmabackend.entity.billing.CustomerManagement;
+import tiameds.pharmabackend.entity.billing.DoctorDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
@@ -41,6 +42,7 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.billing.BillingRepository;
 import tiameds.pharmabackend.repository.billing.CustomerManagementRepository;
+import tiameds.pharmabackend.repository.billing.DoctorDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.InventoryAuditRepository;
@@ -58,6 +60,7 @@ public class BillingServiceImpl implements BillingService {
 
     private final BillingRepository billingRepository;
     private final CustomerManagementRepository customerManagementRepository;
+    private final DoctorDetailsRepository doctorDetailsRepository;
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
     private final ProductDetailsRepository productDetailsRepository;
@@ -84,6 +87,7 @@ public class BillingServiceImpl implements BillingService {
 
         billing.setPharmacy(context.pharmacy());
         billing.setCustomer(customer);
+        billing.setDoctor(resolveDoctor(billingDto, context.pharmacyId()));
         billing.setBillNo(generateBillNo(context.pharmacyId()));
         billing.setCreatedBy(context.currentUserId());
         billing.setCreatedAt(LocalDateTime.now());
@@ -151,6 +155,7 @@ public class BillingServiceImpl implements BillingService {
                 context.pharmacy(),
                 context.currentUserId()));
 
+        billing.setDoctor(resolveDoctor(billingDto, context.pharmacyId()));
         billing.setCustomerType(billingDto.getCustomerType());
         billing.setSellingType(billingDto.getSellingType());
         billing.setTotalGrossAmount(billingDto.getTotalGrossAmount());
@@ -539,6 +544,26 @@ public class BillingServiceImpl implements BillingService {
     }
 
 
+    /**
+     * The prescribing doctor is picked from the doctor master, the same way a
+     * purchase picks its supplier. Bills without a doctor simply omit the id.
+     */
+    private DoctorDetails resolveDoctor(BillingDto billingDto, String pharmacyId) {
+
+        if (billingDto.getDoctorId() == null) {
+            return null;
+        }
+
+        DoctorDetails doctor = doctorDetailsRepository
+                .findByDoctorIdAndPharmacyId(billingDto.getDoctorId(), pharmacyId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Doctor not found in this pharmacy with id : "
+                                + billingDto.getDoctorId()));
+
+        return doctor;
+    }
+
+
     private CustomerManagement resolveCustomer(
             BillingDto billingDto,
             PharmacyDetails pharmacy,
@@ -611,6 +636,7 @@ public class BillingServiceImpl implements BillingService {
         customer.setPharmacy(pharmacy);
         customer.setCustomerName(name);
         customer.setCustomerPhoneNo(hasPhone ? phoneNo : null);
+        customer.setCustomerAddress(billingDto.getCustomerAddress());
         customer.setCreatedBy(currentUserId);
         customer.setCreatedAt(LocalDateTime.now());
         customer.setModifiedBy(null);

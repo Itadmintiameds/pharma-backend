@@ -36,6 +36,9 @@ public class CustomerManagement {
     @Column(name = "customer_phone_no")
     private String customerPhoneNo;
 
+    @Column(name = "customer_address")
+    private String customerAddress;
+    
     @Column(name = "created_by")
     private String createdBy;
 
