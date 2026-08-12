@@ -1,17 +1,17 @@
-package tiameds.pharmabackend.service.impl;
+package tiameds.pharmabackend.service.impl.warehouse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tiameds.pharmabackend.dto.WarehouseDto;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDto;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
-import tiameds.pharmabackend.entity.Warehouse;
-import tiameds.pharmabackend.mapper.WarehouseMapper;
-import tiameds.pharmabackend.repository.WarehouseRepository;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
+import tiameds.pharmabackend.mapper.warehouse.WarehouseMapper;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.PharmacyOrganizationService;
-import tiameds.pharmabackend.service.WarehouseService;
+import tiameds.pharmabackend.service.warehouse.WarehouseService;
 
 import java.time.LocalDateTime;
 import java.util.List;

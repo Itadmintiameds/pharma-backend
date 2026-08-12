@@ -1,6 +1,6 @@
-package tiameds.pharmabackend.service;
+package tiameds.pharmabackend.service.warehouse;
 
-import tiameds.pharmabackend.dto.WarehouseDto;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDto;
 import tiameds.pharmabackend.entity.UserDetails;
 
 import java.util.List;

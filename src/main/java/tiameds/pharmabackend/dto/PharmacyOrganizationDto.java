@@ -1,6 +1,8 @@
 package tiameds.pharmabackend.dto;
 
 import lombok.Data;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDto;
+
 import java.time.LocalDateTime;
 import java.util.List;
 

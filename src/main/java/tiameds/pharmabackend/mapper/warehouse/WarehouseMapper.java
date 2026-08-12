@@ -1,8 +1,8 @@
-package tiameds.pharmabackend.mapper;
+package tiameds.pharmabackend.mapper.warehouse;
 
 import org.springframework.stereotype.Component;
-import tiameds.pharmabackend.dto.WarehouseDto;
-import tiameds.pharmabackend.entity.Warehouse;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDto;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 
 import java.util.stream.Collectors;

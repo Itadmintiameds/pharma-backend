@@ -1,8 +1,8 @@
-package tiameds.pharmabackend.repository;
+package tiameds.pharmabackend.repository.warehouse;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import tiameds.pharmabackend.entity.Warehouse;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 
 import java.util.List;
 

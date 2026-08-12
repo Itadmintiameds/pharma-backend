@@ -1,4 +1,4 @@
-package tiameds.pharmabackend.dto;
+package tiameds.pharmabackend.dto.warehouse;
 
 import lombok.Data;
 
