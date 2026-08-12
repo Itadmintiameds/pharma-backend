@@ -4,6 +4,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.PharmacyOrganizationDto;
 import tiameds.pharmabackend.dto.WarehouseDto;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
@@ -15,8 +16,11 @@ import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.WarehouseRepository;
 import tiameds.pharmabackend.service.PharmacyOrganizationService;
+import tiameds.pharmabackend.service.S3Service;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Slf4j
@@ -30,6 +34,10 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
     private final UserDetailsRepository userDetailsRepository;
     private final WarehouseRepository warehouseRepository;
     private final WarehouseMapper warehouseMapper;
+    private final S3Service s3Service;
+
+    private static final DateTimeFormatter LOGO_TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Override
     @Transactional
@@ -154,5 +162,60 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
         }
 
         return user.getOrganization();
+    }
+
+    @Override
+    @Transactional
+    public PharmacyOrganizationDto uploadOrganizationLogo(String userId, MultipartFile logo) {
+
+        if (logo == null || logo.isEmpty()) {
+            throw new RuntimeException("File is missing or empty");
+        }
+
+        // Resolve the organization from the logged-in user (within the transaction).
+        PharmacyOrganization organization = getUserOrganization(userId);
+
+        deleteOldLogoQuietly(organization.getOrganizationLogoUrl());
+
+        String key = buildOrganizationLogoKey(
+                organization.getOrganizationId(), logo.getOriginalFilename());
+
+        try {
+            String url = s3Service.uploadFile(key, logo);
+            organization.setOrganizationLogoUrl(url);
+            organizationRepository.save(organization);
+            return organizationMapper.toDto(organization);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to upload file to S3: " + e.getMessage());
+        }
+    }
+
+    private String buildOrganizationLogoKey(Long organizationId, String originalFilename) {
+
+        String extension = "";
+
+        if (originalFilename != null) {
+            int dotIndex = originalFilename.lastIndexOf('.');
+            if (dotIndex >= 0) {
+                extension = originalFilename.substring(dotIndex).toLowerCase();
+            }
+        }
+
+        String timestamp = LocalDateTime.now().format(LOGO_TIMESTAMP_FORMAT);
+
+        return "organizations/" + organizationId + "/logo/LOGO_" + timestamp + extension;
+    }
+
+    private void deleteOldLogoQuietly(String oldLogoUrl) {
+
+        if (oldLogoUrl == null || oldLogoUrl.isBlank()) {
+            return;
+        }
+
+        try {
+            s3Service.deleteFile(s3Service.extractKeyFromUrl(oldLogoUrl));
+        } catch (Exception e) {
+            // Old logo may be external or already gone; replacing it should not fail the upload
+        }
     }
 }

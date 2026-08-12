@@ -2,9 +2,11 @@ package tiameds.pharmabackend.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.PharmacyOrganizationDto;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.security.CustomUserDetails;
@@ -56,6 +58,23 @@ public class PharmacyOrganizationController {
                 organizationService.getUserOrganization(userDetails.getUserId());
 
         return ResponseEntity.ok(organization);
+    }
+
+    @PostMapping(
+            value = "/logo",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<PharmacyOrganizationDto> uploadOrganizationLogo(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @RequestParam("logo") MultipartFile logo) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(
+                organizationService.uploadOrganizationLogo(
+                        currentUser.getUserId(),
+                        logo));
     }
 
     // Hard-deletes an organization and EVERYTHING under it: pharmacies, warehouses,

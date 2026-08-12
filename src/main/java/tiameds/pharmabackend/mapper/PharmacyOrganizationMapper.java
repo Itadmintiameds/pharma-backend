@@ -23,6 +23,7 @@ public class PharmacyOrganizationMapper {
         organization.setOwnershipType(dto.getOwnershipType());
         organization.setPanNumber(dto.getPanNumber());
         organization.setGstNumber(dto.getGstNumber());
+        organization.setOrganizationLogoUrl(dto.getOrganizationLogoUrl());
         organization.setCreatedAt(dto.getCreatedAt());
         organization.setIsActive(dto.getIsActive());
         organization.setIsRejected(dto.getIsRejected());
@@ -45,6 +46,7 @@ public class PharmacyOrganizationMapper {
         dto.setOwnershipType(entity.getOwnershipType());
         dto.setPanNumber(entity.getPanNumber());
         dto.setGstNumber(entity.getGstNumber());
+        dto.setOrganizationLogoUrl(entity.getOrganizationLogoUrl());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setIsActive(entity.getIsActive());
         dto.setIsRejected(entity.getIsRejected());

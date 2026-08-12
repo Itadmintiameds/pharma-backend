@@ -28,6 +28,7 @@ public class PharmacyDetailsDto {
     private String pharmacyState;
     private String pharmacyLogo;
     private String userId;
+    private PharmacyOrganizationDto pharmacyOrganization;
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;

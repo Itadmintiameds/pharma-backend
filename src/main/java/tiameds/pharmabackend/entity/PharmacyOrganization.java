@@ -38,6 +38,9 @@ public class PharmacyOrganization {
     @Column(name = "gst_number")
     private String gstNumber;
 
+    @Column(name = "organization_logo_url")
+    private String organizationLogoUrl;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
