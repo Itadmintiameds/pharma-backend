@@ -8,7 +8,7 @@ import java.util.List;
 @Data
 public class WarehouseDto {
 
-    private Long warehouseId;
+    private String warehouseId;
     private String warehouseName;
     private String warehouseCode;
     private String warehouseAddress;

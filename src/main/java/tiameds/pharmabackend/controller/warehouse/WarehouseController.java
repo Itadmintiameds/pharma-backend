@@ -34,7 +34,7 @@ public class WarehouseController {
 
     @PutMapping("/update/{warehouseId}")
     public ResponseEntity<?> updateWarehouse(
-            @PathVariable Long warehouseId,
+            @PathVariable String warehouseId,
             @RequestBody WarehouseDto dto,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
@@ -49,7 +49,7 @@ public class WarehouseController {
 
     @GetMapping("/{warehouseId}")
     public ResponseEntity<WarehouseDto> getWarehouse(
-            @PathVariable Long warehouseId) {
+            @PathVariable String warehouseId) {
 
         return ResponseEntity.ok(warehouseService.getWarehouseById(warehouseId));
     }
@@ -79,7 +79,7 @@ public class WarehouseController {
 
     @DeleteMapping("/{warehouseId}")
     public ResponseEntity<?> deleteWarehouse(
-            @PathVariable Long warehouseId,
+            @PathVariable String warehouseId,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
         if (currentUser == null) {

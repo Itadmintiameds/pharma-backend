@@ -15,6 +15,7 @@ import tiameds.pharmabackend.mapper.warehouse.WarehouseMapper;
 import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
+import tiameds.pharmabackend.service.impl.warehouse.WarehouseIdGenerator;
 import tiameds.pharmabackend.service.PharmacyOrganizationService;
 import tiameds.pharmabackend.service.S3Service;
 
@@ -34,6 +35,7 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
     private final UserDetailsRepository userDetailsRepository;
     private final WarehouseRepository warehouseRepository;
     private final WarehouseMapper warehouseMapper;
+    private final WarehouseIdGenerator warehouseIdGenerator;
     private final S3Service s3Service;
 
     private static final DateTimeFormatter LOGO_TIMESTAMP_FORMAT =
@@ -96,7 +98,6 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
         }
 
         // Never trust an id/organization from the payload for a fresh warehouse.
-        warehouse.setWarehouseId(null);
         warehouse.setOrganization(organization);
 
         if (warehouse.getWarehouseName() == null || warehouse.getWarehouseName().isBlank()) {
@@ -104,6 +105,10 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
                     ? "Organization" : organization.getOrganizationName();
             warehouse.setWarehouseName(orgName + " Central Warehouse");
         }
+
+        // PK is a manually-assigned String; generate it once the name is finalized.
+        warehouse.setWarehouseId(warehouseIdGenerator.generate(
+                organization.getOrganizationName(), warehouse.getWarehouseName()));
 
         if (warehouse.getIsActive() == null) {
             warehouse.setIsActive(Boolean.TRUE);
