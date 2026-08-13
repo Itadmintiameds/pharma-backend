@@ -47,6 +47,7 @@ public class BillingMapper {
         dto.setTotalDiscountPercentage(entity.getTotalDiscountPercentage());
         dto.setTotalDiscountAmount(entity.getTotalDiscountAmount());
         dto.setTotalGstAmount(entity.getTotalGstAmount());
+        dto.setTotalMrpAmount(entity.getTotalMrpAmount());
         dto.setTotalGrossAmount(entity.getTotalGrossAmount());
         dto.setTotalNetAmount(entity.getTotalNetAmount());
         dto.setSellingType(entity.getSellingType());
@@ -95,6 +96,7 @@ public class BillingMapper {
         entity.setTotalDiscountPercentage(dto.getTotalDiscountPercentage());
         entity.setTotalDiscountAmount(dto.getTotalDiscountAmount());
         entity.setTotalGstAmount(dto.getTotalGstAmount());
+        entity.setTotalMrpAmount(dto.getTotalMrpAmount());
         entity.setTotalGrossAmount(dto.getTotalGrossAmount());
         entity.setTotalNetAmount(dto.getTotalNetAmount());
         entity.setSellingType(dto.getSellingType());
