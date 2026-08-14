@@ -233,6 +233,46 @@ public class PurchaseServiceImpl implements PurchaseService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public boolean checkInvoiceExists(
+            Long supplierId,
+            String invoiceNo,
+            Integer year,
+            UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        if (supplierId == null) {
+            throw new RuntimeException("Supplier is required");
+        }
+
+        if (invoiceNo == null || invoiceNo.isBlank()) {
+            throw new RuntimeException("Invoice number is required");
+        }
+
+        if (year == null) {
+            throw new RuntimeException("Invoice year is required");
+        }
+
+        return purchaseRepository.existsBySupplierInvoiceNoAndYear(
+                pharmacyId,
+                supplierId,
+                invoiceNo.trim(),
+                year);
+    }
+
+
     private String generateGrnNo(String pharmacyId) {
 
         int year = LocalDate.now().getYear();

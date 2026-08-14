@@ -26,4 +26,21 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
             @Param("pharmacyId") String pharmacyId,
             Pageable pageable);
 
+    // A supplier cannot raise the same invoice number twice in the same year.
+    // Scoped to the pharmacy, since each pharmacy keeps its own purchase book.
+    @Query("""
+        SELECT COUNT(p) > 0
+        FROM Purchase p
+        WHERE p.pharmacyId = :pharmacyId
+          AND p.supplier.supplierId = :supplierId
+          AND UPPER(TRIM(p.invoiceNo)) = UPPER(TRIM(:invoiceNo))
+          AND EXTRACT(YEAR FROM p.invoiceDate) = :year
+    """)
+    boolean existsBySupplierInvoiceNoAndYear(
+            @Param("pharmacyId") String pharmacyId,
+            @Param("supplierId") Long supplierId,
+            @Param("invoiceNo") String invoiceNo,
+            @Param("year") Integer year
+    );
+
 }
