@@ -28,6 +28,9 @@ public class SupplierMaster {
     @Column(name = "pharmacy_id")
     private String pharmacyId;
 
+    @Column(name = "warehouse_id")
+    private String warehouseId;
+
     @Column(name = "supplier_name")
     private String supplierName;
 

@@ -1,4 +1,4 @@
-package tiameds.pharmabackend.entity.purchase;
+package tiameds.pharmabackend.entity.warehouse;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -6,50 +6,34 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import tiameds.pharmabackend.entity.PharmacyDetails;
-import tiameds.pharmabackend.entity.billing.Billing;
-import tiameds.pharmabackend.entity.product.BatchDetails;
-import tiameds.pharmabackend.entity.product.ProductDetails;
-import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
 
 import java.time.LocalDateTime;
 
+@Entity
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Entity
-@Table(name = "pharma_inventory_audit")
-public class InventoryAudit {
+@Table(name = "pharma_warehouse_inventory_audit")
+public class WarehouseInventoryAudit {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "inventory_audit_id")
-    private Long inventoryAuditId;
+    @Column(name = "warehouse_inventory_audit_id")
+    private Long warehouseInventoryAuditId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "inventory_id")
+    @JoinColumn(name = "warehouse_inventory_id", referencedColumnName = "warehouse_inventory_id")
     @JsonIgnore
-    private Inventory inventory;
+    private WarehouseInventory warehouseInventory;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
+    @JoinColumn(name = "warehouse_id", referencedColumnName = "warehouse_id")
     @JsonIgnore
-    private PharmacyDetails pharmacy;
+    private Warehouse warehouse;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "purchase_details_id")
-    @JsonIgnore
-    private PurchaseDetails purchaseDetails;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "billing_id", referencedColumnName = "billing_id")
-    @JsonIgnore
-    private Billing billing;
-
-    // Set on stock-transfer audit rows (e.g. pharmacy -> pharmacy) to trace back to the allocation that moved the stock
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "warehouse_distribution_details_id")
     @JsonIgnore
@@ -74,4 +58,5 @@ public class InventoryAudit {
 
     @Column(name = "changed_at")
     private LocalDateTime changedAt;
+
 }

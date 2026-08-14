@@ -1,4 +1,4 @@
-package tiameds.pharmabackend.entity.purchase;
+package tiameds.pharmabackend.entity.warehouse;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -6,34 +6,32 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
-import tiameds.pharmabackend.entity.supplier.SupplierMaster;
 
 import java.time.LocalDateTime;
 
+@Entity
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Entity
-@Table(name = "pharma_inventory",
+@Table(name = "pharma_warehouse_inventory",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_pharma_inventory_pharmacy_product_packaging_batch",
-                columnNames = {"pharmacy_id", "product_id", "packaging_id", "batch_id"}))
-public class Inventory {
+                name = "uq_pharma_warehouse_inventory_warehouse_product_packaging_batch",
+                columnNames = {"warehouse_id", "product_id", "packaging_id", "batch_id"}))
+public class WarehouseInventory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "inventory_id")
-    private Long inventoryId;
+    @Column(name = "warehouse_inventory_id")
+    private Long warehouseInventoryId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
+    @JoinColumn(name = "warehouse_id", referencedColumnName = "warehouse_id")
     @JsonIgnore
-    private PharmacyDetails pharmacy;
+    private Warehouse warehouse;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")

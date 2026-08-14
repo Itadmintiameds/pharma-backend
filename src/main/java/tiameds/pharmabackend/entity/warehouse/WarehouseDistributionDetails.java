@@ -1,4 +1,4 @@
-package tiameds.pharmabackend.entity.purchase;
+package tiameds.pharmabackend.entity.warehouse;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -6,37 +6,32 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
-import tiameds.pharmabackend.entity.supplier.SupplierMaster;
 
 import java.time.LocalDateTime;
 
+@Entity
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Entity
-@Table(name = "pharma_inventory",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uq_pharma_inventory_pharmacy_product_packaging_batch",
-                columnNames = {"pharmacy_id", "product_id", "packaging_id", "batch_id"}))
-public class Inventory {
+@Table(name = "pharma_warehouse_distribution_details")
+public class WarehouseDistributionDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "inventory_id")
-    private Long inventoryId;
+    @Column(name = "warehouse_distribution_details_id")
+    private Long warehouseDistributionDetailsId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pharmacy_id", referencedColumnName = "pharmacy_id")
+    @JoinColumn(name = "warehouse_distribution_id")
     @JsonIgnore
-    private PharmacyDetails pharmacy;
+    private WarehouseDistribution warehouseDistribution;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id")
+    @JoinColumn(name = "product_id", referencedColumnName = "product_id")
     @JsonIgnore
     private ProductDetails product;
 
@@ -46,12 +41,12 @@ public class Inventory {
     private PackagingDetails packaging;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id")
+    @JoinColumn(name = "batch_id", referencedColumnName = "batch_id")
     @JsonIgnore
     private BatchDetails batch;
 
-    @Column(name = "total_stock")
-    private Long totalStock;
+    @Column(name = "issue_quantity")
+    private Long issueQuantity;
 
     @Column(name = "created_by")
     private String createdBy;
