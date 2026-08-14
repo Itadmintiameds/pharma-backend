@@ -23,16 +23,21 @@ public class BillingDetailsMapper {
         if (entity.getProduct() != null) {
             dto.setProductId(entity.getProduct().getProductId());
             dto.setProductName(entity.getProduct().getProductName());
+            dto.setHsnNo(entity.getProduct().getHsnNo());
+            dto.setGstPercentage(entity.getProduct().getGstPercentage());
         }
 
         if (entity.getBatch() != null) {
             dto.setBatchId(entity.getBatch().getBatchId());
             dto.setBatchNumber(entity.getBatch().getBatchNumber());
+            dto.setExpiryDate(entity.getBatch().getExpiryDate());
+            dto.setMrpPerUnit(entity.getBatch().getMrpPerUnit());
         }
 
         dto.setUnit(entity.getUnit());
         dto.setBillQuantity(entity.getBillQuantity());
         dto.setGrossAmount(entity.getGrossAmount());
+        dto.setTotalMrpAmountPerUnit(entity.getTotalMrpAmountPerUnit());
         dto.setDiscountPercentage(entity.getDiscountPercentage());
         dto.setDiscountAmount(entity.getDiscountAmount());
         dto.setGstAmount(entity.getGstAmount());
@@ -60,6 +65,7 @@ public class BillingDetailsMapper {
         entity.setUnit(dto.getUnit());
         entity.setBillQuantity(dto.getBillQuantity());
         entity.setGrossAmount(dto.getGrossAmount());
+        entity.setTotalMrpAmountPerUnit(dto.getTotalMrpAmountPerUnit());
         entity.setDiscountPercentage(dto.getDiscountPercentage());
         entity.setDiscountAmount(dto.getDiscountAmount());
         entity.setGstAmount(dto.getGstAmount());

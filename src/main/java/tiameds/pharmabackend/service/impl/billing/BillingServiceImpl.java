@@ -166,6 +166,7 @@ public class BillingServiceImpl implements BillingService {
         billing.setTotalDiscountPercentage(billingDto.getTotalDiscountPercentage());
         billing.setTotalDiscountAmount(billingDto.getTotalDiscountAmount());
         billing.setTotalGstAmount(billingDto.getTotalGstAmount());
+        billing.setTotalMrpAmount(billingDto.getTotalMrpAmount());
         billing.setTotalNetAmount(billingDto.getTotalNetAmount());
 
         // An edit that omits the prescription keeps the already uploaded one.

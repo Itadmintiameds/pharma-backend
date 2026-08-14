@@ -1,6 +1,8 @@
 package tiameds.pharmabackend.dto;
 
 import lombok.Data;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDto;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -17,10 +19,7 @@ public class PharmacyOrganizationDto {
     private Boolean isActive;
     private Boolean isRejected;
     private Boolean centralizedInventory;
-
-    // Sent from the frontend only for flow 3 (centralizedInventory = true):
-    // the central warehouse to be created along with the organization.
-    // private WarehouseDto warehouse;
+    private String organizationLogoUrl;
 
     // Sent from the frontend only for flow 3 (centralizedInventory = true):
     // one or more warehouses to be created along with the organization.

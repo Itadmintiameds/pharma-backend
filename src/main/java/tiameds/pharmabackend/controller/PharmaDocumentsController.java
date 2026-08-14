@@ -4,7 +4,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import tiameds.pharmabackend.PharmaDocumentsService;
+import tiameds.pharmabackend.service.PharmaDocumentsService;
 
 @RestController
 @RequestMapping("/pharmacyDocuments")

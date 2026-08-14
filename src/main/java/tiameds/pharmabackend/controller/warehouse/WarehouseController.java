@@ -1,13 +1,13 @@
-package tiameds.pharmabackend.controller;
+package tiameds.pharmabackend.controller.warehouse;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import tiameds.pharmabackend.dto.WarehouseDto;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
-import tiameds.pharmabackend.service.WarehouseService;
+import tiameds.pharmabackend.service.warehouse.WarehouseService;
 
 import java.util.List;
 
@@ -34,7 +34,7 @@ public class WarehouseController {
 
     @PutMapping("/update/{warehouseId}")
     public ResponseEntity<?> updateWarehouse(
-            @PathVariable Long warehouseId,
+            @PathVariable String warehouseId,
             @RequestBody WarehouseDto dto,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
@@ -49,7 +49,7 @@ public class WarehouseController {
 
     @GetMapping("/{warehouseId}")
     public ResponseEntity<WarehouseDto> getWarehouse(
-            @PathVariable Long warehouseId) {
+            @PathVariable String warehouseId) {
 
         return ResponseEntity.ok(warehouseService.getWarehouseById(warehouseId));
     }
@@ -79,7 +79,7 @@ public class WarehouseController {
 
     @DeleteMapping("/{warehouseId}")
     public ResponseEntity<?> deleteWarehouse(
-            @PathVariable Long warehouseId,
+            @PathVariable String warehouseId,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
         if (currentUser == null) {

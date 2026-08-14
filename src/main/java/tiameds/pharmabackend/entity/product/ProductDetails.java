@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
-import tiameds.pharmabackend.entity.Warehouse;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.entity.master.ProductCategory;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 

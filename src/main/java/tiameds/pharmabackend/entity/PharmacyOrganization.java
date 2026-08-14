@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +38,9 @@ public class PharmacyOrganization {
 
     @Column(name = "gst_number")
     private String gstNumber;
+
+    @Column(name = "organization_logo_url")
+    private String organizationLogoUrl;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

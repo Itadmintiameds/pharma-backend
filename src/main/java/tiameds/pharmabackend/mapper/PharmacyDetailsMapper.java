@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 public class PharmacyDetailsMapper {
 
     private final PharmaDocumentsMapper pharmaDocumentsMapper;
+    private final PharmacyOrganizationMapper pharmacyOrganizationMapper;
 
     public PharmacyDetails toEntity(PharmacyDetailsDto dto) {
 
@@ -90,6 +91,9 @@ public class PharmacyDetailsMapper {
         dto.setCreatedAt(pharmacy.getCreatedAt());
         dto.setModifiedBy(pharmacy.getModifiedBy());
         dto.setModifiedAt(pharmacy.getModifiedAt());
+
+        // Organization mapping (summary)
+        dto.setPharmacyOrganization(pharmacyOrganizationMapper.toDto(pharmacy.getOrganization()));
 
         // User mapping (summary)
         if (pharmacy.getUsers() != null) {

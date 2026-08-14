@@ -28,6 +28,7 @@ public class BillingDto {
     private BigDecimal totalDiscountPercentage;
     private BigDecimal totalDiscountAmount;
     private BigDecimal totalGstAmount;
+    private BigDecimal totalMrpAmount;
     private BigDecimal totalGrossAmount;
     private BigDecimal totalNetAmount;
     private String sellingType;

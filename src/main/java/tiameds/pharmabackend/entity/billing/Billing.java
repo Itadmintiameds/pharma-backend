@@ -71,6 +71,9 @@ public class Billing {
     @Column(name = "total_gst_amount")
     private BigDecimal totalGstAmount;
 
+    @Column(name = "total_mrp_amount")
+    private BigDecimal totalMrpAmount;
+
     @Column(name = "total_gross_amount")
     private BigDecimal totalGrossAmount;
 

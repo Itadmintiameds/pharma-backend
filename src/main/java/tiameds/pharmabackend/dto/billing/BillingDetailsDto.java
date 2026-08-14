@@ -3,6 +3,7 @@ package tiameds.pharmabackend.dto.billing;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -12,11 +13,16 @@ public class BillingDetailsDto {
     private Long billingId;
     private String productId;
     private String productName;
+    private String hsnNo;
+    private BigDecimal gstPercentage;
     private String batchId;
     private String batchNumber;
+    private LocalDate expiryDate;
+    private Double mrpPerUnit;
     private String unit;
     private Long billQuantity;
     private BigDecimal grossAmount;
+    private BigDecimal totalMrpAmountPerUnit;
     private BigDecimal discountPercentage;
     private BigDecimal discountAmount;
     private BigDecimal gstAmount;

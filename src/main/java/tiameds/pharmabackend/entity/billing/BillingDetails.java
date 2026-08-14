@@ -46,8 +46,13 @@ public class BillingDetails {
     @Column(name = "bill_quantity")
     private Long billQuantity;
 
+    //gross == taxable amount is same for now
     @Column(name = "gross_amount")
     private BigDecimal grossAmount;
+
+    //total mrp  = mrp per unit * bill quantity
+    @Column(name = "total_mrp_amount_per_unit")
+    private BigDecimal totalMrpAmountPerUnit;
 
     @Column(name = "discount_percentage", precision = 5, scale = 2)
     private BigDecimal discountPercentage;

@@ -1,4 +1,4 @@
-package tiameds.pharmabackend;
+package tiameds.pharmabackend.service;
 
 public interface PharmaDocumentsService {
 
