@@ -135,13 +135,19 @@ public class PurchaseServiceImpl implements PurchaseService {
                         ? detail.getPurchaseQuantity()
                         : 0L;
 
+                // Free units are supplied in the same unit as the purchase
+                // quantity, so they convert the same way.
+                Long freeQty = detail.getFreeQuantity() != null
+                        ? detail.getFreeQuantity()
+                        : 0L;
+
                 Long purchaseUnitContains = (packaging != null
                         && packaging.getPurchaseUnitContains() != null)
                         ? packaging.getPurchaseUnitContains()
                         : 1L;
 
-             // Stock in smallest units
-                Long stockQty = purchaseQty * purchaseUnitContains;
+             // Stock in smallest units, free stock included
+                Long stockQty = (purchaseQty + freeQty) * purchaseUnitContains;
 
                 Inventory inventory = inventoryRepository
                         .findByProductAndPackagingAndBatch(product, packaging, batch)
