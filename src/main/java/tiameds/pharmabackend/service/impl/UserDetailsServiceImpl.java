@@ -5,7 +5,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import tiameds.pharmabackend.audit.UserAuditRecorder;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
+import tiameds.pharmabackend.enums.UserAuditAction;
 import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
@@ -58,6 +60,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final S3Service s3Service;
     private final CurrentPharmacyContext pharmacyContext;
+    private final UserAuditRecorder userAuditRecorder;
     private final UserIdGeneratorService userIdGeneratorService;
 
     private static final DateTimeFormatter IMAGE_TIMESTAMP_FORMAT =
@@ -290,6 +293,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         UserDetails savedUser =
                 userDetailsRepository.save(user);
 
+        userAuditRecorder.record(
+                UserAuditAction.USER_CREATED,
+                currentUser,
+                savedUser,
+                "New user account created");
+
         return new CreateUserResponseDto(
                 userDetailsMapper.toDto(savedUser),
                 grantedPermissions
@@ -480,6 +489,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         userDetailsRepository.save(user);
 
+        userAuditRecorder.record(
+                UserAuditAction.PERMISSIONS_UPDATED,
+                userDetailsRepository.findById(currentUserId).orElse(null),
+                user,
+                "Permissions updated (" + granted.size() + " features granted)");
+
         return granted;
     }
 
@@ -577,6 +592,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         deleteOldImageQuietly(oldImageUrl);
 
+        userAuditRecorder.record(
+                UserAuditAction.USER_UPDATED,
+                userDetailsRepository.findById(currentUserId).orElse(null),
+                user,
+                "Profile image updated");
+
         return new UserImageDto(user.getUserId(), imageUrl);
     }
 
@@ -600,6 +621,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         user.setModifiedBy(currentUserId);
 
         userDetailsRepository.save(user);
+
+        userAuditRecorder.record(
+                UserAuditAction.USER_STATUS_CHANGED,
+                userDetailsRepository.findById(currentUserId).orElse(null),
+                user,
+                "Status changed to " + normalizedStatus);
 
         return new UserStatusDto(user.getUserId(), user.getUserStatus());
     }
