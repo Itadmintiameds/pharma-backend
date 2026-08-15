@@ -135,13 +135,19 @@ public class PurchaseServiceImpl implements PurchaseService {
                         ? detail.getPurchaseQuantity()
                         : 0L;
 
+                // Free units are supplied in the same unit as the purchase
+                // quantity, so they convert the same way.
+                Long freeQty = detail.getFreeQuantity() != null
+                        ? detail.getFreeQuantity()
+                        : 0L;
+
                 Long purchaseUnitContains = (packaging != null
                         && packaging.getPurchaseUnitContains() != null)
                         ? packaging.getPurchaseUnitContains()
                         : 1L;
 
-             // Stock in smallest units
-                Long stockQty = purchaseQty * purchaseUnitContains;
+             // Stock in smallest units, free stock included
+                Long stockQty = (purchaseQty + freeQty) * purchaseUnitContains;
 
                 Inventory inventory = inventoryRepository
                         .findByProductAndPackagingAndBatch(product, packaging, batch)
@@ -226,6 +232,46 @@ public class PurchaseServiceImpl implements PurchaseService {
                 .map(PurchaseMapper::toDto)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public boolean checkInvoiceExists(
+            Long supplierId,
+            String invoiceNo,
+            Integer year,
+            UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        if (supplierId == null) {
+            throw new RuntimeException("Supplier is required");
+        }
+
+        if (invoiceNo == null || invoiceNo.isBlank()) {
+            throw new RuntimeException("Invoice number is required");
+        }
+
+        if (year == null) {
+            throw new RuntimeException("Invoice year is required");
+        }
+
+        return purchaseRepository.existsBySupplierInvoiceNoAndYear(
+                pharmacyId,
+                supplierId,
+                invoiceNo.trim(),
+                year);
+    }
+
 
     private String generateGrnNo(String pharmacyId) {
 

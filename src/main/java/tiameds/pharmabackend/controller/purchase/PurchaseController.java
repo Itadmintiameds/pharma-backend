@@ -35,6 +35,29 @@ public class PurchaseController {
     }
 
 
+    // Uniqueness check for supplier + invoice number + invoice year, called by the
+    // frontend before a purchase is submitted.
+    @GetMapping("/check-invoice")
+    public ResponseEntity<?> checkInvoiceExists(
+            @RequestParam Long supplierId,
+            @RequestParam String invoiceNo,
+            @RequestParam Integer year,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        boolean exists = purchaseService.checkInvoiceExists(
+                supplierId,
+                invoiceNo,
+                year,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(exists);
+    }
+
+
     @GetMapping("/allPurchase")
     public ResponseEntity<?> getAllPurchases(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
