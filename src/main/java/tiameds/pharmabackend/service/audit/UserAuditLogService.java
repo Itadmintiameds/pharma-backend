@@ -18,6 +18,20 @@ public interface UserAuditLogService {
             Integer size,
             UserDetails user);
 
+    /**
+     * Activity timeline for a single user.
+     * scope: ACTOR (what they did), TARGET (what was done to them), or ALL.
+     */
+    UserAuditPageDto getAuditLogsForUser(
+            String userId,
+            String scope,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String action,
+            String cursor,
+            Integer size,
+            UserDetails user);
+
     List<AuditActorDto> getAuditActors(UserDetails user);
 
     List<String> getAuditActions();

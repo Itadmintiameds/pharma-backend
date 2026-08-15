@@ -1,7 +1,10 @@
 package tiameds.pharmabackend.service.impl.audit;
 
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.dto.audit.AuditActorDto;
@@ -30,6 +33,10 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
     private static final int DEFAULT_PAGE_SIZE = 50;
     private static final int MAX_PAGE_SIZE = 200;
 
+    private static final String SCOPE_ACTOR = "ACTOR";
+    private static final String SCOPE_TARGET = "TARGET";
+    private static final String SCOPE_ALL = "ALL";
+
     private final UserAuditLogRepository userAuditLogRepository;
     private final UserDetailsRepository userDetailsRepository;
 
@@ -44,7 +51,58 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
             Integer size,
             UserDetails user) {
 
+        return loadPage(
+                requireOrganizationId(user),
+                fromDate,
+                toDate,
+                (actorUserId != null && !actorUserId.isBlank()) ? actorUserId : null,
+                null,
+                null,
+                action,
+                cursor,
+                size);
+    }
+
+
+    @Override
+    public UserAuditPageDto getAuditLogsForUser(
+            String userId,
+            String scope,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String action,
+            String cursor,
+            Integer size,
+            UserDetails user) {
+
         Long organizationId = requireOrganizationId(user);
+
+        // A caller may only read the timeline of someone in their organization.
+        requireUserInOrganization(userId, organizationId);
+
+        return loadPage(
+                organizationId,
+                fromDate,
+                toDate,
+                null,
+                userId,
+                normalizeScope(scope),
+                action,
+                cursor,
+                size);
+    }
+
+
+    private UserAuditPageDto loadPage(
+            Long organizationId,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String actorUserId,
+            String subjectUserId,
+            String scope,
+            String action,
+            String cursor,
+            Integer size) {
 
         int pageSize = resolvePageSize(size);
 
@@ -79,16 +137,25 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
             }
         }
 
-        // One extra row tells us whether another page exists without a count query.
-        List<UserAuditLog> rows = userAuditLogRepository.findPage(
+        Specification<UserAuditLog> spec = buildSpecification(
                 organizationId,
                 from,
                 to,
-                (actorUserId != null && !actorUserId.isBlank()) ? actorUserId : null,
+                actorUserId,
+                subjectUserId,
+                scope,
                 auditAction,
                 cursorCreatedAt,
-                cursorAuditId,
-                PageRequest.of(0, pageSize + 1));
+                cursorAuditId);
+
+        // One extra row tells us whether another page exists without a count query.
+        List<UserAuditLog> rows = userAuditLogRepository.findAll(
+                spec,
+                PageRequest.of(
+                        0,
+                        pageSize + 1,
+                        Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("auditId"))))
+                .getContent();
 
         boolean hasMore = rows.size() > pageSize;
 
@@ -139,6 +206,76 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
     }
 
 
+    /**
+     * Only the filters actually supplied become predicates, so no untyped null
+     * parameter ever reaches PostgreSQL.
+     */
+    private Specification<UserAuditLog> buildSpecification(
+            Long organizationId,
+            LocalDateTime from,
+            LocalDateTime to,
+            String actorUserId,
+            String subjectUserId,
+            String scope,
+            UserAuditAction action,
+            LocalDateTime cursorCreatedAt,
+            Long cursorAuditId) {
+
+        return (root, query, cb) -> {
+
+            List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(cb.equal(root.get("organizationId"), organizationId));
+
+            if (from != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), from));
+            }
+
+            if (to != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), to));
+            }
+
+            if (actorUserId != null) {
+                predicates.add(cb.equal(root.get("actorUserId"), actorUserId));
+            }
+
+            if (action != null) {
+                predicates.add(cb.equal(root.get("action"), action));
+            }
+
+            // Single-user timeline: what they did, what was done to them, or both.
+            if (subjectUserId != null) {
+
+                if (SCOPE_ACTOR.equals(scope)) {
+                    predicates.add(cb.equal(root.get("actorUserId"), subjectUserId));
+
+                } else if (SCOPE_TARGET.equals(scope)) {
+                    predicates.add(cb.equal(root.get("targetUserId"), subjectUserId));
+
+                } else {
+                    predicates.add(
+                            cb.or(
+                                    cb.equal(root.get("actorUserId"), subjectUserId),
+                                    cb.equal(root.get("targetUserId"), subjectUserId)));
+                }
+            }
+
+            // Keyset cursor: everything strictly older than the last row seen,
+            // with auditId breaking ties on identical timestamps.
+            if (cursorCreatedAt != null && cursorAuditId != null) {
+                predicates.add(
+                        cb.or(
+                                cb.lessThan(root.get("createdAt"), cursorCreatedAt),
+                                cb.and(
+                                        cb.equal(root.get("createdAt"), cursorCreatedAt),
+                                        cb.lessThan(root.get("auditId"), cursorAuditId))));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+
     private UserAuditLogDto toDto(UserAuditLog entity) {
 
         UserAuditLogDto dto = new UserAuditLogDto();
@@ -172,6 +309,42 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
         }
 
         return persistentUser.getOrganization().getOrganizationId();
+    }
+
+
+    private void requireUserInOrganization(String userId, Long organizationId) {
+
+        if (userId == null || userId.isBlank()) {
+            throw new RuntimeException("User id is required");
+        }
+
+        UserDetails target = userDetailsRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found : " + userId));
+
+        if (target.getOrganization() == null
+                || !organizationId.equals(target.getOrganization().getOrganizationId())) {
+
+            throw new RuntimeException("User not found in your organization : " + userId);
+        }
+    }
+
+
+    private String normalizeScope(String scope) {
+
+        if (scope == null || scope.isBlank()) {
+            return SCOPE_ALL;
+        }
+
+        String normalized = scope.trim().toUpperCase();
+
+        if (SCOPE_ACTOR.equals(normalized)
+                || SCOPE_TARGET.equals(normalized)
+                || SCOPE_ALL.equals(normalized)) {
+            return normalized;
+        }
+
+        throw new RuntimeException(
+                "Invalid scope : " + scope + ". Allowed values are ACTOR, TARGET, ALL");
     }
 
 

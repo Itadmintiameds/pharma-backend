@@ -563,6 +563,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             String userId,
             MultipartFile image) {
 
+        return uploadUserImage(currentUserId, userId, image, false);
+    }
+
+    @Override
+    public UserImageDto uploadUserImage(
+            String currentUserId,
+            String userId,
+            MultipartFile image,
+            boolean partOfCreate) {
+
         if (image == null || image.isEmpty()) {
             throw new RuntimeException("Image file is required");
         }
@@ -592,11 +602,19 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         deleteOldImageQuietly(oldImageUrl);
 
-        userAuditRecorder.record(
-                UserAuditAction.USER_UPDATED,
-                userDetailsRepository.findById(currentUserId).orElse(null),
-                user,
-                "Profile image updated");
+        // An upload from the create-user wizard belongs to USER_CREATED, not to a
+        // separate edit. The oldImageUrl check is the fallback for callers that
+        // do not send the flag: a first image is part of setting the account up.
+        boolean firstImage = oldImageUrl == null || oldImageUrl.isBlank();
+
+        if (!partOfCreate && !firstImage) {
+
+            userAuditRecorder.record(
+                    UserAuditAction.USER_UPDATED,
+                    userDetailsRepository.findById(currentUserId).orElse(null),
+                    user,
+                    "Profile image updated");
+        }
 
         return new UserImageDto(user.getUserId(), imageUrl);
     }

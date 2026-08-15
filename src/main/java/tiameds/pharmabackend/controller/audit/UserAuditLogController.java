@@ -53,6 +53,46 @@ public class UserAuditLogController {
     }
 
 
+    /**
+     * Activity timeline for a single user: by default everything they did plus
+     * everything that was done to them. Narrow with scope=ACTOR or scope=TARGET.
+     */
+    @GetMapping("/user-logs/user/{userId}")
+    public ResponseEntity<?> getAuditLogsForUser(
+            @PathVariable String userId,
+
+            @RequestParam(required = false) String scope,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer size,
+
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        UserAuditPageDto page = userAuditLogService.getAuditLogsForUser(
+                userId,
+                scope,
+                fromDate,
+                toDate,
+                action,
+                cursor,
+                size,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(page);
+    }
+
+
     /** Values for the "Users" filter dropdown. */
     @GetMapping("/user-logs/actors")
     public ResponseEntity<?> getAuditActors(
