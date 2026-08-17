@@ -13,6 +13,7 @@ import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
 import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
 import tiameds.pharmabackend.dto.FeaturePermissionsDto;
+import tiameds.pharmabackend.dto.UpdateUserRequestDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
 import tiameds.pharmabackend.dto.UserStatusDto;
@@ -313,6 +314,141 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 grantedPermissions
         );
     }
+
+    @Override
+    public UserDetailsDto updateUser(
+            String currentUserId,
+            String userId,
+            UpdateUserRequestDto request) {
+
+        UserDetails user = getUserInSameOrganization(currentUserId, userId);
+
+        Long organizationId = getOrganizationIdOfUser(currentUserId);
+
+        // Records what actually changed, for the audit line.
+        List<String> changedFields = new ArrayList<>();
+
+        UserDetailsDto details = request == null ? null : request.getUser();
+
+        if (details != null) {
+
+            // Email and password are deliberately not editable here, and are
+            // ignored even when present in the body.
+
+            if (details.getFullName() != null
+                    && !details.getFullName().equals(user.getFullName())) {
+                user.setFullName(details.getFullName().trim());
+                changedFields.add("name");
+            }
+
+            if (details.getUserPhone() != null
+                    && !details.getUserPhone().equals(user.getUserPhone())) {
+                user.setUserPhone(details.getUserPhone().trim());
+                changedFields.add("phone");
+            }
+
+            if (details.getEmployeeId() != null
+                    && !details.getEmployeeId().equals(user.getEmployeeId())) {
+
+                user.setEmployeeId(details.getEmployeeId().trim());
+                changedFields.add("employee id");
+            }
+
+            if (details.getDepartment() != null
+                    && !details.getDepartment().equals(user.getDepartment())) {
+                user.setDepartment(details.getDepartment().trim());
+                changedFields.add("department");
+            }
+
+            if (details.getGender() != null
+                    && !details.getGender().equals(user.getGender())) {
+                user.setGender(details.getGender().trim());
+                changedFields.add("gender");
+            }
+
+            if (details.getDob() != null
+                    && !details.getDob().equals(user.getDob())) {
+                user.setDob(details.getDob());
+                changedFields.add("date of birth");
+            }
+
+            // Designation is the role.
+            if (details.getPharmaRolesDto() != null
+                    && details.getPharmaRolesDto().getRoleId() != null) {
+
+                Long roleId = details.getPharmaRolesDto().getRoleId();
+
+                boolean roleChanged = user.getRole() == null
+                        || !roleId.equals(user.getRole().getRoleId());
+
+                if (roleChanged) {
+
+                    PharmaRoles role = pharmaRolesRepository.findById(roleId)
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Role not found with id : " + roleId));
+
+                    user.setRole(role);
+                    changedFields.add("role");
+                }
+            }
+        }
+
+        // Absent means "leave as is"; present means "replace with exactly this".
+        boolean replacePharmacies = request != null && request.getPharmacyIds() != null;
+        boolean replacePermissions = request != null && request.getPermissions() != null;
+
+        if (replacePharmacies) {
+            user.getPharmacies().clear();
+        }
+
+        if (replacePermissions) {
+            user.getFeaturePermissions().clear();
+        }
+
+        // The removals have to reach the database before the replacements are
+        // added. Without this flush Hibernate orders the inserts first, and
+        // re-granting a permission the user already holds violates the
+        // (user_id, feature_id, permission_id) unique constraint.
+        if (replacePharmacies || replacePermissions) {
+            userDetailsRepository.saveAndFlush(user);
+        }
+
+        if (replacePharmacies) {
+
+            attachPharmacies(
+                    user,
+                    request.getPharmacyIds(),
+                    organizationId);
+
+            changedFields.add("pharmacies");
+        }
+
+        if (replacePermissions) {
+
+            attachPermissions(
+                    user,
+                    request.getPermissions());
+
+            changedFields.add("permissions");
+        }
+
+        user.setModifiedBy(currentUserId);
+        user.setModifiedAt(LocalDateTime.now());
+
+        UserDetails savedUser = userDetailsRepository.save(user);
+
+        if (!changedFields.isEmpty()) {
+
+            userAuditRecorder.record(
+                    UserAuditAction.USER_UPDATED,
+                    userDetailsRepository.findById(currentUserId).orElse(null),
+                    savedUser,
+                    "Updated " + String.join(", ", changedFields));
+        }
+
+        return userDetailsMapper.toDto(savedUser);
+    }
+
 
     private void attachPharmacies(
             UserDetails user,
