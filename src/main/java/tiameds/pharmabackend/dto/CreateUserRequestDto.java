@@ -9,5 +9,6 @@ public class CreateUserRequestDto {
 
     private UserDetailsDto user;
     private List<String> pharmacyIds;
+    private String warehouseId;
     private List<FeaturePermissionsDto> permissions;
 }

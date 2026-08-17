@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -106,5 +107,11 @@ public class UserDetails {
     @JsonIgnore
     private PharmacyOrganization organization;
 
+    // A user (e.g. a warehouse manager) may be bound to a single warehouse.
+    // Nullable: pharmacy users have no warehouse, warehouse managers do.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", referencedColumnName = "warehouse_id")
+    @JsonIgnore
+    private Warehouse warehouse;
 
 }

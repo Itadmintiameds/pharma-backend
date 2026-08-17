@@ -48,7 +48,7 @@ public class WarehouseInventory {
     @JsonIgnore
     private BatchDetails batch;
 
-    @Column(name = "total_stock")
+    @Column(name = "total_stock", nullable = false)
     private Long totalStock;
 
     @Column(name = "created_by")

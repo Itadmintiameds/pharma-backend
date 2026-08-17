@@ -10,6 +10,8 @@ import tiameds.pharmabackend.entity.PharmaRoles;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.UserFeaturePermission;
 import tiameds.pharmabackend.dto.UserFeaturePermissionDto;
+import tiameds.pharmabackend.dto.warehouse.WarehouseSummaryDto;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 
 import java.util.stream.Collectors;
 
@@ -81,6 +83,11 @@ public class UserDetailsMapper {
             dto.setPharmaRolesDto(roleDto);
         }
 
+        if (user.getWarehouse() != null) {
+            dto.setWarehouseId(user.getWarehouse().getWarehouseId());
+            dto.setWarehouseName(user.getWarehouse().getWarehouseName());
+        }
+
         if (user.getPharmacies() != null && !user.getPharmacies().isEmpty()) {
             dto.setPharmacies(
                     user.getPharmacies()
@@ -139,6 +146,22 @@ public class UserDetailsMapper {
                             .collect(Collectors.toList())
             );
         }
+
+        // A user (e.g. a warehouse manager) may be bound directly to one warehouse.
+        if (user.getWarehouse() != null) {
+            dto.setWarehouse(toWarehouseSummaryDto(user.getWarehouse()));
+        }
+
+        return dto;
+    }
+
+    private WarehouseSummaryDto toWarehouseSummaryDto(Warehouse warehouse) {
+
+        WarehouseSummaryDto dto = new WarehouseSummaryDto();
+
+        dto.setWarehouseId(warehouse.getWarehouseId());
+        dto.setWarehouseName(warehouse.getWarehouseName());
+        dto.setWarehouseCode(warehouse.getWarehouseCode());
 
         return dto;
     }

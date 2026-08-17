@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.enums.LocationType;
 
 import java.time.LocalDateTime;
 
@@ -15,7 +16,11 @@ import java.time.LocalDateTime;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "pharma_warehouse_distribution")
+@Table(name = "pharma_warehouse_distribution",
+        indexes = {
+                @Index(name = "idx_wd_destination", columnList = "destination_type, destination_id"),
+                @Index(name = "idx_wd_source", columnList = "source_type, source_id")
+        })
 public class WarehouseDistribution {
 
     @Id
@@ -26,7 +31,7 @@ public class WarehouseDistribution {
     @Column(name = "allocation_mode")       // Create Allocation By Myself or Against Stock Requirement
     private String allocationMode;
 
-    @Column(name = "allocation_no")
+    @Column(name = "allocation_no", nullable = false, unique = true)
     private String allocationNo;
 
     @Column(name = "allocation_date")
@@ -41,20 +46,28 @@ public class WarehouseDistribution {
     @Column(name = "remarks")
     private String remarks;
 
-    @Column(name = "source_type")       // warehouse or pharmacy
-    private String sourceType;
+    // OLD: free-text source type — replaced by LocationType enum to avoid magic strings
+    // @Column(name = "source_type", nullable = false)       // warehouse or pharmacy
+    // private String sourceType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_type", nullable = false)       // WAREHOUSE or PHARMACY
+    private LocationType sourceType;
 
-    @Column(name = "source_id")     // warehouse_id or pharmacy_id
+    @Column(name = "source_id", nullable = false)     // warehouse_id or pharmacy_id
     private String sourceId;
 
-    @Column(name = "destination_type")      // warehouse or pharmacy
-    private String destinationType;
+    // OLD: free-text destination type — replaced by LocationType enum to avoid magic strings
+    // @Column(name = "destination_type", nullable = false)      // warehouse or pharmacy
+    // private String destinationType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "destination_type", nullable = false)      // WAREHOUSE or PHARMACY
+    private LocationType destinationType;
 
-    @Column(name = "destination_id")
+    @Column(name = "destination_id", nullable = false)
     private String destinationId;
 
-    @Column(name = "requested_by")      // requested warehouse Id
-    private String requestedBy;
+    @Column(name = "allocation_requested_by")   // requesting warehouse id
+    private String allocationRequestedBy;
 
     @Column(name = "created_by")
     private String createdBy;

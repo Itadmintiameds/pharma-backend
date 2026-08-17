@@ -21,6 +21,7 @@ public class PurchaseMapper {
 
         dto.setPurchaseId(entity.getPurchaseId());
         dto.setPharmacyId(entity.getPharmacyId());
+        dto.setWarehouseId(entity.getWarehouseId());
         dto.setSupplierId(entity.getSupplier().getSupplierId());
         dto.setGrnNo(entity.getGrnNo());
         dto.setInvoiceNo(entity.getInvoiceNo());

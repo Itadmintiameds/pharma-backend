@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 
@@ -65,4 +66,9 @@ public class Warehouse {
     @ManyToMany(mappedBy = "warehouses", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<ProductDetails> products = new ArrayList<>();
+
+    // Pharmacies served by this warehouse (inverse side; PharmacyDetails owns the FK).
+    @OneToMany(mappedBy = "warehouse", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<PharmacyDetails> pharmacies = new ArrayList<>();
 }

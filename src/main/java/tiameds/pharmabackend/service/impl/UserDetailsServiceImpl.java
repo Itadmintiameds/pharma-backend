@@ -5,7 +5,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import tiameds.pharmabackend.audit.UserAuditRecorder;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
+import tiameds.pharmabackend.enums.UserAuditAction;
 import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
@@ -21,6 +23,7 @@ import tiameds.pharmabackend.entity.PharmaRoles;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.UserFeaturePermission;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.mapper.UserDetailsMapper;
 import tiameds.pharmabackend.repository.PharmaFeatureRepository;
 import tiameds.pharmabackend.repository.PharmaPermissionRepository;
@@ -28,6 +31,7 @@ import tiameds.pharmabackend.repository.PharmaRolesRepository;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.S3Service;
 import tiameds.pharmabackend.service.UserDetailsService;
 
@@ -54,10 +58,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final PharmaPermissionRepository pharmaPermissionRepository;
     private final UserFeaturePermissionRepository userFeaturePermissionRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
+    private final WarehouseRepository warehouseRepository;
     private final UserDetailsMapper userDetailsMapper;
     private final PasswordEncoder passwordEncoder;
     private final S3Service s3Service;
     private final CurrentPharmacyContext pharmacyContext;
+    private final UserAuditRecorder userAuditRecorder;
     private final UserIdGeneratorService userIdGeneratorService;
 
     private static final DateTimeFormatter IMAGE_TIMESTAMP_FORMAT =
@@ -281,6 +287,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 currentUser.getOrganization().getOrganizationId()
         );
 
+        attachWarehouse(
+                user,
+                request.getWarehouseId(),
+                currentUser.getOrganization().getOrganizationId()
+        );
+
         List<FeaturePermissionsDto> grantedPermissions =
                 attachPermissions(
                         user,
@@ -289,6 +301,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         UserDetails savedUser =
                 userDetailsRepository.save(user);
+
+        userAuditRecorder.record(
+                UserAuditAction.USER_CREATED,
+                currentUser,
+                savedUser,
+                "New user account created");
 
         return new CreateUserResponseDto(
                 userDetailsMapper.toDto(savedUser),
@@ -337,6 +355,30 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
             user.getPharmacies().add(pharmacy);
         }
+    }
+
+    private void attachWarehouse(
+            UserDetails user,
+            String warehouseId,
+            Long organizationId) {
+
+        if (warehouseId == null || warehouseId.isBlank()) {
+            return;
+        }
+
+        Warehouse warehouse = warehouseRepository
+                .findById(warehouseId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Warehouse not found with id : " + warehouseId));
+
+        if (warehouse.getOrganization() == null
+                || !organizationId.equals(
+                        warehouse.getOrganization().getOrganizationId())) {
+            throw new RuntimeException(
+                    "Warehouse does not belong to your organization : " + warehouseId);
+        }
+
+        user.setWarehouse(warehouse);
     }
 
     private List<FeaturePermissionsDto> attachPermissions(
@@ -480,6 +522,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         userDetailsRepository.save(user);
 
+        userAuditRecorder.record(
+                UserAuditAction.PERMISSIONS_UPDATED,
+                userDetailsRepository.findById(currentUserId).orElse(null),
+                user,
+                "Permissions updated (" + granted.size() + " features granted)");
+
         return granted;
     }
 
@@ -548,6 +596,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             String userId,
             MultipartFile image) {
 
+        return uploadUserImage(currentUserId, userId, image, false);
+    }
+
+    @Override
+    public UserImageDto uploadUserImage(
+            String currentUserId,
+            String userId,
+            MultipartFile image,
+            boolean partOfCreate) {
+
         if (image == null || image.isEmpty()) {
             throw new RuntimeException("Image file is required");
         }
@@ -577,6 +635,20 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         deleteOldImageQuietly(oldImageUrl);
 
+        // An upload from the create-user wizard belongs to USER_CREATED, not to a
+        // separate edit. The oldImageUrl check is the fallback for callers that
+        // do not send the flag: a first image is part of setting the account up.
+        boolean firstImage = oldImageUrl == null || oldImageUrl.isBlank();
+
+        if (!partOfCreate && !firstImage) {
+
+            userAuditRecorder.record(
+                    UserAuditAction.USER_UPDATED,
+                    userDetailsRepository.findById(currentUserId).orElse(null),
+                    user,
+                    "Profile image updated");
+        }
+
         return new UserImageDto(user.getUserId(), imageUrl);
     }
 
@@ -600,6 +672,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         user.setModifiedBy(currentUserId);
 
         userDetailsRepository.save(user);
+
+        userAuditRecorder.record(
+                UserAuditAction.USER_STATUS_CHANGED,
+                userDetailsRepository.findById(currentUserId).orElse(null),
+                user,
+                "Status changed to " + normalizedStatus);
 
         return new UserStatusDto(user.getUserId(), user.getUserStatus());
     }

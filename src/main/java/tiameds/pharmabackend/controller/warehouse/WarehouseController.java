@@ -5,7 +5,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.warehouse.AssignPharmaciesRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDto;
+import tiameds.pharmabackend.dto.warehouse.WarehousePharmacyAssignmentDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.warehouse.WarehouseService;
 
@@ -75,6 +77,22 @@ public class WarehouseController {
         }
 
         return ResponseEntity.ok(warehouseService.getWarehousesByOrganizationId(organizationId, currentUser.getUser()));
+    }
+
+    @PostMapping("/{warehouseId}/pharmacies")
+    public ResponseEntity<?> assignPharmacies(
+            @PathVariable String warehouseId,
+            @RequestBody AssignPharmaciesRequest request,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        WarehousePharmacyAssignmentDto response = warehouseService.assignPharmacies(
+                warehouseId, request.getPharmacyIds(), currentUser.getUser());
+
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{warehouseId}")

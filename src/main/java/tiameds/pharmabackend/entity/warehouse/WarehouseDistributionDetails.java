@@ -26,12 +26,12 @@ public class WarehouseDistributionDetails {
     private Long warehouseDistributionDetailsId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "warehouse_distribution_id")
+    @JoinColumn(name = "warehouse_distribution_id", nullable = false)
     @JsonIgnore
     private WarehouseDistribution warehouseDistribution;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", referencedColumnName = "product_id")
+    @JoinColumn(name = "product_id", referencedColumnName = "product_id", nullable = false)
     @JsonIgnore
     private ProductDetails product;
 
@@ -45,8 +45,11 @@ public class WarehouseDistributionDetails {
     @JsonIgnore
     private BatchDetails batch;
 
-    @Column(name = "issue_quantity")
+    @Column(name = "issue_quantity", nullable = false)
     private Long issueQuantity;
+
+    @Column(name = "received_quantity")     // set at Stock Received; may be < issueQuantity on partial receipt / rejection
+    private Long receivedQuantity;
 
     @Column(name = "created_by")
     private String createdBy;

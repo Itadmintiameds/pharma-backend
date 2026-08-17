@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.enums.DistributionStatus;
 
 import java.time.LocalDateTime;
 
@@ -27,9 +28,12 @@ public class WarehouseDistributionStatus {
     @JsonIgnore
     private WarehouseDistribution warehouseDistribution;
 
-    @Column(name = "warehouse_distribution_status")
-    // Allocation Created, Products Dispatched, Pending Receipt, Stock Received, Stock Rejected etc
-    private String warehouseDistributionStatus;
+    // OLD: free-text status — replaced by DistributionStatus enum
+    // @Column(name = "warehouse_distribution_status")
+    // private String warehouseDistributionStatus;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "warehouse_distribution_status", nullable = false)
+    private DistributionStatus warehouseDistributionStatus;
 
     @Column(name = "created_by")
     private String createdBy;

@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
 
@@ -38,6 +39,12 @@ public class WarehouseInventoryAudit {
     @JoinColumn(name = "warehouse_distribution_details_id")
     @JsonIgnore
     private WarehouseDistributionDetails warehouseDistributionDetails;
+
+    // Set on PURCHASE audit rows to trace back to the purchase line that added the stock.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_details_id")
+    @JsonIgnore
+    private PurchaseDetails purchaseDetails;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "stock_movement")

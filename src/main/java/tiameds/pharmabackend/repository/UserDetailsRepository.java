@@ -28,6 +28,7 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, String
             SELECT DISTINCT u
             FROM UserDetails u
             LEFT JOIN FETCH u.pharmacies
+            LEFT JOIN FETCH u.warehouse
             WHERE u.organization.organizationId = :organizationId
             """)
     List<UserDetails> findAllByOrganizationIdWithPharmacies(
@@ -45,4 +46,11 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, String
             @Param("employeeId") String employeeId,
             @Param("pharmacyId") String pharmacyId
     );
+
+    @Query("""
+            SELECT u.warehouse.warehouseId
+            FROM UserDetails u
+            WHERE u.userId = :userId
+            """)
+    Optional<String> findWarehouseIdByUserId(@Param("userId") String userId);
 }

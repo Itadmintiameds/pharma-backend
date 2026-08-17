@@ -12,6 +12,8 @@ import tiameds.pharmabackend.entity.RefreshToken;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.repository.PharmaOtpRepository;
 import tiameds.pharmabackend.repository.RefreshTokenRepository;
+import tiameds.pharmabackend.enums.UserAuditAction;
+import tiameds.pharmabackend.audit.UserAuditRecorder;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserAuditRecorder userAuditRecorder;
 
     @Transactional
     public String login(LoginRequestDto request){
@@ -41,6 +44,11 @@ public class AuthService {
         if(!passwordEncoder.matches(
                 request.getPassword(),
                 user.getPassword())){
+
+            userAuditRecorder.recordSelf(
+                    UserAuditAction.LOGIN_FAILED,
+                    user,
+                    "Invalid credentials");
 
             throw new RuntimeException(
                     "Invalid Credentials");
@@ -183,6 +191,11 @@ public class AuthService {
 
         refreshTokenRepository.save(tokenEntity);
 
+        userAuditRecorder.recordSelf(
+                UserAuditAction.LOGIN,
+                user,
+                "Signed in");
+
         return new LoginResponse(
                 accessToken,
                 refreshToken);
@@ -228,5 +241,10 @@ public class AuthService {
         tokenEntity.setIsRevoked(true);
 
         refreshTokenRepository.save(tokenEntity);
+
+        userAuditRecorder.recordSelf(
+                UserAuditAction.LOGOUT,
+                tokenEntity.getUser(),
+                "Signed out");
     }
 }

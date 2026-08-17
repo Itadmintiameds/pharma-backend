@@ -16,6 +16,7 @@ public class SupplierMasterMapper {
         SupplierMasterDto dto = new SupplierMasterDto();
         dto.setSupplierId(entity.getSupplierId());
         dto.setPharmacyId(entity.getPharmacyId());
+        dto.setWarehouseId(entity.getWarehouseId());
         dto.setSupplierName(entity.getSupplierName());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
