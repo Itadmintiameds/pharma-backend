@@ -6,6 +6,7 @@ import tiameds.pharmabackend.dto.CreateUserResponseDto;
 import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
 import tiameds.pharmabackend.dto.FeaturePermissionsDto;
 import org.springframework.web.multipart.MultipartFile;
+import tiameds.pharmabackend.dto.UpdateUserRequestDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
 import tiameds.pharmabackend.dto.UserStatusDto;
@@ -25,6 +26,12 @@ public interface UserDetailsService {
     List<UserSummaryDto> getAllUsers(String currentUserId);
 
     UserDetailsDto getUserById(String currentUserId, String userId);
+
+    /** Partial edit of an existing user. Email and password are not editable. */
+    UserDetailsDto updateUser(
+            String currentUserId,
+            String userId,
+            UpdateUserRequestDto request);
 
     UserDetailsDto getById(String userId);
 

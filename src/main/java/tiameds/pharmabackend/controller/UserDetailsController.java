@@ -1,25 +1,35 @@
 package tiameds.pharmabackend.controller;
 
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import lombok.RequiredArgsConstructor;
 import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
 import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
 import tiameds.pharmabackend.dto.FeaturePermissionsDto;
-import org.springframework.http.MediaType;
-import org.springframework.web.multipart.MultipartFile;
+import tiameds.pharmabackend.dto.UpdateUserRequestDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
 import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.UserDetailsService;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/user")
@@ -109,6 +119,20 @@ public class UserDetailsController {
                         userId,
                         image,
                         partOfCreate));
+    }
+
+    // Edit an existing user. Email and password are not editable here.
+    @PutMapping("/{userId}")
+    public ResponseEntity<UserDetailsDto> updateUser(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable String userId,
+            @RequestBody UpdateUserRequestDto request) {
+
+        return ResponseEntity.ok(
+                userDetailsService.updateUser(
+                        currentUser.getUserId(),
+                        userId,
+                        request));
     }
 
     @PatchMapping("/{userId}/status")
