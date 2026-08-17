@@ -1,6 +1,9 @@
 package tiameds.pharmabackend.mapper.product.category;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -44,10 +47,14 @@ public class SupplementMapper {
             entity.setDosageForm(df);
         }
         
-        if (dto.getAgeGroupId() != null) {
-            AgeGroup ag = new AgeGroup();
-            ag.setAgeGroupId(dto.getAgeGroupId());
-            entity.setAgeGroup(ag);
+        if (dto.getAgeGroupIds() != null) {
+            List<AgeGroup> list = new ArrayList<>();
+            for (Long id : dto.getAgeGroupIds()) {
+                AgeGroup item = new AgeGroup();
+                item.setAgeGroupId(id);
+                list.add(item);
+            }
+            entity.setAgeGroups(list);
         }
         
         entity.setStrengthComposition(dto.getStrengthComposition());
@@ -79,7 +86,11 @@ public class SupplementMapper {
         if (entity.getTherapeuticSubcategory() != null) dto.setTherapeuticSubcategoryId(entity.getTherapeuticSubcategory().getTherapeuticSubcategoryId());
         if (entity.getFlavour() != null) dto.setFlavourId(entity.getFlavour().getFlavourId());
         if (entity.getDosageForm() != null) dto.setDosageFormId(entity.getDosageForm().getDosageId());
-        if (entity.getAgeGroup() != null) dto.setAgeGroupId(entity.getAgeGroup().getAgeGroupId());
+        if (entity.getAgeGroups() != null) {
+            dto.setAgeGroupIds(entity.getAgeGroups().stream()
+                    .map(AgeGroup::getAgeGroupId)
+                    .collect(Collectors.toList()));
+        }
         
         dto.setStrengthComposition(entity.getStrengthComposition());
         dto.setNetQuantity(entity.getNetQuantity());

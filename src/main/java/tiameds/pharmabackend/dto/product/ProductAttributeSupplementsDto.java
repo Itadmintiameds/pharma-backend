@@ -2,6 +2,8 @@ package tiameds.pharmabackend.dto.product;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ProductAttributeSupplementsDto {
     private String productAttributeId;
@@ -9,7 +11,7 @@ public class ProductAttributeSupplementsDto {
     private Long therapeuticSubcategoryId;
     private Long flavourId;
     private Long dosageFormId;
-    private Long ageGroupId;
+    private List<Long> ageGroupIds;
     
     private String strengthComposition;
     private Double netQuantity;
