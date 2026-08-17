@@ -99,13 +99,16 @@ public class UserDetailsController {
     public ResponseEntity<UserImageDto> uploadUserImage(
             @AuthenticationPrincipal CustomUserDetails currentUser,
             @PathVariable String userId,
-            @RequestParam("image") MultipartFile image) {
+            @RequestParam("image") MultipartFile image,
+            @RequestParam(value = "partOfCreate", required = false, defaultValue = "false")
+            boolean partOfCreate) {
 
         return ResponseEntity.ok(
                 userDetailsService.uploadUserImage(
                         currentUser.getUserId(),
                         userId,
-                        image));
+                        image,
+                        partOfCreate));
     }
 
     @PatchMapping("/{userId}/status")

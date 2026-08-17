@@ -44,6 +44,16 @@ public interface UserDetailsService {
             String userId,
             MultipartFile image);
 
+    /**
+     * partOfCreate marks an upload made by the create-user wizard, so the image
+     * is treated as part of the account creation instead of a later edit.
+     */
+    UserImageDto uploadUserImage(
+            String currentUserId,
+            String userId,
+            MultipartFile image,
+            boolean partOfCreate);
+
     UserStatusDto updateUserStatus(
             String currentUserId,
             String userId,
