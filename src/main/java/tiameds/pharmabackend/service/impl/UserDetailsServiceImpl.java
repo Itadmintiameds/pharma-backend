@@ -287,9 +287,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 currentUser.getOrganization().getOrganizationId()
         );
 
-        attachWarehouse(
+        attachWarehouses(
                 user,
-                request.getWarehouseId(),
+                request.getWarehouseIds(),
                 currentUser.getOrganization().getOrganizationId()
         );
 
@@ -357,28 +357,72 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         }
     }
 
-    private void attachWarehouse(
+    // OLD: single warehouse per user.
+    // private void attachWarehouse(
+    //         UserDetails user,
+    //         String warehouseId,
+    //         Long organizationId) {
+    //
+    //     if (warehouseId == null || warehouseId.isBlank()) {
+    //         return;
+    //     }
+    //
+    //     Warehouse warehouse = warehouseRepository
+    //             .findById(warehouseId)
+    //             .orElseThrow(() -> new RuntimeException(
+    //                     "Warehouse not found with id : " + warehouseId));
+    //
+    //     if (warehouse.getOrganization() == null
+    //             || !organizationId.equals(
+    //                     warehouse.getOrganization().getOrganizationId())) {
+    //         throw new RuntimeException(
+    //                 "Warehouse does not belong to your organization : " + warehouseId);
+    //     }
+    //
+    //     user.setWarehouse(warehouse);
+    // }
+
+    private void attachWarehouses(
             UserDetails user,
-            String warehouseId,
+            List<String> warehouseIds,
             Long organizationId) {
 
-        if (warehouseId == null || warehouseId.isBlank()) {
+        if (warehouseIds == null || warehouseIds.isEmpty()) {
             return;
         }
 
-        Warehouse warehouse = warehouseRepository
-                .findById(warehouseId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Warehouse not found with id : " + warehouseId));
+        Set<String> uniqueIds = new LinkedHashSet<>(warehouseIds);
+        uniqueIds.remove(null);
 
-        if (warehouse.getOrganization() == null
-                || !organizationId.equals(
-                        warehouse.getOrganization().getOrganizationId())) {
-            throw new RuntimeException(
-                    "Warehouse does not belong to your organization : " + warehouseId);
+        if (uniqueIds.isEmpty()) {
+            return;
         }
 
-        user.setWarehouse(warehouse);
+        Map<String, Warehouse> warehousesById = warehouseRepository
+                .findAllById(uniqueIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Warehouse::getWarehouseId,
+                        Function.identity()));
+
+        for (String warehouseId : uniqueIds) {
+
+            Warehouse warehouse = warehousesById.get(warehouseId);
+
+            if (warehouse == null) {
+                throw new RuntimeException(
+                        "Warehouse not found with id : " + warehouseId);
+            }
+
+            if (warehouse.getOrganization() == null
+                    || !organizationId.equals(
+                            warehouse.getOrganization().getOrganizationId())) {
+                throw new RuntimeException(
+                        "Warehouse does not belong to your organization : " + warehouseId);
+            }
+
+            user.getWarehouses().add(warehouse);
+        }
     }
 
     private List<FeaturePermissionsDto> attachPermissions(

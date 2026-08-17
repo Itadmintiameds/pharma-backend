@@ -11,8 +11,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
+import tiameds.pharmabackend.context.CurrentWarehouseContext;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
 
 import java.io.IOException;
 
@@ -22,7 +24,11 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
 
     private final PharmacyDetailsRepository pharmacyRepository;
 
+    private final UserDetailsRepository userDetailsRepository;
+
     private final CurrentPharmacyContext pharmacyContext;
+
+    private final CurrentWarehouseContext warehouseContext;
 
     private final LocationContextResolver locationContextResolver;
 
@@ -41,10 +47,34 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
             if (authentication instanceof UsernamePasswordAuthenticationToken
                     && authentication.getPrincipal() instanceof CustomUserDetails currentUser) {
 
-                // Warehouse managers operate on their bound warehouse, not a pharmacy.
-                // Any X-Pharmacy-Id they send is irrelevant, so skip the pharmacy check
-                // instead of 403-ing them on every request.
-                if (!locationContextResolver.isWarehouseManager(currentUser.getUser())) {
+                // Warehouse managers operate on a warehouse (selected via X-Warehouse-Id),
+                // everyone else on a pharmacy (selected via X-Pharmacy-Id).
+                if (locationContextResolver.isWarehouseManager(currentUser.getUser())) {
+
+                    String warehouseId = request.getHeader("X-Warehouse-Id");
+
+                    System.out.println("Header Warehouse : " + warehouseId);
+
+                    if (warehouseId != null && !warehouseId.isBlank()) {
+
+                        boolean valid =
+                                userDetailsRepository.existsUserWarehouse(
+                                        warehouseId,
+                                        currentUser.getUserId());
+
+                        if (!valid) {
+
+                            response.sendError(
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "Invalid Warehouse");
+
+                            return;
+                        }
+
+                        warehouseContext.setCurrentWarehouse(warehouseId);
+                        System.out.println("Logged in User : " + currentUser.getUserId());
+                    }
+                } else {
 
                     String pharmacyId =
                             request.getHeader("X-Pharmacy-Id");
@@ -79,6 +109,7 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
         } finally {
 
             pharmacyContext.clear();
+            warehouseContext.clear();
             System.out.println("Context Cleared");
         }
     }

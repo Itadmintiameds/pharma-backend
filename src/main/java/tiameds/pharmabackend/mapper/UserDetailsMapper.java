@@ -83,9 +83,13 @@ public class UserDetailsMapper {
             dto.setPharmaRolesDto(roleDto);
         }
 
-        if (user.getWarehouse() != null) {
-            dto.setWarehouseId(user.getWarehouse().getWarehouseId());
-            dto.setWarehouseName(user.getWarehouse().getWarehouseName());
+        if (user.getWarehouses() != null && !user.getWarehouses().isEmpty()) {
+            dto.setWarehouses(
+                    user.getWarehouses()
+                            .stream()
+                            .map(this::toWarehouseSummaryDto)
+                            .collect(Collectors.toList())
+            );
         }
 
         if (user.getPharmacies() != null && !user.getPharmacies().isEmpty()) {
@@ -147,9 +151,14 @@ public class UserDetailsMapper {
             );
         }
 
-        // A user (e.g. a warehouse manager) may be bound directly to one warehouse.
-        if (user.getWarehouse() != null) {
-            dto.setWarehouse(toWarehouseSummaryDto(user.getWarehouse()));
+        // A user (e.g. a warehouse manager) may be mapped to many warehouses.
+        if (user.getWarehouses() != null && !user.getWarehouses().isEmpty()) {
+            dto.setWarehouses(
+                    user.getWarehouses()
+                            .stream()
+                            .map(this::toWarehouseSummaryDto)
+                            .collect(Collectors.toList())
+            );
         }
 
         return dto;

@@ -28,7 +28,7 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, String
             SELECT DISTINCT u
             FROM UserDetails u
             LEFT JOIN FETCH u.pharmacies
-            LEFT JOIN FETCH u.warehouse
+            LEFT JOIN FETCH u.warehouses
             WHERE u.organization.organizationId = :organizationId
             """)
     List<UserDetails> findAllByOrganizationIdWithPharmacies(
@@ -47,10 +47,33 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, String
             @Param("pharmacyId") String pharmacyId
     );
 
+    // OLD: single warehouse per user.
+    // @Query("""
+    //         SELECT u.warehouse.warehouseId
+    //         FROM UserDetails u
+    //         WHERE u.userId = :userId
+    //         """)
+    // Optional<String> findWarehouseIdByUserId(@Param("userId") String userId);
+
+    // All warehouse ids the user is mapped to (many-to-many).
     @Query("""
-            SELECT u.warehouse.warehouseId
+            SELECT w.warehouseId
             FROM UserDetails u
+            JOIN u.warehouses w
             WHERE u.userId = :userId
             """)
-    Optional<String> findWarehouseIdByUserId(@Param("userId") String userId);
+    List<String> findWarehouseIdsByUserId(@Param("userId") String userId);
+
+    // Whether the given user is mapped to the given warehouse.
+    // Mirrors PharmacyDetailsRepository.existsUserPharmacy.
+    @Query("""
+            SELECT COUNT(w) > 0
+            FROM UserDetails u
+            JOIN u.warehouses w
+            WHERE w.warehouseId = :warehouseId
+              AND u.userId = :userId
+            """)
+    boolean existsUserWarehouse(
+            @Param("warehouseId") String warehouseId,
+            @Param("userId") String userId);
 }

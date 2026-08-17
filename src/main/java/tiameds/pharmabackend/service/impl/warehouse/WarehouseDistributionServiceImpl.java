@@ -79,10 +79,13 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         dist.setSourceId(request.getSourceId());
         dist.setDestinationType(request.getDestinationType());
         dist.setDestinationId(request.getDestinationId());
-        // The requesting warehouse is the one the acting user manages, not a client
-        // input — null for non-warehouse-manager actors.
+        // The requesting warehouse is the one the acting warehouse manager is
+        // operating as for this request (X-Warehouse-Id, or their only warehouse),
+        // not a client input — null for non-warehouse-manager actors.
         dist.setAllocationRequestedBy(
-                locationContextResolver.managedWarehouseId(user).orElse(null));
+                locationContextResolver.isWarehouseManager(user)
+                        ? locationContextResolver.resolve(user).getLocationId()
+                        : null);
         dist.setCreatedBy(actor);
         dist.setCreatedAt(now);
         WarehouseDistribution saved = distributionRepository.save(dist);
@@ -200,14 +203,15 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
             throw new IllegalArgumentException("Destination does not belong to your organization");
         }
 
-        // A warehouse manager may only ship from the warehouse they manage.
-        locationContextResolver.managedWarehouseId(user).ifPresent(managed -> {
+        // A warehouse manager may only ship from a warehouse they are mapped to.
+        List<String> managedWarehouses = locationContextResolver.managedWarehouseIds(user);
+        if (!managedWarehouses.isEmpty()) {
             if (request.getSourceType() != LocationType.WAREHOUSE
-                    || !managed.equals(request.getSourceId())) {
+                    || !managedWarehouses.contains(request.getSourceId())) {
                 throw new IllegalArgumentException(
-                        "You can only distribute from your own warehouse");
+                        "You can only distribute from a warehouse you are mapped to");
             }
-        });
+        }
 
         // Warehouse -> pharmacy: the pharmacy must be served by the source warehouse.
         if (request.getSourceType() == LocationType.WAREHOUSE

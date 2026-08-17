@@ -16,5 +16,7 @@ public class UserSummaryDto {
     private String roleName;
     private List<String> pharmacyCities;
     private String userStatus;
-    private WarehouseSummaryDto warehouse;
+    // OLD: single warehouse per user.
+    // private WarehouseSummaryDto warehouse;
+    private List<WarehouseSummaryDto> warehouses;
 }

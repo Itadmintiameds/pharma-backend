@@ -3,7 +3,7 @@ package tiameds.pharmabackend.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
-import tiameds.pharmabackend.entity.PharmaRoles;
+import tiameds.pharmabackend.dto.warehouse.WarehouseSummaryDto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,8 +26,10 @@ public class UserDetailsDto {
     private String department;
     private String imageUrl;
     private PharmaRolesDto pharmaRolesDto;
-    private String warehouseId;
-    private String warehouseName;
+    // OLD: single warehouse per user.
+    // private String warehouseId;
+    // private String warehouseName;
+    private List<WarehouseSummaryDto> warehouses;
     private LocalDateTime lastLogin;
     private Boolean isRejected;
     private String userStatus;
