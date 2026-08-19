@@ -6,6 +6,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
+import tiameds.pharmabackend.context.LocationContext;
+import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.product.*;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -13,6 +15,8 @@ import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Inventory;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
+import tiameds.pharmabackend.entity.warehouse.WarehouseInventory;
 import tiameds.pharmabackend.mapper.product.ProductMapper;
 import tiameds.pharmabackend.mapper.product.category.ProductInventoryMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
@@ -21,6 +25,8 @@ import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.PackagingDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.InventoryRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseInventoryRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.product.ProductService;
 
@@ -59,6 +65,15 @@ public class ProductServiceImpl implements ProductService {
     private CurrentPharmacyContext pharmacyContext;
 
     @Autowired
+    private LocationContextResolver locationContextResolver;
+
+    @Autowired
+    private WarehouseInventoryRepository warehouseInventoryRepo;
+
+    @Autowired
+    private WarehouseRepository warehouseRepo;
+
+    @Autowired
     private UserDetailsRepository userDetailsRepository;
 
     // A batch is "near expiry" when it expires within this many days from today.
@@ -71,10 +86,22 @@ public class ProductServiceImpl implements ProductService {
 //        PharmacyDetails pharmacy = pharmacyRepo.findById(dto.getPharmacyId())
 //                .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        // OLD (pharmacy-only) onboarding — replaced by location-aware resolution below:
+        // String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        // PharmacyDetails pharmacy = pharmacyRepo.findById(pharmacyId)
+        //         .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
+        // String rawPharmacyName = pharmacy.getPharmacyName();
+        // final String pharmacyName = (rawPharmacyName == null) ? "XX" : rawPharmacyName;
+        // String productId = generateProductId(dto.getProductName(), pharmacyName);
+        // ProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
+        // if (product.getPharmacies() == null) {
+        //     product.setPharmacies(new ArrayList<>());
+        // }
+        // product.getPharmacies().add(pharmacy);
 
-        PharmacyDetails pharmacy = pharmacyRepo.findById(pharmacyId)
-                .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
+        // Onboard into whichever location the user operates on: a warehouse manager
+        // maps the product to their warehouse, everyone else to the selected pharmacy.
+        LocationContext loc = currentLocation();
 
         String createdBy = "System";
         String userId = getCurrentUserId();
@@ -82,26 +109,37 @@ public class ProductServiceImpl implements ProductService {
             createdBy = userId;
         }
 
-//        if (userId != null) {
-//            boolean valid = pharmacyRepo.existsUserPharmacy(dto.getPharmacyId(), userId);
-//            if (!valid) {
-//                throw new RuntimeException("You are not authorized to use this pharmacy.");
-//            }
-//        }
+        PharmacyDetails pharmacy = null;
+        Warehouse warehouse = null;
+        String locationName;
 
-        String rawPharmacyName = pharmacy.getPharmacyName();
-        final String pharmacyName = (rawPharmacyName == null) ? "XX" : rawPharmacyName;
+        if (loc.isWarehouse()) {
+            warehouse = warehouseRepo.findById(loc.getLocationId())
+                    .orElseThrow(() -> new RuntimeException("Warehouse not found"));
+            locationName = warehouse.getWarehouseName();
+        } else {
+            pharmacy = pharmacyRepo.findById(loc.getLocationId())
+                    .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
+            locationName = pharmacy.getPharmacyName();
+        }
+
+        // Kept the variable name so the id generators below need no change.
+        final String pharmacyName = (locationName == null) ? "XX" : locationName;
 
         String productId = generateProductId(dto.getProductName(), pharmacyName);
 
         ProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
 
         // OLD single-pharmacy assignment: product.setPharmacy(pharmacy);
-        // Product now maps to many pharmacies via ManyToMany.
-        if (product.getPharmacies() == null) {
-            product.setPharmacies(new ArrayList<>());
+        // Product now maps to many pharmacies/warehouses via ManyToMany.
+        if (loc.isWarehouse()) {
+            product.getWarehouses().add(warehouse);
+        } else {
+            if (product.getPharmacies() == null) {
+                product.setPharmacies(new ArrayList<>());
+            }
+            product.getPharmacies().add(pharmacy);
         }
-        product.getPharmacies().add(pharmacy);
         dto.setProductId(productId);
 
         // Generate IDs and set bidirectional relationships
@@ -246,9 +284,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public List<ProductDetailsDto> getAllProducts() {
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
-
-        return productRepo.findByPharmacies_PharmacyId(pharmacyId)
+        return productsForLocation(currentLocation())
                 .stream()
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
@@ -259,25 +295,25 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public List<ProductStockSummaryDto> getProductStockSummaries() {
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        LocationContext loc = currentLocation();
 
-        // stock lives in pharma_inventory, not on the batch -> load all stock
-        // rows for the pharmacy once and group them by product.
-        Map<String, List<Inventory>> inventoryByProduct =
-                inventoryRepo.findByPharmacy_PharmacyId(pharmacyId)
+        // Stock lives in inventory rows (pharma_inventory or pharma_warehouse_inventory),
+        // not on the batch -> load the location's stock rows once and group by product.
+        Map<String, List<StockRow>> stockByProduct =
+                stockRowsForLocation(loc)
                         .stream()
-                        .filter(inv -> inv.getProduct() != null)
-                        .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
+                        .filter(row -> row.product() != null)
+                        .collect(Collectors.groupingBy(row -> row.product().getProductId()));
 
-        return productRepo.findByPharmacies_PharmacyId(pharmacyId)
+        return productsForLocation(loc)
                 .stream()
                 .map(product -> toStockSummary(
                         product,
-                        inventoryByProduct.getOrDefault(product.getProductId(), List.of())))
+                        stockByProduct.getOrDefault(product.getProductId(), List.of())))
                 .collect(Collectors.toList());
     }
 
-    private ProductStockSummaryDto toStockSummary(ProductDetails product, List<Inventory> inventories) {
+    private ProductStockSummaryDto toStockSummary(ProductDetails product, List<StockRow> inventories) {
         ProductStockSummaryDto dto = new ProductStockSummaryDto();
         dto.setProductId(product.getProductId());
         dto.setProductName(product.getProductName());
@@ -299,17 +335,17 @@ public class ProductServiceImpl implements ProductService {
         long expired = 0L;
         LocalDate nearestExpiry = null;
 
-        for (Inventory inv : inventories) {
-            long stock = inv.getTotalStock() == null ? 0L : inv.getTotalStock();
+        for (StockRow inv : inventories) {
+            long stock = inv.totalStock();
 
             totalStock += stock;
 
             // status is counted only over stock rows that actually hold stock
-            if (stock <= 0 || inv.getBatch() == null) {
+            if (stock <= 0 || inv.batch() == null) {
                 continue;
             }
 
-            LocalDate expiry = inv.getBatch().getExpiryDate();
+            LocalDate expiry = inv.batch().getExpiryDate();
             if (expiry == null) {
                 // no expiry recorded -> treat as active, ignore for nearest-expiry
                 active++;
@@ -408,16 +444,16 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public ProductExpiryKpiDto getExpiryKpi() {
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        LocationContext loc = currentLocation();
 
-        // in-stock rows for the pharmacy, grouped by product
-        Map<String, List<Inventory>> inventoryByProduct =
-                inventoryRepo.findByPharmacy_PharmacyId(pharmacyId)
+        // in-stock rows for the location, grouped by product
+        Map<String, List<StockRow>> inventoryByProduct =
+                stockRowsForLocation(loc)
                         .stream()
-                        .filter(inv -> inv.getProduct() != null)
-                        .collect(Collectors.groupingBy(inv -> inv.getProduct().getProductId()));
+                        .filter(row -> row.product() != null)
+                        .collect(Collectors.groupingBy(row -> row.product().getProductId()));
 
-        List<ProductDetails> products = productRepo.findByPharmacies_PharmacyId(pharmacyId);
+        List<ProductDetails> products = productsForLocation(loc);
 
         LocalDate today = LocalDate.now();
         LocalDate in30Days = today.plusDays(30);
@@ -429,20 +465,20 @@ public class ProductServiceImpl implements ProductService {
         long healthy = 0;
 
         for (ProductDetails product : products) {
-            List<Inventory> inventories =
+            List<StockRow> inventories =
                     inventoryByProduct.getOrDefault(product.getProductId(), List.of());
 
             LocalDate nearest = null;
             boolean hasInStock = false;
 
-            for (Inventory inv : inventories) {
-                long stock = inv.getTotalStock() == null ? 0L : inv.getTotalStock();
-                if (stock <= 0 || inv.getBatch() == null) {
+            for (StockRow inv : inventories) {
+                long stock = inv.totalStock();
+                if (stock <= 0 || inv.batch() == null) {
                     continue;
                 }
                 hasInStock = true;
 
-                LocalDate expiry = inv.getBatch().getExpiryDate();
+                LocalDate expiry = inv.batch().getExpiryDate();
                 if (expiry == null) {
                     continue; // no expiry -> does not affect nearest
                 }
@@ -488,6 +524,8 @@ public class ProductServiceImpl implements ProductService {
 
         checkAuthorization(product);
 
+        LocationContext loc = currentLocation();
+
         ProductDetailResponseDto dto = new ProductDetailResponseDto();
         dto.setProductId(product.getProductId());
         // OLD single-pharmacy DTO mapping:
@@ -495,8 +533,10 @@ public class ProductServiceImpl implements ProductService {
         //     dto.setPharmacyId(product.getPharmacy().getPharmacyId());
         // }
         // Prefer the current pharmacy (validated by checkAuthorization); fall back to the first mapping.
-        if (product.getPharmacies() != null && !product.getPharmacies().isEmpty()) {
-            String currentPharmacy = pharmacyContext.getCurrentPharmacy();
+        // For a warehouse manager there is no pharmacy in context, so pharmacyId is left null.
+        if (loc.isPharmacy()
+                && product.getPharmacies() != null && !product.getPharmacies().isEmpty()) {
+            String currentPharmacy = loc.getLocationId();
             String pharmacyId = product.getPharmacies().stream()
                     .map(PharmacyDetails::getPharmacyId)
                     .filter(id -> id.equals(currentPharmacy))
@@ -512,15 +552,14 @@ public class ProductServiceImpl implements ProductService {
         dto.setGstPercentage(product.getGstPercentage());
         dto.setHsnNo(product.getHsnNo());
 
-        // per-batch stock comes from pharma_inventory, not the batch row
+        // per-batch stock comes from the location's inventory rows, not the batch row
         Map<String, Long> stockByBatch =
-                inventoryRepo.findByProduct_ProductId(product.getProductId())
+                stockRowsForProduct(loc, product.getProductId())
                         .stream()
-                        .filter(inv -> inv.getBatch() != null)
+                        .filter(row -> row.batch() != null)
                         .collect(Collectors.groupingBy(
-                                inv -> inv.getBatch().getBatchId(),
-                                Collectors.summingLong(inv ->
-                                        inv.getTotalStock() == null ? 0L : inv.getTotalStock())));
+                                row -> row.batch().getBatchId(),
+                                Collectors.summingLong(StockRow::totalStock)));
 
         List<BatchDetails> batches = product.getBatchDetails() == null
                 ? new ArrayList<>()
@@ -693,6 +732,107 @@ public class ProductServiceImpl implements ProductService {
         return null;
     }
 
+    // ===== Location (warehouse vs pharmacy) resolution for the read APIs =====
+    // A warehouse manager reads warehouse products + pharma_warehouse_inventory;
+    // everyone else reads pharmacy products + pharma_inventory. The stock/expiry
+    // mapping below is identical for both once stock is normalized to StockRow.
+
+    private UserDetails currentUserOrThrow() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails cud) {
+            return cud.getUser();
+        }
+        throw new RuntimeException("No authenticated user");
+    }
+
+    private LocationContext currentLocation() {
+        return locationContextResolver.resolve(currentUserOrThrow());
+    }
+
+    /**
+     * A batch's stock at a location, decoupled from whether it came from pharmacy or warehouse inventory.
+     */
+    private record StockRow(ProductDetails product, BatchDetails batch, long totalStock) {
+
+        static StockRow of(Inventory inv) {
+            return new StockRow(inv.getProduct(), inv.getBatch(),
+                    inv.getTotalStock() == null ? 0L : inv.getTotalStock());
+        }
+
+        static StockRow of(WarehouseInventory inv) {
+            return new StockRow(inv.getProduct(), inv.getBatch(),
+                    inv.getTotalStock() == null ? 0L : inv.getTotalStock());
+        }
+    }
+
+    private List<ProductDetails> productsForLocation(LocationContext loc) {
+        return loc.isWarehouse()
+                ? productRepo.findByWarehouses_WarehouseId(loc.getLocationId())
+                : productRepo.findByPharmacies_PharmacyId(loc.getLocationId());
+    }
+
+    private List<BatchDetails> batchesForLocation(LocationContext loc) {
+        return loc.isWarehouse()
+                ? batchRepo.findByProduct_Warehouses_WarehouseId(loc.getLocationId())
+                : batchRepo.findByProduct_Pharmacies_PharmacyId(loc.getLocationId());
+    }
+
+    /**
+     * All in-location stock rows, normalized.
+     */
+    private List<StockRow> stockRowsForLocation(LocationContext loc) {
+        if (loc.isWarehouse()) {
+            return warehouseInventoryRepo.findByWarehouse_WarehouseId(loc.getLocationId())
+                    .stream().map(StockRow::of).collect(Collectors.toList());
+        }
+        return inventoryRepo.findByPharmacy_PharmacyId(loc.getLocationId())
+                .stream().map(StockRow::of).collect(Collectors.toList());
+    }
+
+    /**
+     * Total stock for one batch at the location.
+     */
+    private long stockForBatch(LocationContext loc, String batchId) {
+        if (loc.isWarehouse()) {
+            return warehouseInventoryRepo
+                    .findByWarehouse_WarehouseIdAndBatch_BatchId(loc.getLocationId(), batchId)
+                    .stream().mapToLong(i -> i.getTotalStock() == null ? 0L : i.getTotalStock()).sum();
+        }
+        return inventoryRepo
+                .findByPharmacy_PharmacyIdAndBatch_BatchId(loc.getLocationId(), batchId)
+                .stream().mapToLong(i -> i.getTotalStock() == null ? 0L : i.getTotalStock()).sum();
+    }
+
+    /**
+     * Normalized stock rows for one product at the location.
+     */
+    private List<StockRow> stockRowsForProduct(LocationContext loc, String productId) {
+        if (loc.isWarehouse()) {
+            return warehouseInventoryRepo
+                    .findByWarehouse_WarehouseIdAndProduct_ProductId(loc.getLocationId(), productId)
+                    .stream().map(StockRow::of).collect(Collectors.toList());
+        }
+        // Pharmacy path preserved as-is: stock summed across the product's rows.
+        return inventoryRepo.findByProduct_ProductId(productId)
+                .stream().map(StockRow::of).collect(Collectors.toList());
+    }
+
+    /**
+     * The batch, scoped to the location's products.
+     */
+    private BatchDetails batchForLocation(LocationContext loc, String batchId) {
+        if (loc.isWarehouse()) {
+            return batchRepo
+                    .findByBatchIdAndProduct_Warehouses_WarehouseId(batchId, loc.getLocationId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Batch not found in this warehouse with id : " + batchId));
+        }
+        return batchRepo
+                .findByBatchIdAndProduct_Pharmacies_PharmacyId(batchId, loc.getLocationId())
+                .orElseThrow(() -> new RuntimeException(
+                        "Batch not found in this pharmacy with id : " + batchId));
+    }
+
 //    private void checkAuthorization(ProductDetails product) {
 //        Long userId = getCurrentUserId();
 //        if (userId != null && product.getPharmacy() != null) {
@@ -705,8 +845,21 @@ public class ProductServiceImpl implements ProductService {
 
     private void checkAuthorization(ProductDetails product) {
 
-        String currentPharmacy =
-                pharmacyContext.getCurrentPharmacy();
+        LocationContext loc = currentLocation();
+
+        // Warehouse manager: the product must be mapped to their warehouse.
+        if (loc.isWarehouse()) {
+            boolean authorized = product.getWarehouses() != null
+                    && product.getWarehouses().stream()
+                    .anyMatch(w -> w.getWarehouseId().equals(loc.getLocationId()));
+            if (!authorized) {
+                throw new RuntimeException(
+                        "You are not authorized to access this product.");
+            }
+            return;
+        }
+
+        String currentPharmacy = loc.getLocationId();
 
         // OLD single-pharmacy authorization:
         // if (product.getPharmacy() == null) {
@@ -739,16 +892,42 @@ public class ProductServiceImpl implements ProductService {
         return prefix + namePart + String.format("%05d", nextNumber);
     }
 
+    // Resolves the name of the location the product belongs to (pharmacy or warehouse),
+    // used only as a prefix for generated package/batch ids.
     private String resolvePharmacyName(ProductDetails product) {
-        // OLD: product.getPharmacy() == null ? null : product.getPharmacy().getPharmacyName();
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        // OLD (pharmacy-only) — replaced by location-aware resolution below:
+        // String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        // String name = (product.getPharmacies() == null)
+        //         ? null
+        //         : product.getPharmacies().stream()
+        //         .filter(p -> p.getPharmacyId().equals(pharmacyId))
+        //         .map(PharmacyDetails::getPharmacyName)
+        //         .findFirst()
+        //         .orElse(null);
+        // return name == null ? "XX" : name;
+
+        LocationContext loc = currentLocation();
+
+        if (loc.isWarehouse()) {
+            String name = (product.getWarehouses() == null)
+                    ? null
+                    : product.getWarehouses().stream()
+                    .filter(w -> w.getWarehouseId().equals(loc.getLocationId()))
+                    .map(Warehouse::getWarehouseName)
+                    .findFirst()
+                    .orElse(null);
+            return name == null ? "XX" : name;
+        }
+
+        String pharmacyId = loc.getLocationId();
         String name = (product.getPharmacies() == null)
                 ? null
                 : product.getPharmacies().stream()
-                        .filter(p -> p.getPharmacyId().equals(pharmacyId))
-                        .map(PharmacyDetails::getPharmacyName)
-                        .findFirst()
-                        .orElse(null);
+                .filter(p -> p.getPharmacyId().equals(pharmacyId))
+                .map(PharmacyDetails::getPharmacyName)
+                .findFirst()
+                .orElse(null);
         return name == null ? "XX" : name;
     }
 
@@ -804,20 +983,19 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public List<BatchStockDto> getAllBatches() {
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        LocationContext loc = currentLocation();
 
-        // stock lives in pharma_inventory, not on the batch -> load the pharmacy's
+        // stock lives in inventory rows, not on the batch -> load the location's
         // stock rows once and total them per batch.
         Map<String, Long> stockByBatch =
-                inventoryRepo.findByPharmacy_PharmacyId(pharmacyId)
+                stockRowsForLocation(loc)
                         .stream()
-                        .filter(inv -> inv.getBatch() != null)
+                        .filter(row -> row.batch() != null)
                         .collect(Collectors.groupingBy(
-                                inv -> inv.getBatch().getBatchId(),
-                                Collectors.summingLong(inv ->
-                                        inv.getTotalStock() == null ? 0L : inv.getTotalStock())));
+                                row -> row.batch().getBatchId(),
+                                Collectors.summingLong(StockRow::totalStock)));
 
-        return batchRepo.findByProduct_Pharmacies_PharmacyId(pharmacyId)
+        return batchesForLocation(loc)
                 .stream()
                 .map(batch -> toBatchStock(
                         batch,
@@ -829,18 +1007,11 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public BatchStockDto getBatchById(String batchId) {
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        LocationContext loc = currentLocation();
 
-        BatchDetails batch = batchRepo
-                .findByBatchIdAndProduct_Pharmacies_PharmacyId(batchId, pharmacyId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Batch not found in this pharmacy with id : " + batchId));
+        BatchDetails batch = batchForLocation(loc, batchId);
 
-        long totalStock = inventoryRepo
-                .findByPharmacy_PharmacyIdAndBatch_BatchId(pharmacyId, batchId)
-                .stream()
-                .mapToLong(inv -> inv.getTotalStock() == null ? 0L : inv.getTotalStock())
-                .sum();
+        long totalStock = stockForBatch(loc, batchId);
 
         return toBatchStock(batch, totalStock);
     }
@@ -928,17 +1099,21 @@ public class ProductServiceImpl implements ProductService {
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        LocationContext loc = locationContextResolver.resolve(persistentUser);
 
-        boolean valid = pharmacyRepo.existsUserPharmacy(
-                pharmacyId,
-                persistentUser.getUserId()
-        );
-
-        if (!valid) {
-            throw new RuntimeException(
-                    "You are not authorized to use this pharmacy."
+        // Pharmacy users must belong to the selected pharmacy; a warehouse manager is
+        // already scoped to their own warehouse, so no pharmacy check applies.
+        if (loc.isPharmacy()) {
+            boolean valid = pharmacyRepo.existsUserPharmacy(
+                    loc.getLocationId(),
+                    persistentUser.getUserId()
             );
+
+            if (!valid) {
+                throw new RuntimeException(
+                        "You are not authorized to use this pharmacy."
+                );
+            }
         }
 
         return batchRepo

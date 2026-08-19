@@ -28,6 +28,8 @@ public class PharmacyDetailsDto {
     private String pharmacyState;
     private String pharmacyLogo;
     private String userId;
+    private String warehouseId;
+    private String warehouseName;
     private PharmacyOrganizationDto pharmacyOrganization;
     private String createdBy;
     private LocalDateTime createdAt;

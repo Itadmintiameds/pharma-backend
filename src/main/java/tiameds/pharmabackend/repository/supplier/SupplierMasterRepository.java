@@ -15,4 +15,10 @@ public interface SupplierMasterRepository extends JpaRepository<SupplierMaster, 
     Optional<SupplierMaster> findBySupplierIdAndPharmacyId(
             Long supplierId,
             String pharmacyId);
+
+    List<SupplierMaster> findByWarehouseId(String warehouseId);
+
+    Optional<SupplierMaster> findBySupplierIdAndWarehouseId(
+            Long supplierId,
+            String warehouseId);
 }

@@ -24,6 +24,7 @@ import tiameds.pharmabackend.entity.PharmaRoles;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.UserFeaturePermission;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.mapper.UserDetailsMapper;
 import tiameds.pharmabackend.repository.PharmaFeatureRepository;
 import tiameds.pharmabackend.repository.PharmaPermissionRepository;
@@ -31,6 +32,7 @@ import tiameds.pharmabackend.repository.PharmaRolesRepository;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.S3Service;
 import tiameds.pharmabackend.service.UserDetailsService;
 
@@ -57,6 +59,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final PharmaPermissionRepository pharmaPermissionRepository;
     private final UserFeaturePermissionRepository userFeaturePermissionRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
+    private final WarehouseRepository warehouseRepository;
     private final UserDetailsMapper userDetailsMapper;
     private final PasswordEncoder passwordEncoder;
     private final S3Service s3Service;
@@ -285,6 +288,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 currentUser.getOrganization().getOrganizationId()
         );
 
+        attachWarehouses(
+                user,
+                request.getWarehouseIds(),
+                currentUser.getOrganization().getOrganizationId()
+        );
+
         List<FeaturePermissionsDto> grantedPermissions =
                 attachPermissions(
                         user,
@@ -481,6 +490,74 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
 
             user.getPharmacies().add(pharmacy);
+        }
+    }
+
+    // OLD: single warehouse per user.
+    // private void attachWarehouse(
+    //         UserDetails user,
+    //         String warehouseId,
+    //         Long organizationId) {
+    //
+    //     if (warehouseId == null || warehouseId.isBlank()) {
+    //         return;
+    //     }
+    //
+    //     Warehouse warehouse = warehouseRepository
+    //             .findById(warehouseId)
+    //             .orElseThrow(() -> new RuntimeException(
+    //                     "Warehouse not found with id : " + warehouseId));
+    //
+    //     if (warehouse.getOrganization() == null
+    //             || !organizationId.equals(
+    //                     warehouse.getOrganization().getOrganizationId())) {
+    //         throw new RuntimeException(
+    //                 "Warehouse does not belong to your organization : " + warehouseId);
+    //     }
+    //
+    //     user.setWarehouse(warehouse);
+    // }
+
+    private void attachWarehouses(
+            UserDetails user,
+            List<String> warehouseIds,
+            Long organizationId) {
+
+        if (warehouseIds == null || warehouseIds.isEmpty()) {
+            return;
+        }
+
+        Set<String> uniqueIds = new LinkedHashSet<>(warehouseIds);
+        uniqueIds.remove(null);
+
+        if (uniqueIds.isEmpty()) {
+            return;
+        }
+
+        Map<String, Warehouse> warehousesById = warehouseRepository
+                .findAllById(uniqueIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Warehouse::getWarehouseId,
+                        Function.identity()));
+
+        for (String warehouseId : uniqueIds) {
+
+            Warehouse warehouse = warehousesById.get(warehouseId);
+
+            if (warehouse == null) {
+                throw new RuntimeException(
+                        "Warehouse not found with id : " + warehouseId);
+            }
+
+            if (warehouse.getOrganization() == null
+                    || !organizationId.equals(
+                            warehouse.getOrganization().getOrganizationId())) {
+                throw new RuntimeException(
+                        "Warehouse does not belong to your organization : " + warehouseId);
+            }
+
+            user.getWarehouses().add(warehouse);
         }
     }
 

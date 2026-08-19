@@ -6,11 +6,14 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -106,5 +109,24 @@ public class UserDetails {
     @JsonIgnore
     private PharmacyOrganization organization;
 
+    // OLD: single warehouse per user. Replaced by the many-to-many mapping below
+    // so a user (e.g. a warehouse manager) can be mapped to multiple warehouses.
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "warehouse_id", referencedColumnName = "warehouse_id")
+    // @JsonIgnore
+    // private Warehouse warehouse;
+
+    // A user may be mapped to many warehouses and a warehouse to many users,
+    // mirroring the user<->pharmacy mapping above.
+    // Set (not List) so this can be fetch-joined alongside pharmacies without a
+    // Hibernate MultipleBagFetchException.
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "pharma_user_warehouse",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "warehouse_id")
+    )
+    @JsonIgnore
+    private Set<Warehouse> warehouses = new HashSet<>();
 
 }

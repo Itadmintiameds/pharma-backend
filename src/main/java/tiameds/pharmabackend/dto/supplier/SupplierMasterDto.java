@@ -9,6 +9,7 @@ public class SupplierMasterDto {
 
     private Long supplierId;
     private String pharmacyId;
+    private String warehouseId;
     private String supplierName;
     private String createdBy;
     private LocalDateTime createdAt;

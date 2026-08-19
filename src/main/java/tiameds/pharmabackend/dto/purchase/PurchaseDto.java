@@ -11,6 +11,7 @@ public class PurchaseDto {
 
     private Long purchaseId;
     private String pharmacyId;
+    private String warehouseId;
     private Long supplierId;
     private String supplierName;
     private String grnNo;

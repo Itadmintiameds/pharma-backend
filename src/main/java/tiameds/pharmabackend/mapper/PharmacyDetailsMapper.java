@@ -95,6 +95,12 @@ public class PharmacyDetailsMapper {
         // Organization mapping (summary)
         dto.setPharmacyOrganization(pharmacyOrganizationMapper.toDto(pharmacy.getOrganization()));
 
+        // Warehouse serving this pharmacy (summary)
+        if (pharmacy.getWarehouse() != null) {
+            dto.setWarehouseId(pharmacy.getWarehouse().getWarehouseId());
+            dto.setWarehouseName(pharmacy.getWarehouse().getWarehouseName());
+        }
+
         // User mapping (summary)
         if (pharmacy.getUsers() != null) {
             dto.setUsers(

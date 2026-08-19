@@ -11,7 +11,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
+import tiameds.pharmabackend.context.CurrentWarehouseContext;
+import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
 
 import java.io.IOException;
 
@@ -21,7 +24,13 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
 
     private final PharmacyDetailsRepository pharmacyRepository;
 
+    private final UserDetailsRepository userDetailsRepository;
+
     private final CurrentPharmacyContext pharmacyContext;
+
+    private final CurrentWarehouseContext warehouseContext;
+
+    private final LocationContextResolver locationContextResolver;
 
     @Override
     protected void doFilterInternal(
@@ -38,29 +47,60 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
             if (authentication instanceof UsernamePasswordAuthenticationToken
                     && authentication.getPrincipal() instanceof CustomUserDetails currentUser) {
 
-                String pharmacyId =
-                        request.getHeader("X-Pharmacy-Id");
+                // Warehouse managers operate on a warehouse (selected via X-Warehouse-Id),
+                // everyone else on a pharmacy (selected via X-Pharmacy-Id).
+                if (locationContextResolver.isWarehouseManager(currentUser.getUser())) {
 
-                System.out.println("Header Pharmacy : " + pharmacyId);
+                    String warehouseId = request.getHeader("X-Warehouse-Id");
 
-                if (pharmacyId != null && !pharmacyId.isBlank()) {
+                    System.out.println("Header Warehouse : " + warehouseId);
 
-                    boolean valid =
-                            pharmacyRepository.existsUserPharmacy(
-                                    pharmacyId,
-                                    currentUser.getUserId());
+                    if (warehouseId != null && !warehouseId.isBlank()) {
 
-                    if (!valid) {
+                        boolean valid =
+                                userDetailsRepository.existsUserWarehouse(
+                                        warehouseId,
+                                        currentUser.getUserId());
 
-                        response.sendError(
-                                HttpServletResponse.SC_FORBIDDEN,
-                                "Invalid Pharmacy");
+                        if (!valid) {
 
-                        return;
+                            response.sendError(
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "Invalid Warehouse");
+
+                            return;
+                        }
+
+                        warehouseContext.setCurrentWarehouse(warehouseId);
+                        System.out.println("Logged in User : " + currentUser.getUserId());
                     }
+                } else {
 
-                    pharmacyContext.setCurrentPharmacy(pharmacyId);
-                    System.out.println("Logged in User : " + currentUser.getUserId());                }
+                    String pharmacyId =
+                            request.getHeader("X-Pharmacy-Id");
+
+                    System.out.println("Header Pharmacy : " + pharmacyId);
+
+                    if (pharmacyId != null && !pharmacyId.isBlank()) {
+
+                        boolean valid =
+                                pharmacyRepository.existsUserPharmacy(
+                                        pharmacyId,
+                                        currentUser.getUserId());
+
+                        if (!valid) {
+
+                            response.sendError(
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "Invalid Pharmacy");
+
+                            return;
+                        }
+
+                        pharmacyContext.setCurrentPharmacy(pharmacyId);
+                        System.out.println("Logged in User : " + currentUser.getUserId());
+                    }
+                }
             }
 
             filterChain.doFilter(request, response);
@@ -69,6 +109,8 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
         } finally {
 
             pharmacyContext.clear();
-            System.out.println("Context Cleared");        }
+            warehouseContext.clear();
+            System.out.println("Context Cleared");
+        }
     }
 }

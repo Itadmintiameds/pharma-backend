@@ -33,7 +33,8 @@ public class CorsConfig {
                 "Content-Type",
                 "Accept",
                 "X-Requested-With",
-                "X-Pharmacy-Id"
+                "X-Pharmacy-Id",
+                "X-Warehouse-Id"
         ));
 
         configuration.setAllowCredentials(true);

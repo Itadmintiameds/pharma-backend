@@ -27,6 +27,14 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetails, Stri
             String pharmacyId
     );
 
+    // warehouse-scoped equivalents (Product <-> Warehouse ManyToMany)
+    List<BatchDetails> findByProduct_Warehouses_WarehouseId(String warehouseId);
+
+    Optional<BatchDetails> findByBatchIdAndProduct_Warehouses_WarehouseId(
+            String batchId,
+            String warehouseId
+    );
+
     @Query(value = """
         SELECT MAX(CAST(SUBSTRING(batch_id, LENGTH(batch_id) - 4, 5) AS INTEGER))
         FROM pharma_batch_details

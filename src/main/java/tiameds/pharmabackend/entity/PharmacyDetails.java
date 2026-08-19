@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -104,6 +105,13 @@ public class PharmacyDetails {
     @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
     @JsonIgnore
     private PharmacyOrganization organization;
+
+    // Each pharmacy is served by exactly one warehouse (many pharmacies per warehouse).
+    // Nullable: a pharmacy may not yet be assigned to a warehouse.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id", referencedColumnName = "warehouse_id")
+    @JsonIgnore
+    private Warehouse warehouse;
 
     // Pharmacy <-> Product ManyToMany (inverse side; ProductDetails owns the join table)
     @ManyToMany(mappedBy = "pharmacies", fetch = FetchType.LAZY)

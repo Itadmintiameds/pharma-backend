@@ -30,6 +30,9 @@ public class Purchase {
     @Column(name = "pharmacy_id")
     private String pharmacyId;
 
+    @Column(name = "warehouse_id")
+    private String warehouseId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supplier_id", referencedColumnName = "supplier_id")
     @JsonIgnore

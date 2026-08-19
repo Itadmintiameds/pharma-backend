@@ -19,7 +19,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "pharma_inventory")
+@Table(name = "pharma_inventory",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_pharma_inventory_pharmacy_product_packaging_batch",
+                columnNames = {"pharmacy_id", "product_id", "packaging_id", "batch_id"}))
 public class Inventory {
 
     @Id

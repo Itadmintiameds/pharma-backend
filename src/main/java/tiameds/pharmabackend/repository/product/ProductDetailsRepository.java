@@ -22,4 +22,7 @@ public interface ProductDetailsRepository extends JpaRepository<ProductDetails, 
 
     // Product now maps to many pharmacies via ManyToMany -> traverse the collection.
     List<ProductDetails> findByPharmacies_PharmacyId(String pharmacyId);
+
+    // all products mapped to a single warehouse (Product <-> Warehouse ManyToMany)
+    List<ProductDetails> findByWarehouses_WarehouseId(String warehouseId);
 }

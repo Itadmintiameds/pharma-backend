@@ -10,6 +10,7 @@ import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
 
@@ -47,6 +48,12 @@ public class InventoryAudit {
     @JoinColumn(name = "billing_id", referencedColumnName = "billing_id")
     @JsonIgnore
     private Billing billing;
+
+    // Set on stock-transfer audit rows (e.g. pharmacy -> pharmacy) to trace back to the allocation that moved the stock
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_distribution_details_id")
+    @JsonIgnore
+    private WarehouseDistributionDetails warehouseDistributionDetails;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "stock_movement")

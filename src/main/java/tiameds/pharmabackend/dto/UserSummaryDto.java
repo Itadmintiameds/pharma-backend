@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto;
 
 import lombok.Data;
+import tiameds.pharmabackend.dto.warehouse.WarehouseSummaryDto;
 
 import java.util.List;
 
@@ -15,4 +16,7 @@ public class UserSummaryDto {
     private String roleName;
     private List<String> pharmacyCities;
     private String userStatus;
+    // OLD: single warehouse per user.
+    // private WarehouseSummaryDto warehouse;
+    private List<WarehouseSummaryDto> warehouses;
 }

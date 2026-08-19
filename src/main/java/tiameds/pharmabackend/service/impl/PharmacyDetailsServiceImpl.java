@@ -9,11 +9,13 @@ import tiameds.pharmabackend.dto.PharmacySummaryDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.mapper.PharmacyDetailsMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.PharmacyDetailsService;
 import tiameds.pharmabackend.service.S3Service;
 
@@ -32,6 +34,7 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
     private final PharmacyDetailsMapper pharmacyDetailsMapper;
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyOrganizationRepository pharmacyOrganizationRepository;
+    private final WarehouseRepository warehouseRepository;
     private final S3Service s3Service;
     private final CurrentPharmacyContext pharmacyContext;
 
@@ -62,6 +65,26 @@ public class PharmacyDetailsServiceImpl implements PharmacyDetailsService {
         persistentUser.getPharmacies().add(pharmacy);
 
         pharmacy.setOrganization(pharmacyOrganization);
+
+        // Optionally assign the warehouse that serves this pharmacy.
+        if (pharmacyDetailsDto.getWarehouseId() != null
+                && !pharmacyDetailsDto.getWarehouseId().isBlank()) {
+
+            Warehouse warehouse = warehouseRepository
+                    .findById(pharmacyDetailsDto.getWarehouseId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Warehouse not found with id : " + pharmacyDetailsDto.getWarehouseId()));
+
+            if (warehouse.getOrganization() == null
+                    || !pharmacyOrganization.getOrganizationId().equals(
+                            warehouse.getOrganization().getOrganizationId())) {
+                throw new RuntimeException(
+                        "Warehouse does not belong to your organization : "
+                                + pharmacyDetailsDto.getWarehouseId());
+            }
+
+            pharmacy.setWarehouse(warehouse);
+        }
 
         if (pharmacy.getDocuments() != null) {
             pharmacy.getDocuments().forEach(document -> {
