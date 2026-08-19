@@ -1,5 +1,6 @@
 package tiameds.pharmabackend.service.warehouse;
 
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionReceiveRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -24,8 +25,13 @@ public interface WarehouseDistributionService {
     /** OUT leg: deduct issued quantities from the source, record PRODUCTS_DISPATCHED. */
     void dispatch(Long distributionId, UserDetails user);
 
-    /** IN leg: add received quantities to the destination, record STOCK_RECEIVED. */
-    void receive(Long distributionId, UserDetails user);
+    /**
+     * IN leg: add received quantities to the destination, record STOCK_RECEIVED.
+     * The request carries the products/quantities that actually arrived; any
+     * dispatched line omitted from it defaults to its issued quantity. Pass
+     * {@code null} to receive every line at its issued quantity.
+     */
+    void receive(Long distributionId, WarehouseDistributionReceiveRequest request, UserDetails user);
 
     /** Read one distribution with its lines and current status. */
     WarehouseDistributionResponse getById(Long distributionId);

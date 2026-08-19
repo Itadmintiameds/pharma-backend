@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionReceiveRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
 import tiameds.pharmabackend.security.CustomUserDetails;
@@ -62,17 +63,20 @@ public class WarehouseDistributionController {
         return ResponseEntity.ok(distributionService.getById(distributionId));
     }
 
-    // Receive: destination stock arrives (STOCK_RECEIVED)
+    // Receive: destination stock arrives (STOCK_RECEIVED). The optional body carries
+    // the products/quantities that actually arrived; omit it to receive every line at
+    // its issued quantity.
     @PostMapping("/{distributionId}/receive")
     public ResponseEntity<?> receive(
             @PathVariable Long distributionId,
+            @RequestBody(required = false) WarehouseDistributionReceiveRequest request,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        distributionService.receive(distributionId, currentUser.getUser());
+        distributionService.receive(distributionId, request, currentUser.getUser());
 
         return ResponseEntity.ok(distributionService.getById(distributionId));
     }

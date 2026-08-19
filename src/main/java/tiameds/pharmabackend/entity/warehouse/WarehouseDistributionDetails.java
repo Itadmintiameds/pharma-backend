@@ -51,6 +51,12 @@ public class WarehouseDistributionDetails {
     @Column(name = "received_quantity")     // set at Stock Received; may be < issueQuantity on partial receipt / rejection
     private Long receivedQuantity;
 
+    @Column(name = "damaged_quantity")      // reported by the receiver at Stock Received: damaged / not-received units; 0 when all good
+    private Long damagedQuantity;
+
+    @Column(name = "remarks")               // free-text note from the receiver (e.g. reason for damage / shortfall)
+    private String remarks;
+
     @Column(name = "created_by")
     private String createdBy;
 

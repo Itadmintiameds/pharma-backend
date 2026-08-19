@@ -11,4 +11,6 @@ public class WarehouseDistributionLineResponse {
     private String batchId;
     private Long issueQuantity;
     private Long receivedQuantity;
+    private Long damagedQuantity;
+    private String remarks;
 }
