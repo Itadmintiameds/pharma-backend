@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.entity.product;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,6 +11,8 @@ import tiameds.pharmabackend.entity.master.*;
 
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -69,10 +72,15 @@ public class ProductAttributeSupplements {
     private NetQuantityUnit netQuantityUnit;
 
     //join master table
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "age_group_id", referencedColumnName = "age_group_id")
-    @JsonIgnore
-    private AgeGroup ageGroup;
+    //join Age master table
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "pharma_supplement_age_group_mapping",
+            joinColumns = @JoinColumn(name = "product_attribute_id"),
+            inverseJoinColumns = @JoinColumn(name = "age_group_id")
+    )
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private List<AgeGroup> ageGroups = new ArrayList<>();
 
     @Column(name = "gender", length = 20)
     private String gender;
