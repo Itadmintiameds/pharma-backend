@@ -4,11 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionLineRequest;
-import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionLineResponse;
-import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
-import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
 import tiameds.pharmabackend.context.LocationContextResolver;
+import tiameds.pharmabackend.dto.warehouse.*;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -34,7 +31,9 @@ import tiameds.pharmabackend.service.warehouse.stock.InventoryAdjuster;
 import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -130,7 +129,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
     }
 
     @Override
-    public void receive(Long distributionId, UserDetails user) {
+    public void receive(Long distributionId, WarehouseDistributionReceiveRequest request, UserDetails user) {
         String actor = actorOf(user);
         LocalDateTime now = LocalDateTime.now();
         WarehouseDistribution dist = getOrThrow(distributionId);
@@ -139,19 +138,93 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         // dispatch and receiving twice.
         requireStatus(distributionId, DistributionStatus.PRODUCTS_DISPATCHED, "receive");
 
-        // TODO (#3): accept a per-line received quantity from the request for partial
-        // receipts / rejection (currently defaults to the issued quantity).
+        // Per-line receiver payloads keyed by the dispatched line id. A line that is
+        // omitted from the request defaults to its issued quantity, zero damaged and
+        // no remarks.
+        Map<Long, WarehouseDistributionReceiveLineRequest> receiveByLine = receiveLinesById(request);
+
+        List<WarehouseDistributionDetails> lines = linesOf(distributionId);
         InventoryAdjuster destination = adjusters.of(dist.getDestinationType());
-        for (WarehouseDistributionDetails line : linesOf(distributionId)) {
-            long received = line.getReceivedQuantity() != null
-                    ? line.getReceivedQuantity()
-                    : line.getIssueQuantity();
+        for (WarehouseDistributionDetails line : lines) {
+            WarehouseDistributionReceiveLineRequest lr =
+                    receiveByLine.get(line.getWarehouseDistributionDetailsId());
+            long received = (lr != null && lr.getReceivedQuantity() != null)
+                    ? lr.getReceivedQuantity() : line.getIssueQuantity();
+            long damaged = (lr != null && lr.getDamagedQuantity() != null)
+                    ? lr.getDamagedQuantity() : 0L;
+
+            // A partial receipt is allowed, but you can never receive more than what
+            // was dispatched.
+            if (received > line.getIssueQuantity()) {
+                throw new IllegalArgumentException(
+                        "Received quantity (" + received + ") cannot exceed the issued quantity ("
+                                + line.getIssueQuantity() + ") for line "
+                                + line.getWarehouseDistributionDetailsId());
+            }
+
+            // Received plus damaged/not-received can account for at most the issued
+            // quantity — anything beyond that is inconsistent.
+            if (received + damaged > line.getIssueQuantity()) {
+                throw new IllegalArgumentException(
+                        "Received (" + received + ") plus damaged/not-received (" + damaged
+                                + ") cannot exceed the issued quantity (" + line.getIssueQuantity()
+                                + ") for line " + line.getWarehouseDistributionDetailsId());
+            }
+
+            // Persist the actual arrived quantity, the damaged/not-received quantity
+            // and the receiver's remarks so they surface in the response and are
+            // available for later reconciliation.
+            line.setReceivedQuantity(received);
+            line.setDamagedQuantity(damaged);
+            if (lr != null) {
+                line.setRemarks(lr.getRemarks());
+            }
+            line.setModifiedBy(actor);
+            line.setModifiedAt(now);
+            detailsRepository.save(line);
+
             destination.increment(new StockAdjustment(
                     dist.getDestinationId(), line.getProduct(), line.getPackaging(), line.getBatch(),
                     received, line, actor, now));
         }
 
+        // Reject line ids in the request that don't belong to this distribution.
+        receiveByLine.keySet().removeIf(id ->
+                lines.stream().anyMatch(l -> l.getWarehouseDistributionDetailsId().equals(id)));
+        if (!receiveByLine.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Received lines do not belong to distribution " + distributionId + ": "
+                            + receiveByLine.keySet());
+        }
+
         appendStatus(dist, DistributionStatus.STOCK_RECEIVED, actor, now);
+    }
+
+    /**
+     * Builds a map of dispatched-line id -> the receiver's line payload (received
+     * quantity, damaged/not-received quantity and remarks), validating that each
+     * referenced line carries an id and non-negative quantities.
+     */
+    private Map<Long, WarehouseDistributionReceiveLineRequest> receiveLinesById(
+            WarehouseDistributionReceiveRequest request) {
+        Map<Long, WarehouseDistributionReceiveLineRequest> byLine = new HashMap<>();
+        if (request == null || request.getLines() == null || request.getLines().isEmpty()) {
+            return byLine;
+        }
+        for (WarehouseDistributionReceiveLineRequest lr : request.getLines()) {
+            if (lr.getWarehouseDistributionDetailsId() == null) {
+                throw new IllegalArgumentException(
+                        "warehouseDistributionDetailsId is required for every received line");
+            }
+            if (lr.getReceivedQuantity() == null || lr.getReceivedQuantity() < 0) {
+                throw new IllegalArgumentException("Received quantity must be zero or positive");
+            }
+            if (lr.getDamagedQuantity() != null && lr.getDamagedQuantity() < 0) {
+                throw new IllegalArgumentException("Damaged/not-received quantity must be zero or positive");
+            }
+            byLine.put(lr.getWarehouseDistributionDetailsId(), lr);
+        }
+        return byLine;
     }
 
     @Override
@@ -317,6 +390,8 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         dto.setBatchId(line.getBatch().getBatchId());
         dto.setIssueQuantity(line.getIssueQuantity());
         dto.setReceivedQuantity(line.getReceivedQuantity());
+        dto.setDamagedQuantity(line.getDamagedQuantity());
+        dto.setRemarks(line.getRemarks());
         return dto;
     }
 }
