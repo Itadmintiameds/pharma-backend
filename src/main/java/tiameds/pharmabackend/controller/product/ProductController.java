@@ -73,6 +73,19 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
+    // Batches available at a specific pharmacy (must belong to the caller's
+    // organization) — used when the pharmacy being picked from (e.g. the source of a
+    // pharmacy-to-pharmacy transfer) differs from the caller's currently active pharmacy.
+    @GetMapping("/batches/pharmacy/{pharmacyId}")
+    public ResponseEntity<Map<String, Object>> getBatchesForPharmacy(@PathVariable String pharmacyId) {
+        List<BatchStockDto> batches = pharmaProductService.getBatchesForPharmacy(pharmacyId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Batches retrieved successfully");
+        response.put("count", batches.size());
+        response.put("data", batches);
+        return ResponseEntity.ok(response);
+    }
+
     // One batch with the same detail as the listing
     @GetMapping("/batch/{batchId}")
     public ResponseEntity<Map<String, Object>> getBatchById(@PathVariable String batchId) {

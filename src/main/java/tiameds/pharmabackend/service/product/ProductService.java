@@ -35,6 +35,10 @@ public interface ProductService {
     // All batches of the current pharmacy with product, packaging, stock and pricing
     List<BatchStockDto> getAllBatches();
 
+    // All batches of an arbitrary pharmacy (must belong to the caller's organization) —
+    // for picking products against a pharmacy other than the caller's currently active one.
+    List<BatchStockDto> getBatchesForPharmacy(String pharmacyId);
+
     // One batch with the same detail as the listing
     BatchStockDto getBatchById(String batchId);
 

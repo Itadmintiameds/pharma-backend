@@ -461,11 +461,13 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
             throw new IllegalArgumentException("Destination does not belong to your organization");
         }
 
-        // A warehouse manager may only ship from a warehouse they are mapped to.
-        List<String> managedWarehouses = locationContextResolver.managedWarehouseIds(user);
-        if (!managedWarehouses.isEmpty()) {
-            if (request.getSourceType() != LocationType.WAREHOUSE
-                    || !managedWarehouses.contains(request.getSourceId())) {
+        // A warehouse manager may only ship from a warehouse they are mapped to. This
+        // only constrains a warehouse-sourced allocation — a pharmacy-to-pharmacy
+        // transfer has no warehouse involved at all, so it is not subject to this rule
+        // even when the acting user happens to also manage a warehouse.
+        if (request.getSourceType() == LocationType.WAREHOUSE) {
+            List<String> managedWarehouses = locationContextResolver.managedWarehouseIds(user);
+            if (!managedWarehouses.isEmpty() && !managedWarehouses.contains(request.getSourceId())) {
                 throw new IllegalArgumentException(
                         "You can only distribute from a warehouse you are mapped to");
             }
