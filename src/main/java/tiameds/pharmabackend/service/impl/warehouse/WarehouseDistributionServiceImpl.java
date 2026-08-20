@@ -395,6 +395,28 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
 
     @Override
     @Transactional(readOnly = true)
+    public WarehouseDistributionSourceKpiResponse getSourceKpis(UserDetails user) {
+        // The acting location may be a warehouse OR a pharmacy — every KPI below is
+        // scoped to it as the SOURCE of a distribution, counted by current status.
+        LocationContext ctx = locationContextResolver.resolve(user);
+
+        long readyToDispatch = statusRepository.countBySourceAndLatestStatus(
+                ctx.getType(), ctx.getLocationId(), DistributionStatus.DISTRIBUTION_CREATED);
+        long pendingReceipt = statusRepository.countBySourceAndLatestStatus(
+                ctx.getType(), ctx.getLocationId(), DistributionStatus.PRODUCTS_DISPATCHED);
+        long completed = statusRepository.countBySourceAndLatestStatus(
+                ctx.getType(), ctx.getLocationId(), DistributionStatus.STOCK_RECEIVED);
+
+        WarehouseDistributionSourceKpiResponse res =
+                new WarehouseDistributionSourceKpiResponse();
+        res.setReadyToDispatch(readyToDispatch);
+        res.setPendingReceipt(pendingReceipt);
+        res.setCompleted(completed);
+        return res;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public String peekNextAllocationNo() {
         return allocationNoGenerator.generate();
     }
