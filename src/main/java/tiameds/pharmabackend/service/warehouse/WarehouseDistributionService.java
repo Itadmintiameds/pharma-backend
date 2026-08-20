@@ -2,6 +2,7 @@ package tiameds.pharmabackend.service.warehouse;
 
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionDispatchRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionReceiveRequest;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionDestinationKpiResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionSummaryResponse;
@@ -58,6 +59,13 @@ public interface WarehouseDistributionService {
 
     /** Summary rows for distributions shipped TO the acting user's warehouse (destination). */
     List<WarehouseDistributionSummaryResponse> getByDestination(UserDetails user);
+
+    /**
+     * KPI figures for the destination screen, scoped to the acting location as the
+     * distribution destination: pending receipts (currently PRODUCTS_DISPATCHED),
+     * distributions received today, and total products received today.
+     */
+    WarehouseDistributionDestinationKpiResponse getDestinationKpis(UserDetails user);
 
     /**
      * Next allocation number for the UI to display on a blank create form.

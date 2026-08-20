@@ -35,6 +35,7 @@ import tiameds.pharmabackend.service.warehouse.WarehouseDistributionService;
 import tiameds.pharmabackend.service.warehouse.stock.InventoryAdjuster;
 import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -356,6 +357,40 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
                 distributionRepository.findByDestinationTypeAndDestinationId(
                         ctx.getType(), ctx.getLocationId(), byAllocationDateDesc()),
                 ctx.getLocationId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WarehouseDistributionDestinationKpiResponse getDestinationKpis(UserDetails user) {
+        // The acting location may be a warehouse OR a pharmacy — every KPI below is
+        // scoped to it as the DESTINATION of a distribution.
+        LocationContext ctx = locationContextResolver.resolve(user);
+
+        // "Today" is the acting server day: [startOfDay, startOfNextDay).
+        LocalDate today = LocalDate.now();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime startOfNextDay = today.plusDays(1).atStartOfDay();
+
+        // Dispatched to this location but not yet received/rejected.
+        long pendingReceipts = statusRepository.countByDestinationAndLatestStatus(
+                ctx.getType(), ctx.getLocationId(), DistributionStatus.PRODUCTS_DISPATCHED);
+
+        // Distributions this location received today.
+        long receivedToday = statusRepository.countByDestinationAndStatusInPeriod(
+                ctx.getType(), ctx.getLocationId(), DistributionStatus.STOCK_RECEIVED,
+                startOfDay, startOfNextDay);
+
+        // Total quantity of products those receipts brought in today.
+        long productsReceivedToday = detailsRepository.sumReceivedQuantityByDestinationInPeriod(
+                ctx.getType(), ctx.getLocationId(), DistributionStatus.STOCK_RECEIVED,
+                startOfDay, startOfNextDay);
+
+        WarehouseDistributionDestinationKpiResponse res =
+                new WarehouseDistributionDestinationKpiResponse();
+        res.setPendingReceipts(pendingReceipts);
+        res.setReceivedToday(receivedToday);
+        res.setProductsReceivedToday(productsReceivedToday);
+        return res;
     }
 
     @Override

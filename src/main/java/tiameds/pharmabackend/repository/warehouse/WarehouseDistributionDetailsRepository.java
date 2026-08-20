@@ -5,7 +5,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
+import tiameds.pharmabackend.enums.DistributionStatus;
+import tiameds.pharmabackend.enums.LocationType;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -48,6 +51,30 @@ public interface WarehouseDistributionDetailsRepository
     """)
     List<DistributionLineAggregate> aggregateLinesByDistribution(
             @Param("distributionIds") Collection<Long> distributionIds);
+
+    // KPI: total quantity of products received TO this destination whose distribution
+    // transitioned to :status within [start, end) — used for "products received today"
+    // with :status = STOCK_RECEIVED. Sums the actual received quantity of every line
+    // belonging to a distribution received in the window. receivedQuantity is COALESCEd
+    // since it is null on lines that never completed the receive step.
+    @Query("""
+        SELECT COALESCE(SUM(d.receivedQuantity), 0)
+        FROM WarehouseDistributionDetails d
+        WHERE d.warehouseDistribution.destinationType = :destinationType
+          AND d.warehouseDistribution.destinationId = :destinationId
+          AND EXISTS (
+              SELECT 1 FROM WarehouseDistributionStatus s
+              WHERE s.warehouseDistribution = d.warehouseDistribution
+                AND s.warehouseDistributionStatus = :status
+                AND s.createdAt >= :start AND s.createdAt < :end
+          )
+    """)
+    long sumReceivedQuantityByDestinationInPeriod(
+            @Param("destinationType") LocationType destinationType,
+            @Param("destinationId") String destinationId,
+            @Param("status") DistributionStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
     // Projection for aggregateLinesByDistribution()
     interface DistributionLineAggregate {

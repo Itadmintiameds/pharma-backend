@@ -5,7 +5,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionStatus;
+import tiameds.pharmabackend.enums.DistributionStatus;
+import tiameds.pharmabackend.enums.LocationType;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -39,4 +42,42 @@ public interface WarehouseDistributionStatusRepository
     """)
     List<WarehouseDistributionStatus> findLatestStatuses(
             @Param("distributionIds") Collection<Long> distributionIds);
+
+    // KPI: how many distributions shipped TO this destination currently sit at
+    // :status (their latest status row equals :status). Used for "pending receipts"
+    // with :status = PRODUCTS_DISPATCHED. The max-id subquery mirrors the latest-status
+    // semantics of findLatestStatuses so a later STOCK_RECEIVED supersedes the dispatch.
+    @Query("""
+        SELECT COUNT(s) FROM WarehouseDistributionStatus s
+        WHERE s.warehouseDistribution.destinationType = :destinationType
+          AND s.warehouseDistribution.destinationId = :destinationId
+          AND s.warehouseDistributionStatus = :status
+          AND s.warehouseDistributionStatusId = (
+              SELECT MAX(s2.warehouseDistributionStatusId)
+              FROM WarehouseDistributionStatus s2
+              WHERE s2.warehouseDistribution = s.warehouseDistribution
+          )
+    """)
+    long countByDestinationAndLatestStatus(
+            @Param("destinationType") LocationType destinationType,
+            @Param("destinationId") String destinationId,
+            @Param("status") DistributionStatus status);
+
+    // KPI: how many distributions shipped TO this destination transitioned to :status
+    // within [start, end) — used for "received today" with :status = STOCK_RECEIVED.
+    // A distribution reaches STOCK_RECEIVED exactly once (the receive guard forbids a
+    // second receipt), so counting the status rows in the window counts the receipts.
+    @Query("""
+        SELECT COUNT(s) FROM WarehouseDistributionStatus s
+        WHERE s.warehouseDistribution.destinationType = :destinationType
+          AND s.warehouseDistribution.destinationId = :destinationId
+          AND s.warehouseDistributionStatus = :status
+          AND s.createdAt >= :start AND s.createdAt < :end
+    """)
+    long countByDestinationAndStatusInPeriod(
+            @Param("destinationType") LocationType destinationType,
+            @Param("destinationId") String destinationId,
+            @Param("status") DistributionStatus status,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }
