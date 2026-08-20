@@ -149,6 +149,20 @@ public class WarehouseDistributionController {
         return ResponseEntity.ok(distributionService.getSourceKpis(currentUser.getUser()));
     }
 
+    // KPI cards for the "my requests" screen, scoped to the acting warehouse as the
+    // requesting warehouse: total transfers (all time), completed (STOCK_RECEIVED),
+    // pending (PRODUCTS_DISPATCHED) and ready to dispatch (DISTRIBUTION_CREATED).
+    @GetMapping("/warehouse/requested-by/kpi")
+    public ResponseEntity<?> getRequestedByKpis(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(distributionService.getRequestedByKpis(currentUser.getUser()));
+    }
+
     // Read one distribution with its lines and current status
     @GetMapping("/{distributionId}")
     public ResponseEntity<WarehouseDistributionResponse> getById(

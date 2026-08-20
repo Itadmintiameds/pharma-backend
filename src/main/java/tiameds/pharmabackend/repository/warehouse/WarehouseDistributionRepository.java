@@ -28,6 +28,10 @@ public interface WarehouseDistributionRepository extends JpaRepository<Warehouse
             @Param("warehouseType") LocationType warehouseType,
             Sort sort);
 
+    // KPI: all-time count of distributions requested by a warehouse — index-backed by
+    // idx_wd_requested_by.
+    long countByAllocationRequestedBy(String allocationRequestedBy);
+
     // Distributions shipped FROM a store (source side) — index-backed by idx_wd_source.
     List<WarehouseDistribution> findBySourceTypeAndSourceId(
             LocationType sourceType, String sourceId, Sort sort);

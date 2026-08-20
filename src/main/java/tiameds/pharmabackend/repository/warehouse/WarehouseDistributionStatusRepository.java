@@ -84,6 +84,25 @@ public interface WarehouseDistributionStatusRepository
             @Param("sourceId") String sourceId,
             @Param("status") DistributionStatus status);
 
+    // KPI: how many distributions requested by this warehouse currently sit at :status
+    // (their latest status row equals :status). Used for the "my requests" screen's
+    // readyToDispatch (DISTRIBUTION_CREATED), pending (PRODUCTS_DISPATCHED) and
+    // completed (STOCK_RECEIVED). The max-id subquery mirrors the latest-status
+    // semantics of findLatestStatuses.
+    @Query("""
+        SELECT COUNT(s) FROM WarehouseDistributionStatus s
+        WHERE s.warehouseDistribution.allocationRequestedBy = :requestedBy
+          AND s.warehouseDistributionStatus = :status
+          AND s.warehouseDistributionStatusId = (
+              SELECT MAX(s2.warehouseDistributionStatusId)
+              FROM WarehouseDistributionStatus s2
+              WHERE s2.warehouseDistribution = s.warehouseDistribution
+          )
+    """)
+    long countByAllocationRequestedByAndLatestStatus(
+            @Param("requestedBy") String requestedBy,
+            @Param("status") DistributionStatus status);
+
     // KPI: how many distributions shipped TO this destination transitioned to :status
     // within [start, end) — used for "received today" with :status = STOCK_RECEIVED.
     // A distribution reaches STOCK_RECEIVED exactly once (the receive guard forbids a

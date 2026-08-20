@@ -417,6 +417,30 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
 
     @Override
     @Transactional(readOnly = true)
+    public WarehouseDistributionRequestedByKpiResponse getRequestedByKpis(UserDetails user) {
+        // Scoped to the warehouse the acting user is operating as — the same id stored
+        // as allocationRequestedBy at create time.
+        String requestedBy = actingWarehouseId(user);
+
+        long totalTransfers = distributionRepository.countByAllocationRequestedBy(requestedBy);
+        long completed = statusRepository.countByAllocationRequestedByAndLatestStatus(
+                requestedBy, DistributionStatus.STOCK_RECEIVED);
+        long pending = statusRepository.countByAllocationRequestedByAndLatestStatus(
+                requestedBy, DistributionStatus.PRODUCTS_DISPATCHED);
+        long readyToDispatch = statusRepository.countByAllocationRequestedByAndLatestStatus(
+                requestedBy, DistributionStatus.DISTRIBUTION_CREATED);
+
+        WarehouseDistributionRequestedByKpiResponse res =
+                new WarehouseDistributionRequestedByKpiResponse();
+        res.setTotalTransfers(totalTransfers);
+        res.setCompleted(completed);
+        res.setPending(pending);
+        res.setReadyToDispatch(readyToDispatch);
+        return res;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public String peekNextAllocationNo() {
         return allocationNoGenerator.generate();
     }

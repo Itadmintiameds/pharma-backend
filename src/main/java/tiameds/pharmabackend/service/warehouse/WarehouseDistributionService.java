@@ -4,6 +4,7 @@ import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionDispatchRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionReceiveRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionDestinationKpiResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequestedByKpiResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionSourceKpiResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionSummaryResponse;
@@ -75,6 +76,14 @@ public interface WarehouseDistributionService {
      * (STOCK_RECEIVED).
      */
     WarehouseDistributionSourceKpiResponse getSourceKpis(UserDetails user);
+
+    /**
+     * KPI figures for the "my requests" screen, scoped to the acting warehouse as the
+     * requesting warehouse (allocationRequestedBy): all-time total transfers plus
+     * counts by current status — completed (STOCK_RECEIVED), pending
+     * (PRODUCTS_DISPATCHED) and ready to dispatch (DISTRIBUTION_CREATED).
+     */
+    WarehouseDistributionRequestedByKpiResponse getRequestedByKpis(UserDetails user);
 
     /**
      * Next allocation number for the UI to display on a blank create form.
