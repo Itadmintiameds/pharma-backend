@@ -31,6 +31,10 @@ public class BillingDto {
     private BigDecimal totalMrpAmount;
     private BigDecimal totalGrossAmount;
     private BigDecimal totalNetAmount;
+    // Signed round-off adjustment (+0.33 when rounding 55.67 up, -0.30 when rounding 55.30 down)
+    private BigDecimal roundOffAmount;
+    // totalNetAmount + roundOffAmount — the whole-rupee amount collected
+    private BigDecimal totalNetAmountAfterRoundOff;
     private String sellingType;
     private String createdBy;
     private LocalDateTime createdAt;

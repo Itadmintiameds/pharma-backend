@@ -3,7 +3,10 @@ package tiameds.pharmabackend.service.warehouse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionReceiveRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionSummaryResponse;
 import tiameds.pharmabackend.entity.UserDetails;
+
+import java.util.List;
 
 /**
  * Orchestrates a stock transfer across its lifecycle. Each state transition is a
@@ -35,6 +38,20 @@ public interface WarehouseDistributionService {
 
     /** Read one distribution with its lines and current status. */
     WarehouseDistributionResponse getById(Long distributionId);
+
+    /**
+     * List the distributions the acting user's warehouse is involved in — outgoing
+     * (allocationRequestedBy) plus incoming (it is the destination) — as compact
+     * summary rows (both ends resolved to their store name, product/quantity totals
+     * and latest status), newest first.
+     */
+    List<WarehouseDistributionSummaryResponse> getAll(UserDetails user);
+
+    /** Summary rows for distributions shipped FROM the acting user's warehouse (source). */
+    List<WarehouseDistributionSummaryResponse> getBySource(UserDetails user);
+
+    /** Summary rows for distributions shipped TO the acting user's warehouse (destination). */
+    List<WarehouseDistributionSummaryResponse> getByDestination(UserDetails user);
 
     /**
      * Next allocation number for the UI to display on a blank create form.

@@ -80,6 +80,17 @@ public class Billing {
     @Column(name = "total_net_amount")
     private BigDecimal totalNetAmount;
 
+    // Signed adjustment applied to totalNetAmount to reach a whole rupee.
+    // Positive when the bill was rounded up (55.67 -> 56.00, round off = 0.33),
+    // negative when rounded down (55.30 -> 55.00, round off = -0.30).
+    // Calculated on the client and stored as sent.
+    @Column(name = "round_off_amount")
+    private BigDecimal roundOffAmount;
+
+    // totalNetAmount + roundOffAmount, i.e. the whole-rupee amount actually collected.
+    @Column(name = "total_net_amount_after_round_off")
+    private BigDecimal totalNetAmountAfterRoundOff;
+
     @Column(name = "selling_type")
     private String sellingType;
 

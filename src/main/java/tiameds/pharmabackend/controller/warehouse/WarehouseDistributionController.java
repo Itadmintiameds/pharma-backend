@@ -81,6 +81,42 @@ public class WarehouseDistributionController {
         return ResponseEntity.ok(distributionService.getById(distributionId));
     }
 
+    // List this warehouse's distributions (incoming + outgoing) as summary rows
+    @GetMapping("/warehouse/list")
+    public ResponseEntity<?> getAll(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(distributionService.getAll(currentUser.getUser()));
+    }
+
+    // Distributions shipped FROM this warehouse (it is the source)
+    @GetMapping("/warehouse/source")
+    public ResponseEntity<?> getBySource(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(distributionService.getBySource(currentUser.getUser()));
+    }
+
+    // Distributions shipped TO this warehouse (it is the destination)
+    @GetMapping("/warehouse/destination")
+    public ResponseEntity<?> getByDestination(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(distributionService.getByDestination(currentUser.getUser()));
+    }
+
     // Read one distribution with its lines and current status
     @GetMapping("/{distributionId}")
     public ResponseEntity<WarehouseDistributionResponse> getById(

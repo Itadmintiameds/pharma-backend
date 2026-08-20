@@ -169,6 +169,10 @@ public class BillingServiceImpl implements BillingService {
         billing.setTotalMrpAmount(billingDto.getTotalMrpAmount());
         billing.setTotalNetAmount(billingDto.getTotalNetAmount());
 
+        // Round off is computed on the client and stored as sent.
+        billing.setRoundOffAmount(billingDto.getRoundOffAmount());
+        billing.setTotalNetAmountAfterRoundOff(billingDto.getTotalNetAmountAfterRoundOff());
+
         // An edit that omits the prescription keeps the already uploaded one.
         if (billingDto.getPrescriptionUrl() != null
                 && !billingDto.getPrescriptionUrl().isBlank()) {
@@ -256,9 +260,10 @@ public class BillingServiceImpl implements BillingService {
             throw new RuntimeException("Received amount must be greater than zero");
         }
 
-        BigDecimal netAmount = billing.getTotalNetAmount() != null
-                ? billing.getTotalNetAmount()
-                : BigDecimal.ZERO;
+        // Settle against the rounded figure, since that is the whole-rupee amount the
+        // customer actually hands over. Bills raised before round off existed have no
+        // rounded value, so they fall back to the decimal net amount and behave as before.
+        BigDecimal netAmount = settlementAmount(billing);
 
         BigDecimal alreadyReceived = totalReceived(billing);
 
@@ -305,6 +310,22 @@ public class BillingServiceImpl implements BillingService {
         Billing savedBilling = billingRepository.save(billing);
 
         return BillingMapper.toDto(savedBilling);
+    }
+
+
+    /**
+     * The amount a bill is settled against: the rounded net amount when the bill
+     * carries one, otherwise the decimal net amount.
+     */
+    private BigDecimal settlementAmount(Billing billing) {
+
+        if (billing.getTotalNetAmountAfterRoundOff() != null) {
+            return billing.getTotalNetAmountAfterRoundOff();
+        }
+
+        return billing.getTotalNetAmount() != null
+                ? billing.getTotalNetAmount()
+                : BigDecimal.ZERO;
     }
 
 

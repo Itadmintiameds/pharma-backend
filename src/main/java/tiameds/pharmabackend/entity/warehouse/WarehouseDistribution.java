@@ -6,10 +6,11 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.enums.LocationType;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -19,7 +20,8 @@ import java.time.LocalDateTime;
 @Table(name = "pharma_warehouse_distribution",
         indexes = {
                 @Index(name = "idx_wd_destination", columnList = "destination_type, destination_id"),
-                @Index(name = "idx_wd_source", columnList = "source_type, source_id")
+                @Index(name = "idx_wd_source", columnList = "source_type, source_id"),
+                @Index(name = "idx_wd_requested_by", columnList = "allocation_requested_by")
         })
 public class WarehouseDistribution {
 
@@ -80,5 +82,19 @@ public class WarehouseDistribution {
 
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
+
+    // Inverse side of the allocation lines. Read-only navigation for the detail view;
+    // lines are still persisted explicitly via their own repository at create time.
+    @OneToMany(mappedBy = "warehouseDistribution", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<WarehouseDistributionDetails> details = new ArrayList<>();
+
+    // Inverse side of the status history (one row appended per lifecycle transition),
+    // ordered oldest-first. The PK tiebreaker keeps ordering deterministic when two
+    // transitions share a timestamp, so the last element is always the current status.
+    @OneToMany(mappedBy = "warehouseDistribution", fetch = FetchType.LAZY)
+    @OrderBy("createdAt ASC, warehouseDistributionStatusId ASC")
+    @JsonIgnore
+    private List<WarehouseDistributionStatus> statuses = new ArrayList<>();
 
 }

@@ -1,9 +1,12 @@
 package tiameds.pharmabackend.repository.warehouse;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -14,4 +17,38 @@ public interface WarehouseDistributionDetailsRepository
     List<WarehouseDistributionDetails> findByWarehouseDistribution_WarehouseDistributionId(
             Long warehouseDistributionId
     );
+
+    // Lines for one distribution with product, packaging and batch fetched eagerly, so
+    // the detail view (findById) can expose each line's product/packaging/batch without
+    // N+1 queries or lazy-initialization issues.
+    @Query("""
+        SELECT d FROM WarehouseDistributionDetails d
+        LEFT JOIN FETCH d.product
+        LEFT JOIN FETCH d.packaging
+        LEFT JOIN FETCH d.batch
+        WHERE d.warehouseDistribution.warehouseDistributionId = :distributionId
+    """)
+    List<WarehouseDistributionDetails> findLinesWithProductGraph(
+            @Param("distributionId") Long distributionId);
+
+    // Per-distribution line totals for the list screen: how many distinct products
+    // and the total issued quantity. One grouped query for the distributions on the
+    // page (scoped by id) avoids an N+1 and never touches unrelated rows.
+    @Query("""
+        SELECT d.warehouseDistribution.warehouseDistributionId AS distributionId,
+               COUNT(DISTINCT d.product.productId) AS productsCount,
+               COALESCE(SUM(d.issueQuantity), 0) AS totalQuantity
+        FROM WarehouseDistributionDetails d
+        WHERE d.warehouseDistribution.warehouseDistributionId IN :distributionIds
+        GROUP BY d.warehouseDistribution.warehouseDistributionId
+    """)
+    List<DistributionLineAggregate> aggregateLinesByDistribution(
+            @Param("distributionIds") Collection<Long> distributionIds);
+
+    // Projection for aggregateLinesByDistribution()
+    interface DistributionLineAggregate {
+        Long getDistributionId();
+        Long getProductsCount();
+        Long getTotalQuantity();
+    }
 }

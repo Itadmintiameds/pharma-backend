@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Generates the next allocation number: one global yearly sequence,
- * pattern {@code ALLOC-<year>-00001} (mirrors billing's bill-number scheme).
+ * pattern {@code ALC-<year>-00001} (mirrors billing's bill-number scheme).
  * <p>
  * This is a "next value" preview — it is not reserved. The authoritative number
  * is assigned inside the create transaction; two concurrent creates can compute
@@ -25,7 +25,7 @@ public class AllocationNoGenerator {
 
     public String generate() {
         int year = LocalDate.now().getYear();
-        String prefix = "ALLOC-" + year + "-";
+        String prefix = "ALC-" + year + "-";
 
         List<String> latest = distributionRepository.findLatestAllocationNo(
                 prefix, PageRequest.of(0, 1));
