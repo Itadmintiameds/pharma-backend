@@ -13,9 +13,11 @@ public class WarehouseDistributionLineResponse {
     private String packagingId;
     private String batchId;
     private Long issueQuantity;
+    private Long dispatchedQuantity;
+    private String dispatchRemarks;
     private Long receivedQuantity;
     private Long damagedQuantity;
-    private String remarks;
+    private String receiveRemarks;
 
     // Nested detail objects so the frontend can render each line without extra lookups.
     private ProductInfo product;

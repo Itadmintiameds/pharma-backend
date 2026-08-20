@@ -48,14 +48,24 @@ public class WarehouseDistributionDetails {
     @Column(name = "issue_quantity", nullable = false)
     private Long issueQuantity;
 
-    @Column(name = "received_quantity")     // set at Stock Received; may be < issueQuantity on partial receipt / rejection
+    @Column(name = "dispatched_quantity")   // set at Dispatch; may be < issueQuantity when the source ships short
+    private Long dispatchedQuantity;
+
+    @Column(name = "dispatch_remarks")      // free-text note from the sender at Dispatch (e.g. reason for shipping short)
+    private String dispatchRemarks;
+
+    @Column(name = "received_quantity")     // set at Stock Received; may be < dispatchedQuantity on partial receipt / rejection
     private Long receivedQuantity;
 
     @Column(name = "damaged_quantity")      // reported by the receiver at Stock Received: damaged / not-received units; 0 when all good
     private Long damagedQuantity;
 
-    @Column(name = "remarks")               // free-text note from the receiver (e.g. reason for damage / shortfall)
-    private String remarks;
+    // OLD: single ambiguous "remarks" — split into dispatchRemarks (sender) and
+    // receiveRemarks (receiver) now that both stages capture a note.
+    // @Column(name = "remarks")
+    // private String remarks;
+    @Column(name = "receive_remarks")       // free-text note from the receiver (e.g. reason for damage / shortfall)
+    private String receiveRemarks;
 
     @Column(name = "created_by")
     private String createdBy;

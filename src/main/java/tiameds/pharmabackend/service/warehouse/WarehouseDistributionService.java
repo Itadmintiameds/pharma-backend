@@ -1,5 +1,6 @@
 package tiameds.pharmabackend.service.warehouse;
 
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionDispatchRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionReceiveRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
@@ -25,14 +26,19 @@ public interface WarehouseDistributionService {
     /** Persist the allocation header + lines and record DISTRIBUTION_CREATED. */
     WarehouseDistributionResponse createAllocation(WarehouseDistributionRequest request, UserDetails user);
 
-    /** OUT leg: deduct issued quantities from the source, record PRODUCTS_DISPATCHED. */
-    void dispatch(Long distributionId, UserDetails user);
+    /**
+     * OUT leg: deduct dispatched quantities from the source, record PRODUCTS_DISPATCHED.
+     * The request carries the quantities actually shipped (which may be less than the
+     * issued quantity) and an optional per-line remark; any line omitted from it
+     * defaults to its issued quantity. Pass {@code null} to dispatch every line in full.
+     */
+    void dispatch(Long distributionId, WarehouseDistributionDispatchRequest request, UserDetails user);
 
     /**
      * IN leg: add received quantities to the destination, record STOCK_RECEIVED.
      * The request carries the products/quantities that actually arrived; any
-     * dispatched line omitted from it defaults to its issued quantity. Pass
-     * {@code null} to receive every line at its issued quantity.
+     * dispatched line omitted from it defaults to its dispatched quantity. Pass
+     * {@code null} to receive every line at its dispatched quantity.
      */
     void receive(Long distributionId, WarehouseDistributionReceiveRequest request, UserDetails user);
 

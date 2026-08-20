@@ -28,8 +28,10 @@ public class WarehouseDistributionSummaryResponse {
     private String toId;
     private String toStore;
 
-    private Long productsCount;     // number of distinct products in the allocation
-    private Long totalQuantity;     // sum of issued quantity across all lines
+    private Long productsCount;             // number of distinct products in the allocation
+    private Long totalIssueQuantity;        // sum of issued quantity across all lines
+    private Long totalDispatchedQuantity;   // sum of dispatched quantity (0 until dispatch)
+    private Long totalReceivedQuantity;     // sum of received quantity (0 until receive)
 
     private DistributionStatus currentStatus;
     private LocalDateTime allocationDate;

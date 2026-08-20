@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionDispatchRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionReceiveRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequest;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
@@ -48,17 +49,20 @@ public class WarehouseDistributionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // Dispatch: source stock leaves (PRODUCTS_DISPATCHED)
+    // Dispatch: source stock leaves (PRODUCTS_DISPATCHED). The optional body carries
+    // the quantities actually shipped (which may be less than issued) and a per-line
+    // remark; omit it to dispatch every line at its issued quantity.
     @PostMapping("/{distributionId}/dispatch")
     public ResponseEntity<?> dispatch(
             @PathVariable Long distributionId,
+            @RequestBody(required = false) WarehouseDistributionDispatchRequest request,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        distributionService.dispatch(distributionId, currentUser.getUser());
+        distributionService.dispatch(distributionId, request, currentUser.getUser());
 
         return ResponseEntity.ok(distributionService.getById(distributionId));
     }

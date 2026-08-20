@@ -3,7 +3,7 @@ package tiameds.pharmabackend.dto.warehouse;
 import lombok.Data;
 
 // One line being received: identifies the dispatched line and the quantity that
-// actually arrived (may be less than the issued quantity for partial receipts).
+// actually arrived (may be less than the dispatched quantity for partial receipts).
 @Data
 public class WarehouseDistributionReceiveLineRequest {
 

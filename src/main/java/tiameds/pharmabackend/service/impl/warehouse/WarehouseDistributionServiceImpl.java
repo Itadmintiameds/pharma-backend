@@ -117,7 +117,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
     }
 
     @Override
-    public void dispatch(Long distributionId, UserDetails user) {
+    public void dispatch(Long distributionId, WarehouseDistributionDispatchRequest request, UserDetails user) {
         String actor = actorOf(user);
         LocalDateTime now = LocalDateTime.now();
         WarehouseDistribution dist = getOrThrow(distributionId);
@@ -126,14 +126,77 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         // dispatching twice (which would deduct source stock twice).
         requireStatus(distributionId, DistributionStatus.DISTRIBUTION_CREATED, "dispatch");
 
+        // Per-line sender payloads keyed by the allocation line id. A line that is
+        // omitted from the request defaults to its issued quantity (full dispatch)
+        // with no remark.
+        Map<Long, WarehouseDistributionDispatchLineRequest> dispatchByLine = dispatchLinesById(request);
+
+        List<WarehouseDistributionDetails> lines = linesOf(distributionId);
         InventoryAdjuster source = adjusters.of(dist.getSourceType());
-        for (WarehouseDistributionDetails line : linesOf(distributionId)) {
+        for (WarehouseDistributionDetails line : lines) {
+            WarehouseDistributionDispatchLineRequest lr =
+                    dispatchByLine.get(line.getWarehouseDistributionDetailsId());
+            long dispatched = (lr != null && lr.getDispatchedQuantity() != null)
+                    ? lr.getDispatchedQuantity() : line.getIssueQuantity();
+
+            // A short dispatch is allowed, but you can never dispatch more than what
+            // was allocated.
+            if (dispatched > line.getIssueQuantity()) {
+                throw new IllegalArgumentException(
+                        "Dispatched quantity (" + dispatched + ") cannot exceed the issued quantity ("
+                                + line.getIssueQuantity() + ") for line "
+                                + line.getWarehouseDistributionDetailsId());
+            }
+
+            // Persist the actual shipped quantity and the sender's remark so they
+            // surface in the response and bound what the destination may receive.
+            line.setDispatchedQuantity(dispatched);
+            if (lr != null) {
+                line.setDispatchRemarks(lr.getRemarks());
+            }
+            line.setModifiedBy(actor);
+            line.setModifiedAt(now);
+            detailsRepository.save(line);
+
             source.decrement(new StockAdjustment(
                     dist.getSourceId(), line.getProduct(), line.getPackaging(), line.getBatch(),
-                    line.getIssueQuantity(), line, actor, now));
+                    dispatched, line, actor, now));
+        }
+
+        // Reject line ids in the request that don't belong to this distribution.
+        dispatchByLine.keySet().removeIf(id ->
+                lines.stream().anyMatch(l -> l.getWarehouseDistributionDetailsId().equals(id)));
+        if (!dispatchByLine.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Dispatched lines do not belong to distribution " + distributionId + ": "
+                            + dispatchByLine.keySet());
         }
 
         appendStatus(dist, DistributionStatus.PRODUCTS_DISPATCHED, actor, now);
+    }
+
+    /**
+     * Builds a map of allocation-line id -> the sender's dispatch payload (dispatched
+     * quantity and remark), validating that each referenced line carries an id and a
+     * non-negative quantity.
+     */
+    private Map<Long, WarehouseDistributionDispatchLineRequest> dispatchLinesById(
+            WarehouseDistributionDispatchRequest request) {
+        Map<Long, WarehouseDistributionDispatchLineRequest> byLine = new HashMap<>();
+        if (request == null || request.getLines() == null || request.getLines().isEmpty()) {
+            return byLine;
+        }
+        for (WarehouseDistributionDispatchLineRequest lr : request.getLines()) {
+            if (lr.getWarehouseDistributionDetailsId() == null) {
+                throw new IllegalArgumentException(
+                        "warehouseDistributionDetailsId is required for every dispatched line");
+            }
+            if (lr.getDispatchedQuantity() == null || lr.getDispatchedQuantity() < 0) {
+                throw new IllegalArgumentException("Dispatched quantity must be zero or positive");
+            }
+            byLine.put(lr.getWarehouseDistributionDetailsId(), lr);
+        }
+        return byLine;
     }
 
     @Override
@@ -156,26 +219,31 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         for (WarehouseDistributionDetails line : lines) {
             WarehouseDistributionReceiveLineRequest lr =
                     receiveByLine.get(line.getWarehouseDistributionDetailsId());
+            // Receipt is bounded by what was actually dispatched, not what was issued
+            // (the sender may have shipped short). Fall back to the issued quantity for
+            // any line dispatched before dispatchedQuantity was tracked.
+            long dispatched = line.getDispatchedQuantity() != null
+                    ? line.getDispatchedQuantity() : line.getIssueQuantity();
             long received = (lr != null && lr.getReceivedQuantity() != null)
-                    ? lr.getReceivedQuantity() : line.getIssueQuantity();
+                    ? lr.getReceivedQuantity() : dispatched;
             long damaged = (lr != null && lr.getDamagedQuantity() != null)
                     ? lr.getDamagedQuantity() : 0L;
 
             // A partial receipt is allowed, but you can never receive more than what
             // was dispatched.
-            if (received > line.getIssueQuantity()) {
+            if (received > dispatched) {
                 throw new IllegalArgumentException(
-                        "Received quantity (" + received + ") cannot exceed the issued quantity ("
-                                + line.getIssueQuantity() + ") for line "
+                        "Received quantity (" + received + ") cannot exceed the dispatched quantity ("
+                                + dispatched + ") for line "
                                 + line.getWarehouseDistributionDetailsId());
             }
 
-            // Received plus damaged/not-received can account for at most the issued
+            // Received plus damaged/not-received can account for at most the dispatched
             // quantity — anything beyond that is inconsistent.
-            if (received + damaged > line.getIssueQuantity()) {
+            if (received + damaged > dispatched) {
                 throw new IllegalArgumentException(
                         "Received (" + received + ") plus damaged/not-received (" + damaged
-                                + ") cannot exceed the issued quantity (" + line.getIssueQuantity()
+                                + ") cannot exceed the dispatched quantity (" + dispatched
                                 + ") for line " + line.getWarehouseDistributionDetailsId());
             }
 
@@ -185,7 +253,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
             line.setReceivedQuantity(received);
             line.setDamagedQuantity(damaged);
             if (lr != null) {
-                line.setRemarks(lr.getRemarks());
+                line.setReceiveRemarks(lr.getRemarks());
             }
             line.setModifiedBy(actor);
             line.setModifiedAt(now);
@@ -534,7 +602,9 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         row.setToId(d.getDestinationId());
         row.setToStore(storeName(d.getDestinationType(), d.getDestinationId(), warehouseNames, pharmacyNames));
         row.setProductsCount(agg == null ? 0L : agg.getProductsCount());
-        row.setTotalQuantity(agg == null ? 0L : agg.getTotalQuantity());
+        row.setTotalIssueQuantity(agg == null ? 0L : agg.getTotalQuantity());
+        row.setTotalDispatchedQuantity(agg == null ? 0L : agg.getDispatchedQuantity());
+        row.setTotalReceivedQuantity(agg == null ? 0L : agg.getReceivedQuantity());
         row.setCurrentStatus(currentStatus);
         row.setAllocationDate(d.getAllocationDate());
         return row;
@@ -583,9 +653,11 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         WarehouseDistributionLineResponse dto = new WarehouseDistributionLineResponse();
         dto.setWarehouseDistributionDetailsId(line.getWarehouseDistributionDetailsId());
         dto.setIssueQuantity(line.getIssueQuantity());
+        dto.setDispatchedQuantity(line.getDispatchedQuantity());
+        dto.setDispatchRemarks(line.getDispatchRemarks());
         dto.setReceivedQuantity(line.getReceivedQuantity());
         dto.setDamagedQuantity(line.getDamagedQuantity());
-        dto.setRemarks(line.getRemarks());
+        dto.setReceiveRemarks(line.getReceiveRemarks());
 
         ProductDetails product = line.getProduct();
         if (product != null) {

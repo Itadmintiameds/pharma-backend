@@ -31,13 +31,17 @@ public interface WarehouseDistributionDetailsRepository
     List<WarehouseDistributionDetails> findLinesWithProductGraph(
             @Param("distributionId") Long distributionId);
 
-    // Per-distribution line totals for the list screen: how many distinct products
-    // and the total issued quantity. One grouped query for the distributions on the
-    // page (scoped by id) avoids an N+1 and never touches unrelated rows.
+    // Per-distribution line totals for the list screen: how many distinct products and
+    // the issued / dispatched / received quantity totals. One grouped query for the
+    // distributions on the page (scoped by id) avoids an N+1 and never touches
+    // unrelated rows. Dispatched/received are COALESCEd since they are null until the
+    // dispatch/receive steps run.
     @Query("""
         SELECT d.warehouseDistribution.warehouseDistributionId AS distributionId,
                COUNT(DISTINCT d.product.productId) AS productsCount,
-               COALESCE(SUM(d.issueQuantity), 0) AS totalQuantity
+               COALESCE(SUM(d.issueQuantity), 0) AS totalQuantity,
+               COALESCE(SUM(d.dispatchedQuantity), 0) AS dispatchedQuantity,
+               COALESCE(SUM(d.receivedQuantity), 0) AS receivedQuantity
         FROM WarehouseDistributionDetails d
         WHERE d.warehouseDistribution.warehouseDistributionId IN :distributionIds
         GROUP BY d.warehouseDistribution.warehouseDistributionId
@@ -50,5 +54,7 @@ public interface WarehouseDistributionDetailsRepository
         Long getDistributionId();
         Long getProductsCount();
         Long getTotalQuantity();
+        Long getDispatchedQuantity();
+        Long getReceivedQuantity();
     }
 }
