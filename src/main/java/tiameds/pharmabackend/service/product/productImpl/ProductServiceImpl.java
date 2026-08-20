@@ -17,6 +17,8 @@ import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.entity.warehouse.WarehouseInventory;
+import tiameds.pharmabackend.enums.LocationType;
+import tiameds.pharmabackend.exception.ResourceNotFoundException;
 import tiameds.pharmabackend.mapper.product.ProductMapper;
 import tiameds.pharmabackend.mapper.product.category.ProductInventoryMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
@@ -28,6 +30,7 @@ import tiameds.pharmabackend.repository.purchase.InventoryRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseInventoryRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.service.PharmacyOrganizationService;
 import tiameds.pharmabackend.service.product.ProductService;
 
 import java.time.LocalDate;
@@ -75,6 +78,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Autowired
     private UserDetailsRepository userDetailsRepository;
+
+    @Autowired
+    private PharmacyOrganizationService organizationService;
 
     // A batch is "near expiry" when it expires within this many days from today.
     private static final long NEAR_EXPIRY_DAYS = 30;
@@ -982,8 +988,33 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<BatchStockDto> getAllBatches() {
+        return getBatches(currentLocation());
+    }
 
-        LocationContext loc = currentLocation();
+    // Batches at an arbitrary pharmacy rather than the caller's currently active one —
+    // needed when picking products for a pharmacy-to-pharmacy transfer whose source
+    // pharmacy (chosen in the transfer wizard) differs from the pharmacy the caller is
+    // scoped to via X-Pharmacy-Id. Without this, the product list came back for the
+    // wrong pharmacy and dispatch failed with "No pharmacy stock for this batch".
+    @Override
+    @Transactional(readOnly = true)
+    public List<BatchStockDto> getBatchesForPharmacy(String pharmacyId) {
+        PharmacyDetails pharmacy = pharmacyRepo.findById(pharmacyId)
+                .orElseThrow(() -> new ResourceNotFoundException("Pharmacy not found: " + pharmacyId));
+
+        Long callerOrgId = organizationService
+                .getUserOrganization(currentUserOrThrow().getUserId())
+                .getOrganizationId();
+        Long pharmacyOrgId = pharmacy.getOrganization() == null
+                ? null : pharmacy.getOrganization().getOrganizationId();
+        if (!callerOrgId.equals(pharmacyOrgId)) {
+            throw new IllegalArgumentException("Pharmacy does not belong to your organization");
+        }
+
+        return getBatches(new LocationContext(LocationType.PHARMACY, pharmacyId));
+    }
+
+    private List<BatchStockDto> getBatches(LocationContext loc) {
 
         // stock lives in inventory rows, not on the batch -> load the location's
         // stock rows once and total them per batch.
