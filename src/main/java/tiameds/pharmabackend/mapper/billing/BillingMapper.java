@@ -50,6 +50,8 @@ public class BillingMapper {
         dto.setTotalMrpAmount(entity.getTotalMrpAmount());
         dto.setTotalGrossAmount(entity.getTotalGrossAmount());
         dto.setTotalNetAmount(entity.getTotalNetAmount());
+        dto.setRoundOffAmount(entity.getRoundOffAmount());
+        dto.setTotalNetAmountAfterRoundOff(entity.getTotalNetAmountAfterRoundOff());
         dto.setSellingType(entity.getSellingType());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
@@ -99,6 +101,8 @@ public class BillingMapper {
         entity.setTotalMrpAmount(dto.getTotalMrpAmount());
         entity.setTotalGrossAmount(dto.getTotalGrossAmount());
         entity.setTotalNetAmount(dto.getTotalNetAmount());
+        entity.setRoundOffAmount(dto.getRoundOffAmount());
+        entity.setTotalNetAmountAfterRoundOff(dto.getTotalNetAmountAfterRoundOff());
         entity.setSellingType(dto.getSellingType());
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedAt(dto.getCreatedAt());
