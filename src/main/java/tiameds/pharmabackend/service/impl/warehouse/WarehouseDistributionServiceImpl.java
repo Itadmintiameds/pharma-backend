@@ -2,13 +2,18 @@ package tiameds.pharmabackend.service.impl.warehouse;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tiameds.pharmabackend.context.LocationContext;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.warehouse.*;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistribution;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
@@ -32,8 +37,11 @@ import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -231,13 +239,122 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
     @Transactional(readOnly = true)
     public WarehouseDistributionResponse getById(Long distributionId) {
         WarehouseDistribution dist = getOrThrow(distributionId);
-        return toResponse(dist, linesOf(distributionId), currentStatusOrNull(distributionId));
+        // Lines with product/packaging/batch fetched in one query (a JOIN FETCH, so no
+        // N+1 on the nested associations).
+        List<WarehouseDistributionDetails> lines =
+                detailsRepository.findLinesWithProductGraph(distributionId);
+        // Status history comes from the @OneToMany (ordered oldest-first by @OrderBy);
+        // the current status is simply the last entry, so no separate query is needed.
+        List<WarehouseDistributionStatus> statusHistory = dist.getStatuses();
+        DistributionStatus currentStatus = statusHistory.isEmpty()
+                ? null
+                : statusHistory.getLast().getWarehouseDistributionStatus();
+        return toResponse(dist, lines, statusHistory, currentStatus);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WarehouseDistributionSummaryResponse> getAll(UserDetails user) {
+        String warehouseId = actingWarehouseId(user);
+        // Outgoing (requested by this warehouse) + incoming (this warehouse is the
+        // destination).
+        return toSummaries(
+                distributionRepository.findForWarehouse(
+                        warehouseId, LocationType.WAREHOUSE, byAllocationDateDesc()),
+                warehouseId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WarehouseDistributionSummaryResponse> getBySource(UserDetails user) {
+        // The acting location may be a warehouse OR a pharmacy, so use the resolved
+        // location type rather than assuming WAREHOUSE.
+        LocationContext ctx = locationContextResolver.resolve(user);
+        // Only distributions shipped FROM this location (it is the source).
+        return toSummaries(
+                distributionRepository.findBySourceTypeAndSourceId(
+                        ctx.getType(), ctx.getLocationId(), byAllocationDateDesc()),
+                ctx.getLocationId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WarehouseDistributionSummaryResponse> getByDestination(UserDetails user) {
+        // The acting location may be a warehouse OR a pharmacy, so use the resolved
+        // location type rather than assuming WAREHOUSE.
+        LocationContext ctx = locationContextResolver.resolve(user);
+        // Only distributions shipped TO this location (it is the destination).
+        return toSummaries(
+                distributionRepository.findByDestinationTypeAndDestinationId(
+                        ctx.getType(), ctx.getLocationId(), byAllocationDateDesc()),
+                ctx.getLocationId());
     }
 
     @Override
     @Transactional(readOnly = true)
     public String peekNextAllocationNo() {
         return allocationNoGenerator.generate();
+    }
+
+    /**
+     * Turns a page of distributions into summary rows for {@code warehouseId}. The
+     * line totals, latest status and store names are each fetched in one bulk query
+     * scoped to these distributions, so there is no per-row (N+1) lookup.
+     */
+    private List<WarehouseDistributionSummaryResponse> toSummaries(
+            List<WarehouseDistribution> distributions, String warehouseId) {
+        if (distributions.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> distributionIds = distributions.stream()
+                .map(WarehouseDistribution::getWarehouseDistributionId)
+                .toList();
+
+        // Line totals (products count + issued quantity) per distribution — one
+        // grouped query scoped to this page instead of iterating lines per row.
+        Map<Long, WarehouseDistributionDetailsRepository.DistributionLineAggregate> aggByDist =
+                detailsRepository.aggregateLinesByDistribution(distributionIds).stream()
+                        .collect(Collectors.toMap(
+                                WarehouseDistributionDetailsRepository.DistributionLineAggregate::getDistributionId,
+                                agg -> agg));
+
+        // Latest status per distribution — one query for this page.
+        Map<Long, DistributionStatus> statusByDist =
+                statusRepository.findLatestStatuses(distributionIds).stream()
+                        .collect(Collectors.toMap(
+                                s -> s.getWarehouseDistribution().getWarehouseDistributionId(),
+                                WarehouseDistributionStatus::getWarehouseDistributionStatus));
+
+        // Resolve both ends to a store name, fetching every referenced warehouse and
+        // pharmacy in bulk rather than one lookup per row.
+        Set<String> warehouseIds = new HashSet<>();
+        Set<String> pharmacyIds = new HashSet<>();
+        for (WarehouseDistribution d : distributions) {
+            collectStoreId(d.getSourceType(), d.getSourceId(), warehouseIds, pharmacyIds);
+            collectStoreId(d.getDestinationType(), d.getDestinationId(), warehouseIds, pharmacyIds);
+        }
+        Map<String, String> warehouseNames = warehouseRepository.findAllById(warehouseIds).stream()
+                .collect(Collectors.toMap(Warehouse::getWarehouseId, Warehouse::getWarehouseName));
+        Map<String, String> pharmacyNames = pharmacyRepository.findAllById(pharmacyIds).stream()
+                .collect(Collectors.toMap(PharmacyDetails::getPharmacyId, PharmacyDetails::getPharmacyName));
+
+        return distributions.stream()
+                .map(d -> toSummary(d, warehouseId,
+                        aggByDist.get(d.getWarehouseDistributionId()),
+                        statusByDist.get(d.getWarehouseDistributionId()),
+                        warehouseNames, pharmacyNames))
+                .toList();
+    }
+
+    // The warehouse the acting user is operating as — the same id stored as
+    // allocationRequestedBy at create time — so list screens never load the whole table.
+    private String actingWarehouseId(UserDetails user) {
+        return locationContextResolver.resolve(user).getLocationId();
+    }
+
+    private Sort byAllocationDateDesc() {
+        return Sort.by(Sort.Direction.DESC, "allocationDate");
     }
 
     // ---- helpers -------------------------------------------------------------
@@ -361,6 +478,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
 
     private WarehouseDistributionResponse toResponse(WarehouseDistribution dist,
                                                      List<WarehouseDistributionDetails> lines,
+                                                     List<WarehouseDistributionStatus> statusHistory,
                                                      DistributionStatus currentStatus) {
         WarehouseDistributionResponse res = new WarehouseDistributionResponse();
         res.setWarehouseDistributionId(dist.getWarehouseDistributionId());
@@ -372,26 +490,142 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         res.setRemarks(dist.getRemarks());
         res.setSourceType(dist.getSourceType());
         res.setSourceId(dist.getSourceId());
+        res.setSourceName(resolveStoreName(dist.getSourceType(), dist.getSourceId()));
         res.setDestinationType(dist.getDestinationType());
         res.setDestinationId(dist.getDestinationId());
+        res.setDestinationName(resolveStoreName(dist.getDestinationType(), dist.getDestinationId()));
         res.setAllocationRequestedBy(dist.getAllocationRequestedBy());
         res.setCurrentStatus(currentStatus);
         res.setCreatedBy(dist.getCreatedBy());
         res.setCreatedAt(dist.getCreatedAt());
         res.setLines(lines.stream().map(this::toLineResponse).toList());
+        res.setStatuses(statusHistory.stream().map(this::toStatusResponse).toList());
         return res;
+    }
+
+    private WarehouseDistributionStatusResponse toStatusResponse(WarehouseDistributionStatus status) {
+        WarehouseDistributionStatusResponse dto = new WarehouseDistributionStatusResponse();
+        dto.setWarehouseDistributionStatusId(status.getWarehouseDistributionStatusId());
+        dto.setStatus(status.getWarehouseDistributionStatus());
+        dto.setCreatedBy(status.getCreatedBy());
+        dto.setCreatedAt(status.getCreatedAt());
+        return dto;
+    }
+
+    private WarehouseDistributionSummaryResponse toSummary(
+            WarehouseDistribution d,
+            String warehouseId,
+            WarehouseDistributionDetailsRepository.DistributionLineAggregate agg,
+            DistributionStatus currentStatus,
+            Map<String, String> warehouseNames,
+            Map<String, String> pharmacyNames) {
+        WarehouseDistributionSummaryResponse row = new WarehouseDistributionSummaryResponse();
+        row.setWarehouseDistributionId(d.getWarehouseDistributionId());
+        row.setAllocationNo(d.getAllocationNo());
+        // Incoming when this warehouse is the destination; otherwise it's the one
+        // that requested/ships the stock.
+        boolean incoming = d.getDestinationType() == LocationType.WAREHOUSE
+                && warehouseId.equals(d.getDestinationId());
+        row.setDirection(incoming ? "INCOMING" : "OUTGOING");
+        row.setFromType(d.getSourceType());
+        row.setFromId(d.getSourceId());
+        row.setFromStore(storeName(d.getSourceType(), d.getSourceId(), warehouseNames, pharmacyNames));
+        row.setToType(d.getDestinationType());
+        row.setToId(d.getDestinationId());
+        row.setToStore(storeName(d.getDestinationType(), d.getDestinationId(), warehouseNames, pharmacyNames));
+        row.setProductsCount(agg == null ? 0L : agg.getProductsCount());
+        row.setTotalQuantity(agg == null ? 0L : agg.getTotalQuantity());
+        row.setCurrentStatus(currentStatus);
+        row.setAllocationDate(d.getAllocationDate());
+        return row;
+    }
+
+    // Bucket a store id into the warehouse or pharmacy set by its location type, so
+    // names can be resolved in two bulk lookups.
+    private void collectStoreId(LocationType type, String id,
+                                Set<String> warehouseIds, Set<String> pharmacyIds) {
+        if (id == null || type == null) {
+            return;
+        }
+        if (type == LocationType.WAREHOUSE) {
+            warehouseIds.add(id);
+        } else if (type == LocationType.PHARMACY) {
+            pharmacyIds.add(id);
+        }
+    }
+
+    private String storeName(LocationType type, String id,
+                             Map<String, String> warehouseNames, Map<String, String> pharmacyNames) {
+        if (id == null || type == null) {
+            return null;
+        }
+        return type == LocationType.WAREHOUSE ? warehouseNames.get(id) : pharmacyNames.get(id);
+    }
+
+    // Resolve a single store's display name for the detail view (one lookup each for
+    // source/destination — fine for a single distribution, unlike the bulk path used by
+    // the list screen).
+    private String resolveStoreName(LocationType type, String id) {
+        if (id == null || type == null) {
+            return null;
+        }
+        if (type == LocationType.WAREHOUSE) {
+            return warehouseRepository.findById(id)
+                    .map(Warehouse::getWarehouseName)
+                    .orElse(null);
+        }
+        return pharmacyRepository.findById(id)
+                .map(PharmacyDetails::getPharmacyName)
+                .orElse(null);
     }
 
     private WarehouseDistributionLineResponse toLineResponse(WarehouseDistributionDetails line) {
         WarehouseDistributionLineResponse dto = new WarehouseDistributionLineResponse();
         dto.setWarehouseDistributionDetailsId(line.getWarehouseDistributionDetailsId());
-        dto.setProductId(line.getProduct().getProductId());
-        dto.setPackagingId(line.getPackaging().getPackagingId());
-        dto.setBatchId(line.getBatch().getBatchId());
         dto.setIssueQuantity(line.getIssueQuantity());
         dto.setReceivedQuantity(line.getReceivedQuantity());
         dto.setDamagedQuantity(line.getDamagedQuantity());
         dto.setRemarks(line.getRemarks());
+
+        ProductDetails product = line.getProduct();
+        if (product != null) {
+            dto.setProductId(product.getProductId());
+            WarehouseDistributionLineResponse.ProductInfo p =
+                    new WarehouseDistributionLineResponse.ProductInfo();
+            p.setProductId(product.getProductId());
+            p.setProductName(product.getProductName());
+            p.setBrandName(product.getBrandName());
+            p.setHsnNo(product.getHsnNo());
+            p.setGstPercentage(product.getGstPercentage());
+            dto.setProduct(p);
+        }
+
+        PackagingDetails packaging = line.getPackaging();
+        if (packaging != null) {
+            dto.setPackagingId(packaging.getPackagingId());
+            WarehouseDistributionLineResponse.PackagingInfo pk =
+                    new WarehouseDistributionLineResponse.PackagingInfo();
+            pk.setPackagingId(packaging.getPackagingId());
+            pk.setPurchaseUnit(packaging.getPurchaseUnit());
+            pk.setPurchaseUnitContains(packaging.getPurchaseUnitContains());
+            dto.setPackaging(pk);
+        }
+
+        BatchDetails batch = line.getBatch();
+        if (batch != null) {
+            dto.setBatchId(batch.getBatchId());
+            WarehouseDistributionLineResponse.BatchInfo b =
+                    new WarehouseDistributionLineResponse.BatchInfo();
+            b.setBatchId(batch.getBatchId());
+            b.setBatchNumber(batch.getBatchNumber());
+            b.setManufacturingDate(batch.getManufacturingDate());
+            b.setExpiryDate(batch.getExpiryDate());
+            b.setMrp(batch.getMrp());
+            b.setSellingPrice(batch.getSellingPrice());
+            b.setPurchasePrice(batch.getPurchasePrice());
+            b.setRackLocation(batch.getRackLocation());
+            dto.setBatch(b);
+        }
         return dto;
     }
 }

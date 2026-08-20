@@ -20,12 +20,17 @@ public class WarehouseDistributionResponse {
 
     private LocationType sourceType;
     private String sourceId;
+    private String sourceName;
     private LocationType destinationType;
     private String destinationId;
+    private String destinationName;
     private String allocationRequestedBy;
 
     private DistributionStatus currentStatus;
     private List<WarehouseDistributionLineResponse> lines;
+
+    // Full status history (oldest first) for the detail view / timeline.
+    private List<WarehouseDistributionStatusResponse> statuses;
 
     private String createdBy;
     private LocalDateTime createdAt;
