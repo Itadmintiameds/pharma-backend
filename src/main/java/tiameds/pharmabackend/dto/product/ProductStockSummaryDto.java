@@ -29,8 +29,8 @@ public class ProductStockSummaryDto {
     private long nearExpiryBatches;
     private long expiredBatches;
 
-    // worst-case status across in-stock batches:
-    // EXPIRED > NEAR_EXPIRY > ACTIVE > OUT_OF_STOCK
+    // overall status across in-stock batches, by priority:
+    // NEAR_EXPIRY > ACTIVE (Healthy) > EXPIRED > OUT_OF_STOCK
     private String overallStatus;
 
     // earliest expiryDate among in-stock batches (most urgent), null if none
