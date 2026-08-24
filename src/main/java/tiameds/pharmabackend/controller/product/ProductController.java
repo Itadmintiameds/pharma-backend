@@ -62,6 +62,16 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
+    // Dashboard KPI: in-stock batch counts bucketed independently by each batch's expiry
+    @GetMapping("/batch-expiry-kpi")
+    public ResponseEntity<Map<String, Object>> getBatchExpiryKpi() {
+        BatchExpiryKpiDto kpi = pharmaProductService.getBatchExpiryKpi();
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Batch expiry KPI retrieved successfully");
+        response.put("data", kpi);
+        return ResponseEntity.ok(response);
+    }
+
     // All batches of the pharmacy with product, packaging, stock and pricing
     @GetMapping("/batches")
     public ResponseEntity<Map<String, Object>> getAllBatches() {

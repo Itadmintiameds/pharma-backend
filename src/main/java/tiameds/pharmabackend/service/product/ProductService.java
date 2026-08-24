@@ -6,6 +6,7 @@ import tiameds.pharmabackend.dto.product.BatchStockDto;
 import tiameds.pharmabackend.dto.product.ProductDetailResponseDto;
 import tiameds.pharmabackend.dto.product.ProductDetailsDto;
 import tiameds.pharmabackend.dto.product.ProductExpiryKpiDto;
+import tiameds.pharmabackend.dto.product.BatchExpiryKpiDto;
 import tiameds.pharmabackend.dto.product.ProductStockSummaryDto;
 import tiameds.pharmabackend.entity.UserDetails;
 
@@ -25,6 +26,9 @@ public interface ProductService {
 
     // Dashboard KPI: product counts bucketed by nearest in-stock expiry
     ProductExpiryKpiDto getExpiryKpi();
+
+    // Dashboard KPI: in-stock batch counts bucketed independently by each batch's expiry
+    BatchExpiryKpiDto getBatchExpiryKpi();
 
     // Add a new package (optionally with batches) to an existing product
     ProductDetailResponseDto addPackage(String productId, AddPackageRequest request);

@@ -433,14 +433,27 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private String resolveOverallStatus(long active, long nearExpiry, long expired) {
-        if (expired > 0) {
-            return "EXPIRED";
-        }
+        // OLD priority (expired-first): EXPIRED > NEAR_EXPIRY > ACTIVE > OUT_OF_STOCK
+        // if (expired > 0) {
+        //     return "EXPIRED";
+        // }
+        // if (nearExpiry > 0) {
+        //     return "NEAR_EXPIRY";
+        // }
+        // if (active > 0) {
+        //     return "ACTIVE";
+        // }
+        // return "OUT_OF_STOCK";
+
+        // NEW priority: NEAR_EXPIRY > ACTIVE (Healthy) > EXPIRED > OUT_OF_STOCK
         if (nearExpiry > 0) {
             return "NEAR_EXPIRY";
         }
         if (active > 0) {
             return "ACTIVE";
+        }
+        if (expired > 0) {
+            return "EXPIRED";
         }
         return "OUT_OF_STOCK";
     }
@@ -474,8 +487,53 @@ public class ProductServiceImpl implements ProductService {
             List<StockRow> inventories =
                     inventoryByProduct.getOrDefault(product.getProductId(), List.of());
 
-            LocalDate nearest = null;
+            // OLD logic — classified each product by the single nearest (earliest)
+            // in-stock expiry, which gave EXPIRED precedence over NEAR_EXPIRY:
+            // LocalDate nearest = null;
+            // boolean hasInStock = false;
+            //
+            // for (StockRow inv : inventories) {
+            //     long stock = inv.totalStock();
+            //     if (stock <= 0 || inv.batch() == null) {
+            //         continue;
+            //     }
+            //     hasInStock = true;
+            //
+            //     LocalDate expiry = inv.batch().getExpiryDate();
+            //     if (expiry == null) {
+            //         continue; // no expiry -> does not affect nearest
+            //     }
+            //     if (nearest == null || expiry.isBefore(nearest)) {
+            //         nearest = expiry;
+            //     }
+            // }
+            //
+            // // products with no in-stock batch count only towards the total
+            // if (!hasInStock) {
+            //     continue;
+            // }
+            //
+            // // only null-expiry stock on hand -> treat as healthy
+            // if (nearest == null) {
+            //     healthy++;
+            // } else if (nearest.isBefore(today)) {
+            //     expired++;
+            // } else if (!nearest.isAfter(in30Days)) {
+            //     expiring0To30++;               // today .. today + 30
+            // } else if (!nearest.isAfter(in60Days)) {
+            //     expiring31To60++;              // today + 31 .. today + 60
+            // } else {
+            //     healthy++;                     // > today + 60
+            // }
+
+            // NEW logic — classify each product once by priority across its in-stock
+            // batches: NEAR_EXPIRY > HEALTHY (Active) > EXPIRED > OUT_OF_STOCK.
             boolean hasInStock = false;
+            boolean hasHealthy = false;
+            boolean hasExpired = false;
+            // nearest expiry among the product's near-expiry batches; drives the
+            // 0-30 vs 31-60 sub-bucket once NEAR_EXPIRY wins.
+            LocalDate nearestNearExpiry = null;
 
             for (StockRow inv : inventories) {
                 long stock = inv.totalStock();
@@ -486,10 +544,16 @@ public class ProductServiceImpl implements ProductService {
 
                 LocalDate expiry = inv.batch().getExpiryDate();
                 if (expiry == null) {
-                    continue; // no expiry -> does not affect nearest
-                }
-                if (nearest == null || expiry.isBefore(nearest)) {
-                    nearest = expiry;
+                    hasHealthy = true;          // no expiry -> healthy
+                } else if (expiry.isBefore(today)) {
+                    hasExpired = true;
+                } else if (!expiry.isAfter(in60Days)) {
+                    // near expiry: today .. today + 60
+                    if (nearestNearExpiry == null || expiry.isBefore(nearestNearExpiry)) {
+                        nearestNearExpiry = expiry;
+                    }
+                } else {
+                    hasHealthy = true;          // > today + 60
                 }
             }
 
@@ -498,17 +562,16 @@ public class ProductServiceImpl implements ProductService {
                 continue;
             }
 
-            // only null-expiry stock on hand -> treat as healthy
-            if (nearest == null) {
+            if (nearestNearExpiry != null) {
+                if (!nearestNearExpiry.isAfter(in30Days)) {
+                    expiring0To30++;            // today .. today + 30
+                } else {
+                    expiring31To60++;          // today + 31 .. today + 60
+                }
+            } else if (hasHealthy) {
                 healthy++;
-            } else if (nearest.isBefore(today)) {
+            } else if (hasExpired) {
                 expired++;
-            } else if (!nearest.isAfter(in30Days)) {
-                expiring0To30++;               // today .. today + 30
-            } else if (!nearest.isAfter(in60Days)) {
-                expiring31To60++;              // today + 31 .. today + 60
-            } else {
-                healthy++;                     // > today + 60
             }
         }
 
@@ -518,6 +581,67 @@ public class ProductServiceImpl implements ProductService {
         dto.setExpiring0To30Days(expiring0To30);
         dto.setExpiring31To60Days(expiring31To60);
         dto.setHealthyAbove60Days(healthy);
+        return dto;
+    }
+
+    // ===== Dashboard KPI: batch counts bucketed independently by each batch's expiry =====
+    @Override
+    @Transactional(readOnly = true)
+    public BatchExpiryKpiDto getBatchExpiryKpi() {
+
+        LocationContext loc = currentLocation();
+
+        // Aggregate in-stock quantity per batch across the location's stock rows,
+        // so a batch spread over multiple inventory rows is counted once.
+        Map<String, Long> stockByBatch =
+                stockRowsForLocation(loc)
+                        .stream()
+                        .filter(row -> row.batch() != null)
+                        .collect(Collectors.groupingBy(
+                                row -> row.batch().getBatchId(),
+                                Collectors.summingLong(StockRow::totalStock)));
+
+        LocalDate today = LocalDate.now();
+        LocalDate in30Days = today.plusDays(30);
+        LocalDate in60Days = today.plusDays(60);
+
+        long expired = 0;
+        long expiring0To30 = 0;
+        long expiring31To60 = 0;
+        long healthy = 0;
+
+        List<BatchDetails> batches = batchesForLocation(loc);
+
+        // Each in-stock batch is classified independently by its own expiry date
+        // (no priority collapsing — that only applies when reducing a product to one status).
+        for (BatchDetails batch : batches) {
+            long stock = stockByBatch.getOrDefault(batch.getBatchId(), 0L);
+            if (stock <= 0) {
+                continue; // out-of-stock batches count only towards totalBatches
+            }
+
+            LocalDate expiry = batch.getExpiryDate();
+            if (expiry == null) {
+                healthy++;                     // no expiry -> healthy
+            } else if (expiry.isBefore(today)) {
+                expired++;
+            } else if (!expiry.isAfter(in30Days)) {
+                expiring0To30++;               // today .. today + 30
+            } else if (!expiry.isAfter(in60Days)) {
+                expiring31To60++;              // today + 31 .. today + 60
+            } else {
+                healthy++;                     // > today + 60
+            }
+        }
+
+        BatchExpiryKpiDto dto = new BatchExpiryKpiDto();
+        dto.setExpiredBatches(expired);
+        dto.setExpiring0To30DaysBatches(expiring0To30);
+        dto.setExpiring31To60DaysBatches(expiring31To60);
+        dto.setHealthyAbove60DaysBatches(healthy);
+        // totalBatches counts ALL batches of the location (including out-of-stock)
+        dto.setTotalBatches(batches.size());
+        dto.setTotalProducts(productsForLocation(loc).size());
         return dto;
     }
 
