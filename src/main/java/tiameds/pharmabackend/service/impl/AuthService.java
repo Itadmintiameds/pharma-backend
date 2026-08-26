@@ -15,6 +15,8 @@ import tiameds.pharmabackend.repository.RefreshTokenRepository;
 import tiameds.pharmabackend.enums.UserAuditAction;
 import tiameds.pharmabackend.audit.UserAuditRecorder;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
+import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
+import tiameds.pharmabackend.security.PermissionCodeFormatter;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +33,21 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserAuditRecorder userAuditRecorder;
+    private final UserFeaturePermissionRepository userFeaturePermissionRepository;
+
+    /**
+     * Loads the user's granted permissions as MODULE/FEATURE/PERMISSION codes
+     * to embed in the access token. Done once at token issue/refresh (not per
+     * request), so authorization no longer queries the DB on every call.
+     */
+    private List<String> loadPermissionCodes(UserDetails user) {
+        return userFeaturePermissionRepository
+                .findAllByUserIdWithFeature(user.getUserId())
+                .stream()
+                .map(PermissionCodeFormatter::format)
+                .distinct()
+                .toList();
+    }
 
     @Transactional
     public String login(LoginRequestDto request){
@@ -170,7 +187,7 @@ public class AuthService {
 
         // Generate JWT Tokens
         String accessToken =
-                jwtService.generateAccessToken(user);
+                jwtService.generateAccessToken(user, loadPermissionCodes(user));
 
         String refreshToken =
                 jwtService.generateRefreshToken(user);
@@ -223,7 +240,7 @@ public class AuthService {
                 tokenEntity.getUser();
 
         String newAccessToken =
-                jwtService.generateAccessToken(user);
+                jwtService.generateAccessToken(user, loadPermissionCodes(user));
 
         return new LoginResponse(
                 newAccessToken,

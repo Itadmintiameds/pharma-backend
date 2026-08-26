@@ -68,15 +68,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         token,
                         userDetails)) {
 
+                    // Permissions come from the signed token (no DB query here).
+                    // The user entity is still loaded above so controllers can
+                    // rely on currentUser.getUser().
+                    CustomUserDetails principal = new CustomUserDetails(
+                            ((CustomUserDetails) userDetails).getUser(),
+                            jwtService.extractPermissions(token));
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
 
-                                    userDetails,
+                                    principal,
 
                                     null,
 
-                                    userDetails.getAuthorities());
+                                    principal.getAuthorities());
 
                     authentication.setDetails(
 
