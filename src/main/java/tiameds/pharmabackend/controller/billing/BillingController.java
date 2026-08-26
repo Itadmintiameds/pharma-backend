@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +23,7 @@ public class BillingController {
 
     private final BillingService billingService;
 
+    @PreAuthorize("@access.has('SALES/SALES/CREATE')")
     @PostMapping("/create")
     public ResponseEntity<?> createBilling(
             @RequestBody BillingDto billingDto,
@@ -39,6 +41,7 @@ public class BillingController {
     }
 
 
+    @PreAuthorize("@access.has('SALES/SALES/CREATE')")
     @PostMapping(
             value = "/{billingId}/prescription",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -60,6 +63,7 @@ public class BillingController {
     }
 
 
+    @PreAuthorize("@access.has('SALES/SALES/VIEW')")
     @GetMapping("/allBilling")
     public ResponseEntity<?> getAllBillings(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
@@ -74,7 +78,7 @@ public class BillingController {
         return ResponseEntity.ok(billings);
     }
 
-
+    @PreAuthorize("@access.has('SALES/SALES/VIEW')")
     @GetMapping("/{billingId}")
     public ResponseEntity<?> getBillingById(
             @PathVariable Long billingId,
@@ -92,6 +96,7 @@ public class BillingController {
     }
 
 
+    @PreAuthorize("@access.has('SALES/SALES/EDIT')")
     @PutMapping("/{billingId}")
     public ResponseEntity<?> updateBilling(
             @PathVariable Long billingId,
@@ -111,6 +116,7 @@ public class BillingController {
     }
 
 
+    @PreAuthorize("@access.has('SALES/SALES/CREATE')")
     @PostMapping("/{billingId}/payment")
     public ResponseEntity<?> addPayment(
             @PathVariable Long billingId,
@@ -130,6 +136,7 @@ public class BillingController {
     }
 
 
+    @PreAuthorize("@access.has('SALES/SALES/DELETE')")
     @DeleteMapping("/{billingId}")
     public ResponseEntity<?> deleteBilling(
             @PathVariable Long billingId,
