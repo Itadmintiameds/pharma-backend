@@ -752,15 +752,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .orElseThrow(() ->
                         new RuntimeException("User not found with id : " + currentUserId));
 
+        // Format each granted permission as MODULE/FEATURE/PERMISSION
+        // e.g. PURCHASE/PURCHASE/VIEW, WAREHOUSE_DISTRIBUTION/WAREHOUSE_DISTRIBUTION/VIEW
         List<String> permissionCodes = userFeaturePermissionRepository
                 .findAllByUserIdWithFeature(currentUserId)
                 .stream()
-                .map(row -> row.getFeature().getFeatureCode()
-                        + "_"
-                        + row.getPermission().getPermissionName()
-                                .trim()
-                                .toUpperCase()
-                                .replace(' ', '_'))
+                .map(row -> normalizeCode(row.getFeature().getModule().getModuleName())
+                        + "/"
+                        + row.getFeature().getFeatureCode()
+                        + "/"
+                        + normalizeCode(row.getPermission().getPermissionName()))
                 .distinct()
                 .collect(Collectors.toList());
 
@@ -768,6 +769,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 user.getUserId(),
                 user.getRole().getRoleName(),
                 permissionCodes);
+    }
+
+    /**
+     * Normalizes a name/code into an uppercase, underscore-separated token
+     * (e.g. "Warehouse Distribution" -> "WAREHOUSE_DISTRIBUTION").
+     */
+    private String normalizeCode(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().toUpperCase().replace(' ', '_');
     }
 
     @Override

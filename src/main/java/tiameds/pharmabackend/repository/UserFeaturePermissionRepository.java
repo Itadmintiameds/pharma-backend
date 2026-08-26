@@ -15,7 +15,8 @@ public interface UserFeaturePermissionRepository
     @Query("""
             SELECT p
             FROM UserFeaturePermission p
-            JOIN FETCH p.feature
+            JOIN FETCH p.feature f
+            JOIN FETCH f.module
             JOIN FETCH p.permission
             WHERE p.user.userId = :userId
             """)
