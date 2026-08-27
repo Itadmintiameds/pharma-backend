@@ -155,7 +155,6 @@ public class UserDetailsController {
                         request.getUserStatus()));
     }
 
-    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/{userId}")
     public ResponseEntity<UserDetailsDto> getUserById(
             @AuthenticationPrincipal CustomUserDetails currentUser,
@@ -165,7 +164,6 @@ public class UserDetailsController {
                 userDetailsService.getUserById(currentUser.getUserId(), userId));
     }
 
-    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/getById/{userId}")
     public ResponseEntity<UserDetailsDto> getById(
             @AuthenticationPrincipal CustomUserDetails currentUser,
