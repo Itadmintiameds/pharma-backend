@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.enums.LocationType;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 
 import java.util.List;
 
@@ -22,9 +23,13 @@ public class LocationContextResolver {
     // Exact role_name stored for the warehouse-manager role (role_id = 4).
     private static final String WAREHOUSE_MANAGER_ROLE = "WAREHOUSE MANAGER";
 
+    // Exact role_name stored for the super-admin role (matches AccessChecker).
+    private static final String SUPER_ADMIN_ROLE = "SUPER ADMIN";
+
     private final CurrentPharmacyContext pharmacyContext;
     private final CurrentWarehouseContext warehouseContext;
     private final UserDetailsRepository userDetailsRepository;
+    private final WarehouseRepository warehouseRepository;
 
     /**
      * Resolves the location the given user is operating on.
@@ -39,6 +44,18 @@ public class LocationContextResolver {
 
         if (isWarehouseManager(user)) {
             return new LocationContext(LocationType.WAREHOUSE, resolveWarehouseId(user));
+        }
+
+        // A SUPER ADMIN may operate on a warehouse in their own organization. When the
+        // X-Warehouse-Id header was sent and validated (same-organization) by
+        // CurrentPharmacyFilter, the warehouse context is set and we route there,
+        // making the superadmin behave like a warehouse manager for that warehouse.
+        // With no warehouse selected they fall through to the pharmacy branch below.
+        if (isSuperAdmin(user)) {
+            String warehouseId = warehouseContext.getCurrentWarehouseOrNull();
+            if (warehouseId != null && !warehouseId.isBlank()) {
+                return new LocationContext(LocationType.WAREHOUSE, warehouseId);
+            }
         }
 
         return new LocationContext(
@@ -100,5 +117,27 @@ public class LocationContextResolver {
                 && user.getRole().getRoleName() != null
                 && WAREHOUSE_MANAGER_ROLE.equalsIgnoreCase(
                         user.getRole().getRoleName().trim());
+    }
+
+    public boolean isSuperAdmin(UserDetails user) {
+        return user != null
+                && user.getRole() != null
+                && user.getRole().getRoleName() != null
+                && SUPER_ADMIN_ROLE.equalsIgnoreCase(
+                        user.getRole().getRoleName().trim());
+    }
+
+    /**
+     * True when the warehouse belongs to the same organization as the user.
+     * This is the authorization rule for a SUPER ADMIN operating on a warehouse:
+     * unlike a warehouse manager (checked via the user&lt;-&gt;warehouse mapping),
+     * a superadmin only needs to be in the warehouse's organization.
+     */
+    public boolean warehouseInUserOrganization(String warehouseId, UserDetails user) {
+        if (warehouseId == null || warehouseId.isBlank() || user == null) {
+            return false;
+        }
+        return warehouseRepository.existsWarehouseInUserOrganization(
+                warehouseId, user.getUserId());
     }
 }
