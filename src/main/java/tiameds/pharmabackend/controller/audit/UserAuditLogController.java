@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.audit.AuditActorDto;
@@ -21,6 +22,7 @@ public class UserAuditLogController {
 
     private final UserAuditLogService userAuditLogService;
 
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/user-logs")
     public ResponseEntity<?> getUserAuditLogs(
             @RequestParam(required = false)
@@ -57,6 +59,7 @@ public class UserAuditLogController {
      * Activity timeline for a single user: by default everything they did plus
      * everything that was done to them. Narrow with scope=ACTOR or scope=TARGET.
      */
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/user-logs/user/{userId}")
     public ResponseEntity<?> getAuditLogsForUser(
             @PathVariable String userId,
@@ -94,6 +97,7 @@ public class UserAuditLogController {
 
 
     /** Values for the "Users" filter dropdown. */
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/user-logs/actors")
     public ResponseEntity<?> getAuditActors(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
@@ -110,6 +114,7 @@ public class UserAuditLogController {
 
 
     /** Values for the "Actions" filter dropdown. */
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/user-logs/actions")
     public ResponseEntity<?> getAuditActions(
             @AuthenticationPrincipal CustomUserDetails currentUser) {

@@ -3,6 +3,7 @@ package tiameds.pharmabackend.controller.purchase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.purchase.PurchaseDto;
@@ -18,6 +19,7 @@ public class PurchaseController {
 
     private final PurchaseService purchaseService;
 
+    @PreAuthorize("@access.has('PURCHASE/PURCHASE/CREATE')")
     @PostMapping("/create")
     public ResponseEntity<?> createPurchase(
             @RequestBody PurchaseDto purchaseDto,
@@ -37,6 +39,7 @@ public class PurchaseController {
 
     // Uniqueness check for supplier + invoice number + invoice year, called by the
     // frontend before a purchase is submitted.
+    @PreAuthorize("@access.has('PURCHASE/PURCHASE/CREATE')")
     @GetMapping("/check-invoice")
     public ResponseEntity<?> checkInvoiceExists(
             @RequestParam Long supplierId,
@@ -58,6 +61,7 @@ public class PurchaseController {
     }
 
 
+    @PreAuthorize("@access.has('PURCHASE/PURCHASE/VIEW')")
     @GetMapping("/allPurchase")
     public ResponseEntity<?> getAllPurchases(
             @AuthenticationPrincipal CustomUserDetails currentUser) {

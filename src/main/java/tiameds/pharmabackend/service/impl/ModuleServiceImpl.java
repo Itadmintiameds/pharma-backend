@@ -12,8 +12,10 @@ import lombok.RequiredArgsConstructor;
 import tiameds.pharmabackend.dto.FeatureDto;
 import tiameds.pharmabackend.dto.ModuleDto;
 import tiameds.pharmabackend.dto.ModuleSummaryDto;
+import tiameds.pharmabackend.dto.PermissionDto;
 import tiameds.pharmabackend.entity.PharmaFeature;
 import tiameds.pharmabackend.entity.PharmaModule;
+import tiameds.pharmabackend.entity.PharmaPermission;
 import tiameds.pharmabackend.repository.PharmaModuleRepository;
 import tiameds.pharmabackend.service.ModuleService;
 
@@ -80,6 +82,20 @@ public class ModuleServiceImpl implements ModuleService {
         dto.setFeatureId(feature.getFeatureId());
         dto.setFeatureCode(feature.getFeatureCode());
         dto.setFeatureName(feature.getFeatureName());
+        dto.setPermissions(feature.getPermissions()
+                .stream()
+                .sorted(Comparator.comparing(PharmaPermission::getPermissionId))
+                .map(this::toPermissionDto)
+                .collect(Collectors.toList()));
+
+        return dto;
+    }
+
+    private PermissionDto toPermissionDto(PharmaPermission permission) {
+
+        PermissionDto dto = new PermissionDto();
+        dto.setPermissionId(permission.getPermissionId());
+        dto.setPermissionName(permission.getPermissionName());
 
         return dto;
     }

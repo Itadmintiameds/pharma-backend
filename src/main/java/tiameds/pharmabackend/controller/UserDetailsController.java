@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -50,6 +51,7 @@ public class UserDetailsController {
                 .body(response);
     }
 
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/CREATE')")
     @PostMapping("/create")
     public ResponseEntity<CreateUserResponseDto> createUser(
             @AuthenticationPrincipal CustomUserDetails currentUser,
@@ -65,6 +67,7 @@ public class UserDetailsController {
                 .body(response);
     }
 
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/all")
     public ResponseEntity<List<UserSummaryDto>> getAllUsers(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
@@ -81,6 +84,7 @@ public class UserDetailsController {
                 userDetailsService.getCurrentUserPermissions(currentUser.getUserId()));
     }
 
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/VIEW')")
     @GetMapping("/{userId}/permissions")
     public ResponseEntity<List<FeaturePermissionsDto>> getUserPermissions(
             @AuthenticationPrincipal CustomUserDetails currentUser,
@@ -90,6 +94,7 @@ public class UserDetailsController {
                 userDetailsService.getUserPermissions(currentUser.getUserId(), userId));
     }
 
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/EDIT')")
     @PutMapping("/{userId}/permissions")
     public ResponseEntity<List<FeaturePermissionsDto>> updateUserPermissions(
             @AuthenticationPrincipal CustomUserDetails currentUser,
@@ -122,6 +127,7 @@ public class UserDetailsController {
     }
 
     // Edit an existing user. Email and password are not editable here.
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/EDIT')")
     @PutMapping("/{userId}")
     public ResponseEntity<UserDetailsDto> updateUser(
             @AuthenticationPrincipal CustomUserDetails currentUser,
@@ -135,6 +141,7 @@ public class UserDetailsController {
                         request));
     }
 
+    @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/ACTIVATE_DEACTIVATE')")
     @PatchMapping("/{userId}/status")
     public ResponseEntity<UserStatusDto> updateUserStatus(
             @AuthenticationPrincipal CustomUserDetails currentUser,
@@ -147,7 +154,6 @@ public class UserDetailsController {
                         userId,
                         request.getUserStatus()));
     }
-
 
     @GetMapping("/{userId}")
     public ResponseEntity<UserDetailsDto> getUserById(

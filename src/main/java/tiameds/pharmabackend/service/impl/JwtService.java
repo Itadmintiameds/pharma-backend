@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.List;
 import java.util.function.Function;
 
 @Service
@@ -28,12 +29,16 @@ public class JwtService {
     }
 
     public String generateAccessToken(
-            tiameds.pharmabackend.entity.UserDetails user) {
+            tiameds.pharmabackend.entity.UserDetails user,
+            List<String> permissions) {
 
         return Jwts.builder()
                 .subject(user.getUserEmail())
                 .claim("userId", user.getUserId())
                 .claim("role", user.getRole().getRoleName())
+                // MODULE/FEATURE/PERMISSION codes embedded so the auth filter can
+                // authorize requests without hitting the DB (see JwtAuthenticationFilter).
+                .claim("permissions", permissions)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessExpiry))
                 .signWith(getKey())
@@ -63,6 +68,24 @@ public class JwtService {
     public String extractUsername(String token) {
 
         return extractClaim(token, Claims::getSubject);
+    }
+
+    /**
+     * Reads the MODULE/FEATURE/PERMISSION codes embedded in the access token.
+     * Returns an empty list for older/refresh tokens that carry no such claim.
+     */
+    @SuppressWarnings("unchecked")
+    public List<String> extractPermissions(String token) {
+
+        Object claim = getClaims(token).get("permissions");
+
+        if (claim instanceof List<?> list) {
+            return list.stream()
+                    .map(String::valueOf)
+                    .toList();
+        }
+
+        return List.of();
     }
 
     public Date extractExpiration(String token) {

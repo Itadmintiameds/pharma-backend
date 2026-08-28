@@ -33,6 +33,7 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
+import tiameds.pharmabackend.security.PermissionCodeFormatter;
 import tiameds.pharmabackend.service.S3Service;
 import tiameds.pharmabackend.service.UserDetailsService;
 
@@ -752,15 +753,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .orElseThrow(() ->
                         new RuntimeException("User not found with id : " + currentUserId));
 
+        // Format each granted permission as MODULE/FEATURE/PERMISSION
+        // e.g. PURCHASE/PURCHASE/VIEW, WAREHOUSE_DISTRIBUTION/WAREHOUSE_DISTRIBUTION/VIEW
+        // Same format is used as a Spring Security authority (see CustomUserDetails).
         List<String> permissionCodes = userFeaturePermissionRepository
                 .findAllByUserIdWithFeature(currentUserId)
                 .stream()
-                .map(row -> row.getFeature().getFeatureCode()
-                        + "_"
-                        + row.getPermission().getPermissionName()
-                                .trim()
-                                .toUpperCase()
-                                .replace(' ', '_'))
+                .map(PermissionCodeFormatter::format)
                 .distinct()
                 .collect(Collectors.toList());
 

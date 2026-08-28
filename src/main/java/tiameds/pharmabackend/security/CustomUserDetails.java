@@ -5,6 +5,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import tiameds.pharmabackend.entity.UserDetails;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -13,8 +14,21 @@ public class CustomUserDetails implements org.springframework.security.core.user
 
     private final UserDetails user;
 
+    /**
+     * MODULE/FEATURE/PERMISSION codes granted to this user
+     * (see {@link PermissionCodeFormatter}). Exposed as authorities so
+     * endpoints can be guarded with
+     * {@code @PreAuthorize("hasAuthority('MODULE/FEATURE/PERMISSION')")}.
+     */
+    private final List<String> permissionCodes;
+
     public CustomUserDetails(UserDetails user) {
+        this(user, List.of());
+    }
+
+    public CustomUserDetails(UserDetails user, List<String> permissionCodes) {
         this.user = user;
+        this.permissionCodes = permissionCodes != null ? permissionCodes : List.of();
     }
 
     public String getUserId() {
@@ -23,9 +37,17 @@ public class CustomUserDetails implements org.springframework.security.core.user
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(
-                new SimpleGrantedAuthority(user.getRole().getRoleName())
-        );
+        List<GrantedAuthority> authorities = new ArrayList<>();
+
+        // Role (kept as-is for existing role-based checks)
+        authorities.add(new SimpleGrantedAuthority(user.getRole().getRoleName()));
+
+        // Fine-grained permissions (MODULE/FEATURE/PERMISSION)
+        for (String code : permissionCodes) {
+            authorities.add(new SimpleGrantedAuthority(code));
+        }
+
+        return authorities;
     }
 
     @Override

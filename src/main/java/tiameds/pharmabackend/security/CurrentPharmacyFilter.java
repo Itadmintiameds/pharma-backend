@@ -74,6 +74,62 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
                         warehouseContext.setCurrentWarehouse(warehouseId);
                         System.out.println("Logged in User : " + currentUser.getUserId());
                     }
+                } else if (locationContextResolver.isSuperAdmin(currentUser.getUser())) {
+
+                    // SUPER ADMIN: operate on a warehouse in their own organization
+                    // when X-Warehouse-Id is sent (authorized by same-organization,
+                    // not by an explicit user<->warehouse mapping); otherwise fall
+                    // back to a pharmacy they belong to via X-Pharmacy-Id (same rule
+                    // as everyone else).
+                    String warehouseId = request.getHeader("X-Warehouse-Id");
+
+                    System.out.println("Header Warehouse (super admin) : " + warehouseId);
+
+                    if (warehouseId != null && !warehouseId.isBlank()) {
+
+                        boolean valid =
+                                locationContextResolver.warehouseInUserOrganization(
+                                        warehouseId,
+                                        currentUser.getUser());
+
+                        if (!valid) {
+
+                            response.sendError(
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "Invalid Warehouse");
+
+                            return;
+                        }
+
+                        warehouseContext.setCurrentWarehouse(warehouseId);
+                        System.out.println("Logged in User : " + currentUser.getUserId());
+
+                    } else {
+
+                        String pharmacyId = request.getHeader("X-Pharmacy-Id");
+
+                        System.out.println("Header Pharmacy (super admin) : " + pharmacyId);
+
+                        if (pharmacyId != null && !pharmacyId.isBlank()) {
+
+                            boolean valid =
+                                    pharmacyRepository.existsUserPharmacy(
+                                            pharmacyId,
+                                            currentUser.getUserId());
+
+                            if (!valid) {
+
+                                response.sendError(
+                                        HttpServletResponse.SC_FORBIDDEN,
+                                        "Invalid Pharmacy");
+
+                                return;
+                            }
+
+                            pharmacyContext.setCurrentPharmacy(pharmacyId);
+                            System.out.println("Logged in User : " + currentUser.getUserId());
+                        }
+                    }
                 } else {
 
                     String pharmacyId =

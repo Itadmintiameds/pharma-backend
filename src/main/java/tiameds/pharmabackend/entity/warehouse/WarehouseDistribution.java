@@ -18,6 +18,13 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "pharma_warehouse_distribution",
+        // Allocation numbers are sequenced per organization (each org starts from 1),
+        // so the same number can recur across organizations — uniqueness is composite
+        // (organization + allocation_no), not global on allocation_no alone.
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_wd_org_allocation_no",
+                        columnNames = {"organization_id", "allocation_no"})
+        },
         indexes = {
                 @Index(name = "idx_wd_destination", columnList = "destination_type, destination_id"),
                 @Index(name = "idx_wd_source", columnList = "source_type, source_id"),
@@ -30,10 +37,18 @@ public class WarehouseDistribution {
     @Column(name = "warehouse_distribution_id")
     private Long warehouseDistributionId;
 
+    // The organization that owns this allocation. Allocation numbers are sequenced
+    // within it, so it also scopes the "next allocation number" lookup.
+    @Column(name = "organization_id", nullable = false)
+    private Long organizationId;
+
     @Column(name = "allocation_mode")       // Create Allocation By Myself or Against Stock Requirement
     private String allocationMode;
 
-    @Column(name = "allocation_no", nullable = false, unique = true)
+    // OLD: globally unique. Now unique only within an organization — see the
+    // composite uk_wd_org_allocation_no constraint on the table above.
+    // @Column(name = "allocation_no", nullable = false, unique = true)
+    @Column(name = "allocation_no", nullable = false)
     private String allocationNo;
 
     @Column(name = "allocation_date")
