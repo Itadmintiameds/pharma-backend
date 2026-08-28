@@ -95,13 +95,31 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         dist.setSourceId(request.getSourceId());
         dist.setDestinationType(request.getDestinationType());
         dist.setDestinationId(request.getDestinationId());
-        // The requesting warehouse is the one the acting warehouse manager is
-        // operating as for this request (X-Warehouse-Id, or their only warehouse),
-        // not a client input — null for non-warehouse-manager actors.
-        dist.setAllocationRequestedBy(
-                locationContextResolver.isWarehouseManager(user)
-                        ? locationContextResolver.resolve(user).getLocationId()
-                        : null);
+        // The requesting warehouse is the one the acting user is operating as for this
+        // request (X-Warehouse-Id, or their only warehouse), not a client input. Stamp
+        // it whenever the acting location resolves to a WAREHOUSE — this covers a
+        // WAREHOUSE MANAGER as well as a SUPER ADMIN operating on a warehouse; a
+        // pharmacy context leaves it null.
+        //
+        // Without this, super-admin-created allocations had a null allocationRequestedBy
+        // and so never appeared in /warehouse/distribution/warehouse/list (outgoing
+        // branch) nor in /warehouse/distribution/warehouse/requested-by/kpi — both key
+        // on allocationRequestedBy.
+        //
+        // OLD: only a warehouse manager was stamped, so super-admin allocations were lost.
+        // dist.setAllocationRequestedBy(
+        //         locationContextResolver.isWarehouseManager(user)
+        //                 ? locationContextResolver.resolve(user).getLocationId()
+        //                 : null);
+        String allocationRequestedBy = null;
+        if (locationContextResolver.isWarehouseManager(user)
+                || locationContextResolver.isSuperAdmin(user)) {
+            LocationContext actingLocation = locationContextResolver.resolve(user);
+            if (actingLocation.getType() == LocationType.WAREHOUSE) {
+                allocationRequestedBy = actingLocation.getLocationId();
+            }
+        }
+        dist.setAllocationRequestedBy(allocationRequestedBy);
         dist.setCreatedBy(actor);
         dist.setCreatedAt(now);
         WarehouseDistribution saved = distributionRepository.save(dist);
