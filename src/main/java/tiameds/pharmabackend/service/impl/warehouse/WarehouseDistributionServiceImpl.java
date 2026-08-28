@@ -74,11 +74,19 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
 
         validateAllocation(request, user);
 
+        // The allocation number is sequenced per organization, so resolve the acting
+        // user's organization before generating it.
+        Long organizationId = organizationService.getUserOrganization(user.getUserId())
+                .getOrganizationId();
+
         WarehouseDistribution dist = new WarehouseDistribution();
+        // Stamp the owning organization so the allocation number is sequenced within
+        // it and the composite (organization_id, allocation_no) uniqueness holds.
+        dist.setOrganizationId(organizationId);
         dist.setAllocationMode(request.getAllocationMode());
         // Server-assigned: any client-supplied allocationNo is ignored so the number
-        // is authoritative and unique.
-        dist.setAllocationNo(allocationNoGenerator.generate());
+        // is authoritative and unique (within the organization).
+        dist.setAllocationNo(allocationNoGenerator.generate(organizationId));
         dist.setAllocationDate(now);
         dist.setDistributionType(request.getDistributionType());
         dist.setReference(request.getReference());
@@ -441,8 +449,12 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
 
     @Override
     @Transactional(readOnly = true)
-    public String peekNextAllocationNo() {
-        return allocationNoGenerator.generate();
+    public String peekNextAllocationNo(UserDetails user) {
+        // Preview the next number for the acting user's organization — same sequence
+        // the authoritative number will be drawn from at create time.
+        Long organizationId = organizationService.getUserOrganization(user.getUserId())
+                .getOrganizationId();
+        return allocationNoGenerator.generate(organizationId);
     }
 
     /**

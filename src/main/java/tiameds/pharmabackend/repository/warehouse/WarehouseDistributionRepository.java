@@ -40,15 +40,18 @@ public interface WarehouseDistributionRepository extends JpaRepository<Warehouse
     List<WarehouseDistribution> findByDestinationTypeAndDestinationId(
             LocationType destinationType, String destinationId, Sort sort);
 
-    // Latest allocation number for a given prefix (e.g. "ALC-2026-"), highest first.
-    // Allocation numbers run as one global yearly sequence.
+    // Latest allocation number for a given prefix (e.g. "ALC-2026-") within an
+    // organization, highest first. Allocation numbers run as one yearly sequence
+    // per organization, so the lookup is scoped by organizationId.
     @Query("""
         SELECT d.allocationNo
         FROM WarehouseDistribution d
-        WHERE d.allocationNo LIKE CONCAT(:prefix, '%')
+        WHERE d.organizationId = :organizationId
+          AND d.allocationNo LIKE CONCAT(:prefix, '%')
         ORDER BY d.allocationNo DESC
     """)
     List<String> findLatestAllocationNo(
+            @Param("organizationId") Long organizationId,
             @Param("prefix") String prefix,
             Pageable pageable
     );

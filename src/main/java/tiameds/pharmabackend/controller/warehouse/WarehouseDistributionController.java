@@ -32,7 +32,8 @@ public class WarehouseDistributionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        return ResponseEntity.ok(Map.of("allocationNo", distributionService.peekNextAllocationNo()));
+        return ResponseEntity.ok(Map.of("allocationNo",
+                distributionService.peekNextAllocationNo(currentUser.getUser())));
     }
 
     // Create an allocation (DISTRIBUTION_CREATED)

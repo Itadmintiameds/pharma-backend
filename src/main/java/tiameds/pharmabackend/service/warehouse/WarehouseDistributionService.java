@@ -86,8 +86,9 @@ public interface WarehouseDistributionService {
     WarehouseDistributionRequestedByKpiResponse getRequestedByKpis(UserDetails user);
 
     /**
-     * Next allocation number for the UI to display on a blank create form.
-     * Preview only — the authoritative number is assigned at create time.
+     * Next allocation number for the UI to display on a blank create form,
+     * scoped to the acting user's organization (each organization has its own
+     * sequence). Preview only — the authoritative number is assigned at create time.
      */
-    String peekNextAllocationNo();
+    String peekNextAllocationNo(UserDetails user);
 }
