@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.entity.master.ProductCategory;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
@@ -21,12 +22,24 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "pharma_product_details")
+@Table(name = "pharma_product_details",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_product_org_name_brand_hsn",
+                columnNames = {"organization_id", "product_name", "brand_name", "hsn_no"}))
 public class ProductDetails {
 
     @Id
     @Column(name = "product_id", length = 30)
     private String productId;
+
+    // Catalog owner: a product is defined once per organization and shared across
+    // all of that organization's locations. Stock stays per-location (Inventory /
+    // WarehouseInventory); the pharmacy/warehouse ManyToMany below is now an
+    // assortment ("which locations carry this product"), not ownership.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id", referencedColumnName = "organization_id")
+    @JsonIgnore
+    private PharmacyOrganization organization;
 
     // OLD: single-pharmacy mapping (ManyToOne). Replaced by ManyToMany below so a
     // product can be shared across multiple pharmacies and warehouses.

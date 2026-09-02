@@ -52,6 +52,38 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
+    // API 1 (org catalog): all products of the caller's organization (derived from the
+    // authenticated user), each with the stock held at the caller's current location
+    // (pharmacy or warehouse, from the header), ordered by stock descending. Products
+    // with no stock at that location still appear (stock 0).
+    @GetMapping("/stock-summary/organization")
+    public ResponseEntity<Map<String, Object>> getProductStockSummariesByOrganization() {
+        List<ProductStockSummaryDto> summaries =
+                pharmaProductService.getProductStockSummariesByOrganization();
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Product stock summaries retrieved successfully");
+        response.put("count", summaries.size());
+        response.put("data", summaries);
+        return ResponseEntity.ok(response);
+    }
+
+    // Pre-onboard duplicate check for the frontend: is there already a product with the
+    // same name, brand and HSN in the caller's organization? (org derived from the user)
+    @GetMapping("/exists")
+    public ResponseEntity<Map<String, Object>> productExists(
+            @RequestParam String productName,
+            @RequestParam(required = false) String brandName,
+            @RequestParam(required = false) String hsnNo) {
+        boolean exists = pharmaProductService
+                .productExistsForOrganization(productName, brandName, hsnNo);
+        Map<String, Object> response = new HashMap<>();
+        response.put("exists", exists);
+        response.put("message", exists
+                ? "A product with the same name, brand and HSN already exists for this organization"
+                : "No matching product found");
+        return ResponseEntity.ok(response);
+    }
+
     // Dashboard KPI: product counts bucketed by nearest in-stock expiry
     @GetMapping("/expiry-kpi")
     public ResponseEntity<Map<String, Object>> getExpiryKpi() {

@@ -10,6 +10,7 @@ import tiameds.pharmabackend.context.LocationContext;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.product.*;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
@@ -36,6 +37,7 @@ import tiameds.pharmabackend.service.product.ProductService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -118,15 +120,36 @@ public class ProductServiceImpl implements ProductService {
         PharmacyDetails pharmacy = null;
         Warehouse warehouse = null;
         String locationName;
+        // The organization that owns this catalog entry, resolved from the location.
+        PharmacyOrganization organization;
 
         if (loc.isWarehouse()) {
             warehouse = warehouseRepo.findById(loc.getLocationId())
                     .orElseThrow(() -> new RuntimeException("Warehouse not found"));
             locationName = warehouse.getWarehouseName();
+            organization = warehouse.getOrganization();
         } else {
             pharmacy = pharmacyRepo.findById(loc.getLocationId())
                     .orElseThrow(() -> new RuntimeException("Pharmacy not found"));
             locationName = pharmacy.getPharmacyName();
+            organization = pharmacy.getOrganization();
+        }
+
+        if (organization == null) {
+            throw new RuntimeException("Location is not linked to an organization; cannot onboard product");
+        }
+
+        // Shared org catalog: reject a duplicate before insert so the friendly error
+        // beats the DB unique constraint (organization_id, product_name, brand_name, hsn_no).
+        boolean duplicate = productRepo
+                .existsByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNo(
+                        organization.getOrganizationId(),
+                        dto.getProductName(),
+                        dto.getBrandName(),
+                        dto.getHsnNo());
+        if (duplicate) {
+            throw new RuntimeException(
+                    "A product with the same name, brand and HSN already exists for this organization");
         }
 
         // Kept the variable name so the id generators below need no change.
@@ -135,6 +158,9 @@ public class ProductServiceImpl implements ProductService {
         String productId = generateProductId(dto.getProductName(), pharmacyName);
 
         ProductDetails product = mapper.toEntity(dto, productId, createdBy, LocalDateTime.now());
+
+        // Own the catalog entry at the organization; locations below are its assortment.
+        product.setOrganization(organization);
 
         // OLD single-pharmacy assignment: product.setPharmacy(pharmacy);
         // Product now maps to many pharmacies/warehouses via ManyToMany.
@@ -290,7 +316,12 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public List<ProductDetailsDto> getAllProducts() {
 
-        return productsForLocation(currentLocation())
+        // Shared org catalog: list every product owned by the caller's organization,
+        // not just those assorted to the current location.
+        // OLD (single-location assortment):
+        // return productsForLocation(currentLocation()) ...
+        Long organizationId = currentOrganizationId(currentLocation());
+        return productRepo.findByOrganization_OrganizationId(organizationId)
                 .stream()
                 .map(mapper::toDto)
                 .collect(Collectors.toList());
@@ -317,6 +348,51 @@ public class ProductServiceImpl implements ProductService {
                         product,
                         stockByProduct.getOrDefault(product.getProductId(), List.of())))
                 .collect(Collectors.toList());
+    }
+
+    // ===== API 1 (org catalog + current-location stock): every product in the
+    // organization, each with the stock held at the location (pharmacy or warehouse)
+    // the caller is currently operating on via the header (0 when that location holds
+    // none), ordered by stock descending =====
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductStockSummaryDto> getProductStockSummariesByOrganization() {
+
+        // The organization is derived from the authenticated user, never taken from the client.
+        Long organizationId = organizationService
+                .getUserOrganization(currentUserOrThrow().getUserId())
+                .getOrganizationId();
+
+        // Stock is scoped to the location (pharmacy or warehouse) the caller is currently
+        // on, resolved from the header exactly like the other stock endpoints; products
+        // with no stock there still appear (with zero stock) because the catalog is org-wide.
+        Map<String, List<StockRow>> stockByProduct =
+                stockRowsForLocation(currentLocation())
+                        .stream()
+                        .filter(row -> row.product() != null)
+                        .collect(Collectors.groupingBy(row -> row.product().getProductId()));
+
+        return productRepo.findByOrganization_OrganizationId(organizationId)
+                .stream()
+                .map(product -> toStockSummary(
+                        product,
+                        stockByProduct.getOrDefault(product.getProductId(), List.of())))
+                .sorted(Comparator.comparingLong(ProductStockSummaryDto::getTotalStock).reversed())
+                .collect(Collectors.toList());
+    }
+
+    // Pre-onboard duplicate check for the frontend: mirrors the guard in onboardProduct so
+    // the UI can warn before submitting. Organization is derived from the authenticated user.
+    @Override
+    @Transactional(readOnly = true)
+    public boolean productExistsForOrganization(String productName, String brandName, String hsnNo) {
+
+        Long organizationId = organizationService
+                .getUserOrganization(currentUserOrThrow().getUserId())
+                .getOrganizationId();
+
+        return productRepo.existsByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNo(
+                organizationId, productName, brandName, hsnNo);
     }
 
     private ProductStockSummaryDto toStockSummary(ProductDetails product, List<StockRow> inventories) {
@@ -901,6 +977,23 @@ public class ProductServiceImpl implements ProductService {
                 : productRepo.findByPharmacies_PharmacyId(loc.getLocationId());
     }
 
+    // Resolves the organization that owns the shared catalog for the current location.
+    // The organization is the tenant boundary for products: the catalog is listed and
+    // authorized at the org level, while stock stays per-location.
+    private Long currentOrganizationId(LocationContext loc) {
+        PharmacyOrganization org = loc.isWarehouse()
+                ? warehouseRepo.findById(loc.getLocationId())
+                        .orElseThrow(() -> new RuntimeException("Warehouse not found"))
+                        .getOrganization()
+                : pharmacyRepo.findById(loc.getLocationId())
+                        .orElseThrow(() -> new RuntimeException("Pharmacy not found"))
+                        .getOrganization();
+        if (org == null) {
+            throw new RuntimeException("Current location is not linked to an organization");
+        }
+        return org.getOrganizationId();
+    }
+
     private List<BatchDetails> batchesForLocation(LocationContext loc) {
         return loc.isWarehouse()
                 ? batchRepo.findByProduct_Warehouses_WarehouseId(loc.getLocationId())
@@ -942,8 +1035,13 @@ public class ProductServiceImpl implements ProductService {
                     .findByWarehouse_WarehouseIdAndProduct_ProductId(loc.getLocationId(), productId)
                     .stream().map(StockRow::of).collect(Collectors.toList());
         }
-        // Pharmacy path preserved as-is: stock summed across the product's rows.
-        return inventoryRepo.findByProduct_ProductId(productId)
+        // Scope to the current pharmacy so a product's stock reflects only this pharmacy,
+        // not rows belonging to sibling pharmacies of the shared org catalog.
+        // OLD (unscoped, leaked other pharmacies' stock):
+        // return inventoryRepo.findByProduct_ProductId(productId)
+        //         .stream().map(StockRow::of).collect(Collectors.toList());
+        return inventoryRepo
+                .findByPharmacy_PharmacyIdAndProduct_ProductId(loc.getLocationId(), productId)
                 .stream().map(StockRow::of).collect(Collectors.toList());
     }
 
@@ -977,37 +1075,48 @@ public class ProductServiceImpl implements ProductService {
 
         LocationContext loc = currentLocation();
 
-        // Warehouse manager: the product must be mapped to their warehouse.
-        if (loc.isWarehouse()) {
-            boolean authorized = product.getWarehouses() != null
-                    && product.getWarehouses().stream()
-                    .anyMatch(w -> w.getWarehouseId().equals(loc.getLocationId()));
-            if (!authorized) {
-                throw new RuntimeException(
-                        "You are not authorized to access this product.");
-            }
-            return;
+        // Shared org catalog: a product is accessible to any location of the organization
+        // that owns it, so authorization is org-scoped rather than per-location assortment.
+        if (product.getOrganization() == null) {
+            throw new RuntimeException("Product is not mapped to any organization.");
+        }
+        Long callerOrgId = currentOrganizationId(loc);
+        if (!product.getOrganization().getOrganizationId().equals(callerOrgId)) {
+            throw new RuntimeException("You are not authorized to access this product.");
         }
 
-        String currentPharmacy = loc.getLocationId();
-
-        // OLD single-pharmacy authorization:
-        // if (product.getPharmacy() == null) {
+        // OLD (per-location assortment) authorization — replaced by the org-scoped check above:
+        // // Warehouse manager: the product must be mapped to their warehouse.
+        // if (loc.isWarehouse()) {
+        //     boolean authorized = product.getWarehouses() != null
+        //             && product.getWarehouses().stream()
+        //             .anyMatch(w -> w.getWarehouseId().equals(loc.getLocationId()));
+        //     if (!authorized) {
+        //         throw new RuntimeException(
+        //                 "You are not authorized to access this product.");
+        //     }
+        //     return;
+        // }
+        //
+        // String currentPharmacy = loc.getLocationId();
+        //
+        // // OLD single-pharmacy authorization:
+        // // if (product.getPharmacy() == null) {
+        // //     throw new RuntimeException("Product is not mapped to any pharmacy.");
+        // // }
+        // // if (!product.getPharmacy().getPharmacyId().equals(currentPharmacy)) {
+        // //     throw new RuntimeException("You are not authorized to access this product.");
+        // // }
+        // if (product.getPharmacies() == null || product.getPharmacies().isEmpty()) {
         //     throw new RuntimeException("Product is not mapped to any pharmacy.");
         // }
-        // if (!product.getPharmacy().getPharmacyId().equals(currentPharmacy)) {
-        //     throw new RuntimeException("You are not authorized to access this product.");
+        //
+        // boolean authorized = product.getPharmacies().stream()
+        //         .anyMatch(p -> p.getPharmacyId().equals(currentPharmacy));
+        // if (!authorized) {
+        //     throw new RuntimeException(
+        //             "You are not authorized to access this product.");
         // }
-        if (product.getPharmacies() == null || product.getPharmacies().isEmpty()) {
-            throw new RuntimeException("Product is not mapped to any pharmacy.");
-        }
-
-        boolean authorized = product.getPharmacies().stream()
-                .anyMatch(p -> p.getPharmacyId().equals(currentPharmacy));
-        if (!authorized) {
-            throw new RuntimeException(
-                    "You are not authorized to access this product.");
-        }
     }
 
     private synchronized String generateProductId(String productName, String pharmacyName) {
