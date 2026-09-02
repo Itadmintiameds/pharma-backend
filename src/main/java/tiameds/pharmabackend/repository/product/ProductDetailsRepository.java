@@ -25,4 +25,13 @@ public interface ProductDetailsRepository extends JpaRepository<ProductDetails, 
 
     // all products mapped to a single warehouse (Product <-> Warehouse ManyToMany)
     List<ProductDetails> findByWarehouses_WarehouseId(String warehouseId);
+
+    // Shared org catalog: all products owned by one organization.
+    List<ProductDetails> findByOrganization_OrganizationId(Long organizationId);
+
+    // Per-org catalog de-dup guard. Mirrors the DB unique constraint
+    // (organization_id, product_name, brand_name, hsn_no). Note: like the DB
+    // constraint, null brand/hsn are treated as distinct and won't collide here.
+    boolean existsByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNo(
+            Long organizationId, String productName, String brandName, String hsnNo);
 }

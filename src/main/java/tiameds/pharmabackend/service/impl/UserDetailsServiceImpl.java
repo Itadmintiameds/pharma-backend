@@ -35,6 +35,7 @@ import tiameds.pharmabackend.repository.UserFeaturePermissionRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.security.PermissionCodeFormatter;
 import tiameds.pharmabackend.service.S3Service;
+import tiameds.pharmabackend.service.TermsPolicyService;
 import tiameds.pharmabackend.service.UserDetailsService;
 
 import java.io.IOException;
@@ -67,6 +68,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final CurrentPharmacyContext pharmacyContext;
     private final UserAuditRecorder userAuditRecorder;
     private final UserIdGeneratorService userIdGeneratorService;
+    private final TermsPolicyService termsPolicyService;
 
     private static final DateTimeFormatter IMAGE_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -99,7 +101,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
 
     @Override
-    public UserDetailsDto registerUser(UserDetailsDto userDetailsDto) {
+    public UserDetailsDto registerUser(UserDetailsDto userDetailsDto, String ipAddress) {
 
         Long roleId = 1L;
 
@@ -129,6 +131,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         UserDetails savedUser =
                 userDetailsRepository.save(user);
+
+        // Records consent against the live policy version. organization_id stays
+        // null here and is backfilled once the organization is created.
+        termsPolicyService.recordRegistrationAcceptance(
+                savedUser,
+                userDetailsDto.getAcceptedTerms(),
+                ipAddress);
 
         return userDetailsMapper.toDto(savedUser);
     }

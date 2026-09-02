@@ -30,7 +30,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     // can be accessed with the API key
     private static final List<String> ALLOWED_API_KEY_PATHS = List.of(
             "/pharmacy/**",
-            "/organization/reject/**"
+            "/organization/reject/**",
+            // publishing the terms & privacy policy is a platform-operator action:
+            // it happens before any tenant exists, so there is no user to log in as
+            "/admin/terms/**"
     );
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
