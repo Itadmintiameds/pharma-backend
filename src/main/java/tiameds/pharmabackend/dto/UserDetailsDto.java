@@ -39,4 +39,9 @@ public class UserDetailsDto {
     
     private List<UserFeaturePermissionDto> permissions;
 
+    // Consent captured on the registration form. Write-only: an input to the
+    // acceptance ledger, not a user attribute, so it is never echoed back.
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private Boolean acceptedTerms;
+
 }

@@ -56,6 +56,8 @@ public class SecurityConfig {
                                 "/verification/**",
                                 "/user/registration",
                                 "/user/check-email",
+                                // the registration screen renders the terms before any account exists
+                                "/terms/**",
                                 "/error",
                                 "/pharmacyDocuments"
 //                                "/pharmacy/**",

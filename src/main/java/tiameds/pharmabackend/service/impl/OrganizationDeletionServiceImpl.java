@@ -149,6 +149,9 @@ public class OrganizationDeletionServiceImpl implements OrganizationDeletionServ
                 "DELETE FROM pharma_refresh_token WHERE user_id IN (" + ORG_USERS + ")", organizationId));
         deleted.put("pharma_otp", execOrg(
                 "DELETE FROM pharma_otp WHERE user_id IN (" + ORG_USERS + ")", organizationId));
+        // consent ledger: FK -> pharma_user_details, so it must go before the users
+        deleted.put("pharma_user_policy_acceptance", execOrg(
+                "DELETE FROM pharma_user_policy_acceptance WHERE user_id IN (" + ORG_USERS + ")", organizationId));
         // user<->pharmacy join: clear rows for this org's users OR this org's pharmacies
         deleted.put("pharma_user_pharmacy", execOrg(
                 "DELETE FROM pharma_user_pharmacy WHERE user_id IN (" + ORG_USERS + ") " +

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
@@ -41,14 +42,41 @@ public class UserDetailsController {
 
     @PostMapping("/registration")
     public ResponseEntity<UserDetailsDto> registerUser(
-            @RequestBody UserDetailsDto userDetailsDto) {
+            @RequestBody UserDetailsDto userDetailsDto,
+            HttpServletRequest request) {
         System.out.println("CONTROLLER HIT");
         UserDetailsDto response =
-                userDetailsService.registerUser(userDetailsDto);
+                userDetailsService.registerUser(
+                        userDetailsDto,
+                        resolveClientIp(request));
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    /**
+     * Client address for the consent record.
+     * <p>
+     * Behind a load balancer or CDN, getRemoteAddr() returns the proxy, so the
+     * first X-Forwarded-For entry is used when present. That header is
+     * client-spoofable unless the proxy overwrites it — treat the value as
+     * supporting evidence, not proof.
+     */
+    private static String resolveClientIp(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            String first = forwardedFor.split(",")[0].trim();
+            if (!first.isEmpty()) {
+                return first;
+            }
+        }
+
+        return request.getRemoteAddr();
     }
 
     @PreAuthorize("@access.has('USER_MANAGEMENT/USER_MANAGEMENT/CREATE')")
