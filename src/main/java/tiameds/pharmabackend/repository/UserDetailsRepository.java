@@ -47,6 +47,19 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, String
             @Param("pharmacyId") String pharmacyId
     );
 
+    // Employee ids are unique per organization (a user can access multiple
+    // pharmacies under the same organization), so scope the check to the org.
+    @Query("""
+    SELECT COUNT(u) > 0
+    FROM UserDetails u
+    WHERE u.organization.organizationId = :organizationId
+      AND u.employeeId = :employeeId
+""")
+    boolean existsByEmployeeIdAndOrganizationId(
+            @Param("employeeId") String employeeId,
+            @Param("organizationId") Long organizationId
+    );
+
     // OLD: single warehouse per user.
     // @Query("""
     //         SELECT u.warehouse.warehouseId
