@@ -793,6 +793,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
             pk.setPackagingId(packaging.getPackagingId());
             pk.setPurchaseUnit(packaging.getPurchaseUnit());
             pk.setPurchaseUnitContains(packaging.getPurchaseUnitContains());
+            pk.setPurchaseSmallestUnit(packaging.getPurchaseSmallestUnit().getPurchaseSmallestUnitName());
             dto.setPackaging(pk);
         }
 
