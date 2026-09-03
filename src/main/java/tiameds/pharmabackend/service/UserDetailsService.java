@@ -17,7 +17,11 @@ import java.util.List;
 
 public interface UserDetailsService {
 
-    UserDetailsDto registerUser(UserDetailsDto userDetailsDto);
+    /**
+     * @param ipAddress best-effort client address, recorded on the consent row.
+     *                  Resolved in the controller, where the request is available.
+     */
+    UserDetailsDto registerUser(UserDetailsDto userDetailsDto, String ipAddress);
 
     CreateUserResponseDto createUserWithPermissions(
             String currentUserId,

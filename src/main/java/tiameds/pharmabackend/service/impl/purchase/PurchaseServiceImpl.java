@@ -120,6 +120,10 @@ public class PurchaseServiceImpl implements PurchaseService {
                 detail.setProduct(product);
                 detail.setBatch(batch);
 
+                // Stock arriving here also maps the product to this pharmacy so it shows
+                // in the pharmacy's product/stock views (mirrors mapProductToWarehouse in
+                // WarehouseInventoryAdjuster.increment).
+                mapProductToPharmacy(product, pharmacy);
             }
         }
 
@@ -169,8 +173,18 @@ public class PurchaseServiceImpl implements PurchaseService {
                 // Stock in smallest units, free stock included
                 Long stockQty = (purchaseQty + freeQty) * purchaseUnitContains;
 
+                // BUG FIX: the lookup must be scoped to THIS pharmacy. The product catalog
+                // is shared org-wide, so an unscoped (product, packaging, batch) lookup found
+                // another pharmacy's inventory row and incremented it. Scope by pharmacy so
+                // each pharmacy keeps its own stock row (matches the table's unique key
+                // pharmacy_id + product_id + packaging_id + batch_id).
+                // OLD (unscoped, leaked stock across pharmacies):
+                // Inventory inventory = inventoryRepository
+                //         .findByProductAndPackagingAndBatch(product, packaging, batch)
+                //         .orElse(null);
                 Inventory inventory = inventoryRepository
-                        .findByProductAndPackagingAndBatch(product, packaging, batch)
+                        .findByPharmacy_PharmacyIdAndProductAndPackagingAndBatch(
+                                pharmacyId, product, packaging, batch)
                         .orElse(null);
 
                 if (inventory == null) {
@@ -430,6 +444,17 @@ public class PurchaseServiceImpl implements PurchaseService {
                 year);
     }
 
+
+    // Ensures the product is listed under this pharmacy so it shows in the pharmacy's
+    // product/stock views. The product catalog is shared org-wide, so a purchase into a
+    // pharmacy that doesn't yet carry the product must add it to the assortment.
+    private void mapProductToPharmacy(ProductDetails product, PharmacyDetails pharmacy) {
+        boolean mapped = product.getPharmacies().stream()
+                .anyMatch(p -> pharmacy.getPharmacyId().equals(p.getPharmacyId()));
+        if (!mapped) {
+            product.getPharmacies().add(pharmacy);
+        }
+    }
 
     private String generateGrnNo(String pharmacyId) {
 

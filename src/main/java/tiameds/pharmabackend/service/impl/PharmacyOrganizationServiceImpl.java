@@ -18,6 +18,7 @@ import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.impl.warehouse.WarehouseIdGenerator;
 import tiameds.pharmabackend.service.PharmacyOrganizationService;
 import tiameds.pharmabackend.service.S3Service;
+import tiameds.pharmabackend.service.TermsPolicyService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -37,6 +38,7 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
     private final WarehouseMapper warehouseMapper;
     private final WarehouseIdGenerator warehouseIdGenerator;
     private final S3Service s3Service;
+    private final TermsPolicyService termsPolicyService;
 
     private static final DateTimeFormatter LOGO_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -64,6 +66,12 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
         persistentUser.setOrganization(savedOrganization);
 
         userDetailsRepository.save(persistentUser);
+
+        // The consent recorded at registration predates this organization, so its
+        // organization_id was left null. Stamp it now that the org exists.
+        termsPolicyService.backfillOrganization(
+                persistentUser.getUserId(),
+                savedOrganization.getOrganizationId());
 
         // Flow 3: centrally-managed organization -> create the central warehouse(s) using
         // the details sent from the frontend. Products will be purchased into this

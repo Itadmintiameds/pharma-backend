@@ -21,6 +21,14 @@ public interface ProductService {
     // API 1: all products of the current pharmacy with stock + expiry status
     List<ProductStockSummaryDto> getProductStockSummaries();
 
+    // API 1 (org catalog): all products of the caller's organization, each with the
+    // stock held at the caller's current location, ordered by stock descending
+    List<ProductStockSummaryDto> getProductStockSummariesByOrganization();
+
+    // Pre-onboard duplicate check: true when a product with the same name, brand and HSN
+    // already exists for the caller's organization (mirrors the onboard dedup guard).
+    boolean productExistsForOrganization(String productName, String brandName, String hsnNo);
+
     // API 2: complete details of one product with batches grouped per package
     ProductDetailResponseDto getProductDetails(String productId);
 
