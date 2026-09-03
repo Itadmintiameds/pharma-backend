@@ -38,6 +38,7 @@ public class WarehouseDistributionLineResponse {
         private String packagingId;
         private String purchaseUnit;
         private Long purchaseUnitContains;
+        private String purchaseSmallestUnit;
     }
 
     @Data
