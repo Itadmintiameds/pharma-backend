@@ -966,22 +966,38 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     public boolean checkEmployeeIdExists(String employeeId, UserDetails user) {
 
-        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+        // Load the user together with its organization (organization is LAZY),
+        // since one user can access multiple pharmacies under the same organization.
+        UserDetails persistentUser = userDetailsRepository.findByUserIdWithOrganization(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
-
-        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
-                pharmacyId,
-                persistentUser.getUserId());
-
-        if (!valid) {
-            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        if (persistentUser.getOrganization() == null) {
+            throw new RuntimeException("User is not mapped to any organization.");
         }
 
-        return userDetailsRepository.existsByEmployeeIdAndPharmacyId(
+        Long organizationId = persistentUser.getOrganization().getOrganizationId();
+
+        // OLD: employee id uniqueness was scoped to the current pharmacy. Since a
+        // single user can belong to multiple pharmacies within one organization,
+        // scope the check to the organization instead.
+        // String pharmacyId = pharmacyContext.getCurrentPharmacy();
+        //
+        // boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+        //         pharmacyId,
+        //         persistentUser.getUserId());
+        //
+        // if (!valid) {
+        //     throw new RuntimeException("You are not authorized to use this pharmacy.");
+        // }
+        //
+        // return userDetailsRepository.existsByEmployeeIdAndPharmacyId(
+        //         employeeId,
+        //         pharmacyId
+        // );
+
+        return userDetailsRepository.existsByEmployeeIdAndOrganizationId(
                 employeeId,
-                pharmacyId
+                organizationId
         );
     }
 }
