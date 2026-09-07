@@ -14,6 +14,10 @@ import java.util.List;
 
 public interface ProductService {
     ProductDetailsDto onboardProduct(ProductDetailsDto dto);
+
+    // Partial update of an existing product: only the fields/lists present on the dto
+    // are applied, everything omitted (null) is left as it is.
+    ProductDetailsDto updateProduct(String productId, ProductDetailsDto dto);
     java.util.List<ProductDetailsDto> getAllProducts();
     ProductDetailsDto getProductById(String productId);
     void deleteProduct(String productId);
