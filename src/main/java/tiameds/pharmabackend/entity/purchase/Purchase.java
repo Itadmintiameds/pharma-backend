@@ -47,6 +47,9 @@ public class Purchase {
     @Column(name = "invoice_date")
     private LocalDateTime invoiceDate;
 
+    @Column(name = "invoice_amount")
+    private BigDecimal invoiceAmount;
+
     @Column(name = "payment_type")
     private String paymentType;
 

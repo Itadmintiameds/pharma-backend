@@ -12,7 +12,7 @@ public class ProductDetailsDto {
     private Long productCategoryId;
     private String productName;
     private String brandName;
-    private BigDecimal gstPercentage;
+    private String gstPercentage;
     private String hsnNo;
     
     private List<ProductAttributeDrugDto> productAttributeDrugs;

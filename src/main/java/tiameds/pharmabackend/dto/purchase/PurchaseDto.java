@@ -17,6 +17,7 @@ public class PurchaseDto {
     private String grnNo;
     private String invoiceNo;
     private LocalDateTime invoiceDate;
+    private BigDecimal invoiceAmount;
     private String paymentType;
     private Long creditDays;
     private String supplierPaymentStatus;

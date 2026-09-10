@@ -81,7 +81,7 @@ public class ProductDetails {
     private String brandName;
 
     @Column(name = "gst_percentage", precision = 5, scale = 2)
-    private BigDecimal gstPercentage;
+    private String gstPercentage;
 
     @Column(name = "hsn_no", length = 20)
     private String hsnNo;

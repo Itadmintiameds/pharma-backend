@@ -24,7 +24,7 @@ public class BatchStockDto {
     private String productId;
     private String productName;
     private String brandName;
-    private BigDecimal gstPercentage;
+    private String gstPercentage;
     private String hsnNo;
 
     // ===== packaging =====
