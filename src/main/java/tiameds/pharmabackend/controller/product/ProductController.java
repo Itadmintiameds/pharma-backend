@@ -31,6 +31,22 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
+    // Partial update of an existing product. Everything in the body is optional —
+    // omitted fields and omitted lists are left as they are. Scoped by the same
+    // X-Pharmacy-Id / X-Warehouse-Id header as onboarding.
+    @PutMapping("/{productId}")
+    public ResponseEntity<Map<String, Object>> updateProduct(
+            @PathVariable String productId,
+            @RequestBody ProductDetailsDto dto) {
+        ProductDetailsDto updated = pharmaProductService.updateProduct(productId, dto);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Product successfully updated with ID: " + updated.getProductId());
+        response.put("data", updated);
+
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllProducts() {
         java.util.List<ProductDetailsDto> products = pharmaProductService.getAllProducts();

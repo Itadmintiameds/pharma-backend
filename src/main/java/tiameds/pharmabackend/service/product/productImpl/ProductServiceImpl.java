@@ -293,6 +293,244 @@ public class ProductServiceImpl implements ProductService {
         return mapper.toDto(product);
     }
 
+    // ===== Partial update of an existing product =====
+    // Everything is optional: a null field / null list means "keep as it is".
+    //  - product scalars      -> set only when present
+    //  - packagingDetails[]   -> entry with packagingId updates that package (field-wise,
+    //                            nulls kept); entry without one adds a new package
+    //  - batchDetails[]       -> entry with batchId updates that batch (field-wise, nulls
+    //                            kept); entry without one adds a new batch
+    //  - attribute lists      -> a present list replaces that attribute type wholesale,
+    //                            an omitted list leaves it untouched
+    // The pharmacy/warehouse header is mandatory here exactly as on onboarding: the
+    // location is resolved from it and the product must belong to the caller's organization.
+    @Override
+    @Transactional
+    public ProductDetailsDto updateProduct(String productId, ProductDetailsDto dto) {
+
+        if (dto == null) {
+            throw new RuntimeException("Request body is required.");
+        }
+
+        ProductDetails product = productRepo.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+
+        // Resolves the location from X-Warehouse-Id / X-Pharmacy-Id and enforces that the
+        // product belongs to the caller's organization.
+        checkAuthorization(product);
+
+        String modifiedBy = resolveCreatedBy();
+        LocalDateTime now = LocalDateTime.now();
+        String locationName = resolvePharmacyName(product);
+
+        // ---- product level fields ----
+        String newName = dto.getProductName() != null ? dto.getProductName() : product.getProductName();
+        String newBrand = dto.getBrandName() != null ? dto.getBrandName() : product.getBrandName();
+        String newHsn = dto.getHsnNo() != null ? dto.getHsnNo() : product.getHsnNo();
+
+        boolean identityChanged =
+                !java.util.Objects.equals(newName, product.getProductName())
+                        || !java.util.Objects.equals(newBrand, product.getBrandName())
+                        || !java.util.Objects.equals(newHsn, product.getHsnNo());
+
+        if (identityChanged) {
+            boolean duplicate = productRepo
+                    .existsByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNoAndProductIdNot(
+                            product.getOrganization().getOrganizationId(),
+                            newName, newBrand, newHsn, productId);
+            if (duplicate) {
+                throw new RuntimeException(
+                        "A product with the same name, brand and HSN already exists for this organization");
+            }
+        }
+
+        product.setProductName(newName);
+        product.setBrandName(newBrand);
+        product.setHsnNo(newHsn);
+
+        if (dto.getGstPercentage() != null) {
+            product.setGstPercentage(dto.getGstPercentage());
+        }
+        if (dto.getProductCategoryId() != null) {
+            tiameds.pharmabackend.entity.master.ProductCategory cat =
+                    new tiameds.pharmabackend.entity.master.ProductCategory();
+            cat.setProductCategoryId(dto.getProductCategoryId());
+            product.setProductCategory(cat);
+        }
+        product.setModifiedBy(modifiedBy);
+        product.setModifiedAt(now);
+
+        // ---- packaging details ----
+        if (product.getPackagingDetails() == null) {
+            product.setPackagingDetails(new ArrayList<>());
+        }
+        Map<String, PackagingDetails> ownPackages = product.getPackagingDetails().stream()
+                .collect(Collectors.toMap(PackagingDetails::getPackagingId, p -> p));
+
+        if (dto.getPackagingDetails() != null) {
+            // ids for the packages being added are reserved in one block: the id generator
+            // only sees persisted rows, so generating them one by one would collide.
+            List<String> newPackagingIds = nextPackagingIds(locationName,
+                    (int) dto.getPackagingDetails().stream()
+                            .filter(p -> isBlank(p.getPackagingId()))
+                            .count());
+            int newPackagingIndex = 0;
+
+            for (PackagingDetailsDto pDto : dto.getPackagingDetails()) {
+                if (!isBlank(pDto.getPackagingId())) {
+                    PackagingDetails pkg = ownPackages.get(pDto.getPackagingId());
+                    if (pkg == null) {
+                        throw new RuntimeException("Packaging " + pDto.getPackagingId()
+                                + " does not belong to product " + productId);
+                    }
+                    if (pDto.getPurchaseUnitContains() != null) {
+                        pkg.setPurchaseUnitContains(pDto.getPurchaseUnitContains());
+                    }
+                    if (pDto.getPurchaseSmallestUnitId() != null) {
+                        // also refreshes the derived purchaseUnit string
+                        inventoryMapper.applyPurchaseSmallestUnit(pkg, pDto.getPurchaseSmallestUnitId());
+                    }
+                    pkg.setModifiedBy(modifiedBy);
+                    pkg.setModifiedAt(now);
+                } else {
+                    PackagingDetails pkg = inventoryMapper.toEntity(pDto, modifiedBy, now);
+                    pkg.setPackagingId(newPackagingIds.get(newPackagingIndex++));
+                    pkg.setProduct(product);
+                    pkg.setModifiedBy(modifiedBy);
+                    pkg.setModifiedAt(now);
+                    product.getPackagingDetails().add(pkg);
+                    ownPackages.put(pkg.getPackagingId(), pkg);
+                    pDto.setPackagingId(pkg.getPackagingId());
+                }
+            }
+        }
+
+        // ---- batch details ----
+        if (product.getBatchDetails() == null) {
+            product.setBatchDetails(new ArrayList<>());
+        }
+        Map<String, BatchDetails> ownBatches = product.getBatchDetails().stream()
+                .collect(Collectors.toMap(BatchDetails::getBatchId, b -> b));
+
+        if (dto.getBatchDetails() != null) {
+            List<String> newBatchIds = nextBatchIds(locationName,
+                    (int) dto.getBatchDetails().stream()
+                            .filter(b -> isBlank(b.getBatchId()))
+                            .count());
+            int newBatchIndex = 0;
+
+            for (BatchDetailsDto bDto : dto.getBatchDetails()) {
+                BatchDetails batch;
+
+                if (!isBlank(bDto.getBatchId())) {
+                    batch = ownBatches.get(bDto.getBatchId());
+                    if (batch == null) {
+                        throw new RuntimeException("Batch " + bDto.getBatchId()
+                                + " does not belong to product " + productId);
+                    }
+                } else {
+                    batch = new BatchDetails();
+                    batch.setBatchId(newBatchIds.get(newBatchIndex++));
+                    batch.setProduct(product);
+                    batch.setCreatedBy(modifiedBy);
+                    batch.setCreatedAt(now);
+                    if (isBlank(bDto.getBatchNumber())) {
+                        throw new RuntimeException("batchNumber is required for a new batch.");
+                    }
+                    // A new batch must say which package it belongs to, unless the
+                    // product has exactly one package to fall back on.
+                    if (isBlank(bDto.getPackagingId())) {
+                        if (product.getPackagingDetails().size() != 1) {
+                            throw new RuntimeException(
+                                    "packagingId is required for a new batch when the product has "
+                                            + product.getPackagingDetails().size() + " packages.");
+                        }
+                        batch.setPackagingDetails(product.getPackagingDetails().get(0));
+                    }
+                    product.getBatchDetails().add(batch);
+                    ownBatches.put(batch.getBatchId(), batch);
+                    bDto.setBatchId(batch.getBatchId());
+                }
+
+                // Re-linking to another package of the same product is allowed.
+                if (!isBlank(bDto.getPackagingId())) {
+                    PackagingDetails pkg = ownPackages.get(bDto.getPackagingId());
+                    if (pkg == null) {
+                        throw new RuntimeException("Packaging " + bDto.getPackagingId()
+                                + " does not belong to product " + productId);
+                    }
+                    batch.setPackagingDetails(pkg);
+                }
+
+                if (bDto.getBatchNumber() != null) batch.setBatchNumber(bDto.getBatchNumber());
+                if (bDto.getManufacturingDate() != null) batch.setManufacturingDate(bDto.getManufacturingDate());
+                if (bDto.getExpiryDate() != null) batch.setExpiryDate(bDto.getExpiryDate());
+                if (bDto.getPurchaseUnit() != null) batch.setPurchaseUnit(bDto.getPurchaseUnit());
+                if (bDto.getPurchasePrice() != null) batch.setPurchasePrice(bDto.getPurchasePrice());
+                if (bDto.getMrp() != null) batch.setMrp(bDto.getMrp());
+                if (bDto.getSellingPrice() != null) batch.setSellingPrice(bDto.getSellingPrice());
+                if (bDto.getPurchasePricePerUnit() != null) batch.setPurchasePricePerUnit(bDto.getPurchasePricePerUnit());
+                if (bDto.getMrpPerUnit() != null) batch.setMrpPerUnit(bDto.getMrpPerUnit());
+                if (bDto.getSellingPricePerUnit() != null) batch.setSellingPricePerUnit(bDto.getSellingPricePerUnit());
+                if (bDto.getRackLocation() != null) batch.setRackLocation(bDto.getRackLocation());
+                batch.setModifiedBy(modifiedBy);
+                batch.setModifiedAt(now);
+            }
+        }
+
+        // ---- attributes ----
+        // Attribute ids are deterministic per product (_SUPP, _COSM, ... , _DRUG_n), so the
+        // rows being replaced are deleted and flushed first; otherwise the re-inserted rows
+        // would clash with the ones still pending deletion in the same flush.
+        boolean attributesTouched = clearReplacedAttributes(product, dto);
+        if (attributesTouched) {
+            productRepo.saveAndFlush(product);
+        }
+        mapper.applyAttributeUpdates(product, dto, modifiedBy, now);
+
+        productRepo.save(product);
+        return mapper.toDto(product);
+    }
+
+    /**
+     * Empties the attribute collections the request is replacing.
+     * Returns true when at least one collection was cleared (i.e. a flush is needed).
+     */
+    private boolean clearReplacedAttributes(ProductDetails product, ProductDetailsDto dto) {
+        boolean touched = false;
+        if (dto.getProductAttributeSupplements() != null && product.getProductAttributeSupplements() != null) {
+            product.getProductAttributeSupplements().clear();
+            touched = true;
+        }
+        if (dto.getProductAttributeCosmetics() != null && product.getProductAttributeCosmetics() != null) {
+            product.getProductAttributeCosmetics().clear();
+            touched = true;
+        }
+        if (dto.getProductAttributeFoodInfants() != null && product.getProductAttributeFoodInfants() != null) {
+            product.getProductAttributeFoodInfants().clear();
+            touched = true;
+        }
+        if (dto.getProductAttributeConsumableMedicals() != null
+                && product.getProductAttributeConsumableMedicals() != null) {
+            product.getProductAttributeConsumableMedicals().clear();
+            touched = true;
+        }
+        if (dto.getProductAttributeNonConsumableMedicals() != null
+                && product.getProductAttributeNonConsumableMedicals() != null) {
+            product.getProductAttributeNonConsumableMedicals().clear();
+            touched = true;
+        }
+        if (dto.getProductAttributeDrugs() != null && product.getProductAttributeDrugs() != null) {
+            product.getProductAttributeDrugs().clear();
+            touched = true;
+        }
+        return touched;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
 //    @Override
 //    @Transactional(readOnly = true)
 //    public java.util.List<ProductDetailsDto> getAllProducts() {
@@ -1195,6 +1433,22 @@ public class ProductServiceImpl implements ProductService {
         int next = (lastNumber == null) ? 0 : lastNumber;
         for (int i = 0; i < count; i++) {
             ids.add(prefix + "BTCH" + String.format("%05d", ++next));
+        }
+        return ids;
+    }
+
+    // Same idea as nextBatchIds: reserve a contiguous block so several packages added in
+    // one request don't collide (findMaxPackagingNumber only sees persisted rows).
+    private synchronized List<String> nextPackagingIds(String pharmacyName, int count) {
+        List<String> ids = new ArrayList<>();
+        if (count <= 0) {
+            return ids;
+        }
+        String prefix = pharmacyPrefix(pharmacyName);
+        Integer lastNumber = packagingRepo.findMaxPackagingNumber();
+        int next = (lastNumber == null) ? 0 : lastNumber;
+        for (int i = 0; i < count; i++) {
+            ids.add(prefix + "PKG" + String.format("%05d", ++next));
         }
         return ids;
     }

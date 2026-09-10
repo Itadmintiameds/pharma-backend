@@ -158,6 +158,150 @@ public class ProductMapper {
     }
 
 
+    /**
+     * Partial update of a product's attribute lists.
+     * <p>
+     * Only the lists that are present (non-null) on the dto are rebuilt; a null list
+     * means "leave that attribute type exactly as it is". A present-but-empty list
+     * clears the attribute type.
+     * <p>
+     * The attribute ids are deterministic per product (same suffixes as onboarding),
+     * so the caller must have cleared and flushed the lists being replaced before
+     * calling this — otherwise the re-inserted rows collide with the rows still
+     * pending deletion.
+     */
+    public void applyAttributeUpdates(ProductDetails product, ProductDetailsDto dto,
+                                      String modifiedBy, LocalDateTime modifiedAt) {
+        if (product == null || dto == null) return;
+        String productId = product.getProductId();
+
+        if (dto.getProductAttributeSupplements() != null) {
+            List<ProductAttributeSupplements> list = new ArrayList<>();
+            for (var sDto : dto.getProductAttributeSupplements()) {
+                ProductAttributeSupplements e = supplementMapper.toEntity(sDto, modifiedBy, modifiedAt);
+                e.setProductAttributeId(productId + "_SUPP");
+                e.setProduct(product);
+                e.setModifiedBy(modifiedBy);
+                e.setModifiedAt(modifiedAt);
+                sDto.setProductAttributeId(e.getProductAttributeId());
+                list.add(e);
+            }
+            product.setProductAttributeSupplements(appendInto(product.getProductAttributeSupplements(), list));
+        }
+
+        if (dto.getProductAttributeCosmetics() != null) {
+            List<ProductAttributeCosmetics> list = new ArrayList<>();
+            for (var cDto : dto.getProductAttributeCosmetics()) {
+                ProductAttributeCosmetics e = cosmeticMapper.toEntity(cDto, modifiedBy, modifiedAt);
+                e.setProductAttributeId(productId + "_COSM");
+                e.setProduct(product);
+                e.setModifiedBy(modifiedBy);
+                e.setModifiedAt(modifiedAt);
+                cDto.setProductAttributeId(e.getProductAttributeId());
+                list.add(e);
+            }
+            product.setProductAttributeCosmetics(appendInto(product.getProductAttributeCosmetics(), list));
+        }
+
+        if (dto.getProductAttributeFoodInfants() != null) {
+            List<ProductAttributeFoodInfant> list = new ArrayList<>();
+            for (var fDto : dto.getProductAttributeFoodInfants()) {
+                ProductAttributeFoodInfant e = foodInfantMapper.toEntity(fDto, modifiedBy, modifiedAt);
+                e.setProductAttributeId(productId + "_FOOD");
+                e.setProduct(product);
+                e.setModifiedBy(modifiedBy);
+                e.setModifiedAt(modifiedAt);
+                fDto.setProductAttributeId(e.getProductAttributeId());
+                list.add(e);
+            }
+            product.setProductAttributeFoodInfants(appendInto(product.getProductAttributeFoodInfants(), list));
+        }
+
+        if (dto.getProductAttributeConsumableMedicals() != null) {
+            List<ProductAttributeConsumableMedical> list = new ArrayList<>();
+            for (var cDto : dto.getProductAttributeConsumableMedicals()) {
+                ProductAttributeConsumableMedical e = consumableMapper.toEntity(cDto, modifiedBy, modifiedAt);
+                e.setProductAttributeId(productId + "_CONS");
+                e.setProduct(product);
+                e.setModifiedBy(modifiedBy);
+                e.setModifiedAt(modifiedAt);
+                cDto.setProductAttributeId(e.getProductAttributeId());
+                list.add(e);
+            }
+            product.setProductAttributeConsumableMedicals(
+                    appendInto(product.getProductAttributeConsumableMedicals(), list));
+        }
+
+        if (dto.getProductAttributeNonConsumableMedicals() != null) {
+            List<ProductAttributeNonConsumableMedical> list = new ArrayList<>();
+            for (var ncDto : dto.getProductAttributeNonConsumableMedicals()) {
+                ProductAttributeNonConsumableMedical e = nonConsumableMapper.toEntity(ncDto, modifiedBy, modifiedAt);
+                e.setProductAttributeId(productId + "_NCONS");
+                e.setProduct(product);
+                e.setModifiedBy(modifiedBy);
+                e.setModifiedAt(modifiedAt);
+                ncDto.setProductAttributeId(e.getProductAttributeId());
+                list.add(e);
+            }
+            product.setProductAttributeNonConsumableMedicals(
+                    appendInto(product.getProductAttributeNonConsumableMedicals(), list));
+        }
+
+        if (dto.getProductAttributeDrugs() != null) {
+            List<ProductAttributeDrug> list = new ArrayList<>();
+            int index = 0;
+            for (ProductAttributeDrugDto dDto : dto.getProductAttributeDrugs()) {
+                String drugAttrId = productId + "_DRUG_" + (++index);
+
+                ProductAttributeDrug drugEntity = new ProductAttributeDrug();
+                drugEntity.setProductAttributeId(drugAttrId);
+                drugEntity.setProduct(product);
+                drugEntity.setDrugSchedule(dDto.getDrugSchedule());
+                drugEntity.setCreatedBy(modifiedBy);
+                drugEntity.setCreatedAt(modifiedAt);
+                drugEntity.setModifiedBy(modifiedBy);
+                drugEntity.setModifiedAt(modifiedAt);
+
+                if (dDto.getProductMolecules() != null) {
+                    List<ProductMolecule> molList = new ArrayList<>();
+                    for (ProductMoleculeDto mDto : dDto.getProductMolecules()) {
+                        ProductMolecule mol = new ProductMolecule();
+                        mol.setMoleculeStrength(mDto.getMoleculeStrength());
+                        if (mDto.getMoleculeId() != null) {
+                            Molecule m = new Molecule();
+                            m.setMoleculeId(mDto.getMoleculeId());
+                            mol.setMolecule(m);
+                        }
+                        tiameds.pharmabackend.entity.product.ProductMoleculeId molId =
+                                new tiameds.pharmabackend.entity.product.ProductMoleculeId();
+                        molId.setProductAttributeId(drugAttrId);
+                        molId.setMoleculeId(mDto.getMoleculeId());
+                        mol.setId(molId);
+                        mol.setProductAttributeDrug(drugEntity);
+                        molList.add(mol);
+                        mDto.setProductAttributeId(drugAttrId);
+                    }
+                    drugEntity.setProductMolecules(molList);
+                }
+
+                dDto.setProductAttributeId(drugAttrId);
+                list.add(drugEntity);
+            }
+            product.setProductAttributeDrugs(appendInto(product.getProductAttributeDrugs(), list));
+        }
+    }
+
+    /**
+     * Adds the replacement rows into the product's own (orphan-removal managed)
+     * collection instead of swapping the reference, which Hibernate rejects.
+     */
+    private <E> List<E> appendInto(List<E> current, List<E> replacement) {
+        if (current == null) return new ArrayList<>(replacement);
+        current.addAll(replacement);
+        return current;
+    }
+
+
     public ProductDetailsDto toDto(ProductDetails entity) {
         if (entity == null) return null;
         ProductDetailsDto dto = new ProductDetailsDto();
