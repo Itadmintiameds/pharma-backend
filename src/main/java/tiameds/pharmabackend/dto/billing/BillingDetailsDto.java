@@ -14,7 +14,7 @@ public class BillingDetailsDto {
     private String productId;
     private String productName;
     private String hsnNo;
-    private BigDecimal gstPercentage;
+    private String gstPercentage;
     private String batchId;
     private String batchNumber;
     private LocalDate expiryDate;

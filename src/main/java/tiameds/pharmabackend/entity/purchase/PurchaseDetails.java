@@ -63,6 +63,12 @@ public class PurchaseDetails {
     @Column(name = "gst")
     private BigDecimal gst;
 
+    // The product's own GST slab at the time of purchase — "5%", "28%", or the
+    // non-numeric "Exempted" slab. `gst` above is only the amount it worked
+    // out to, which cannot tell an exempt line apart from a genuine 0% one.
+    @Column(name = "gst_percentage")
+    private String gstPercentage;
+
     @Column(name = "net_amount")
     private BigDecimal netAmount;
 

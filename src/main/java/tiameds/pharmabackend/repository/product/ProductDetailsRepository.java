@@ -34,4 +34,8 @@ public interface ProductDetailsRepository extends JpaRepository<ProductDetails, 
     // constraint, null brand/hsn are treated as distinct and won't collide here.
     boolean existsByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNo(
             Long organizationId, String productName, String brandName, String hsnNo);
+
+    // Same de-dup guard for updates: the product being edited must not collide with itself.
+    boolean existsByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNoAndProductIdNot(
+            Long organizationId, String productName, String brandName, String hsnNo, String productId);
 }

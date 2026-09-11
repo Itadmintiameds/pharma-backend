@@ -18,6 +18,9 @@ public class PurchaseDetailsDto {
     private Long freeQuantity;
     private BigDecimal grossAmount;
     private BigDecimal gst;
+    // The product's GST slab at the time of purchase — "5%", "28%", or the
+    // non-numeric "Exempted" slab, not a plain rate.
+    private String gstPercentage;
     private BigDecimal netAmount;
     private String createdBy;
     private LocalDateTime createdAt;

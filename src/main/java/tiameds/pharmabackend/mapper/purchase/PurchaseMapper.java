@@ -26,6 +26,7 @@ public class PurchaseMapper {
         dto.setGrnNo(entity.getGrnNo());
         dto.setInvoiceNo(entity.getInvoiceNo());
         dto.setInvoiceDate(entity.getInvoiceDate());
+        dto.setInvoiceAmount(entity.getInvoiceAmount());
         dto.setPaymentType(entity.getPaymentType());
         dto.setCreditDays(entity.getCreditDays());
         dto.setSupplierPaymentStatus(entity.getSupplierPaymentStatus());
@@ -70,6 +71,7 @@ public class PurchaseMapper {
         entity.setGrnNo(dto.getGrnNo());
         entity.setInvoiceNo(dto.getInvoiceNo());
         entity.setInvoiceDate(dto.getInvoiceDate());
+        entity.setInvoiceAmount(dto.getInvoiceAmount());
         entity.setPaymentType(dto.getPaymentType());
         entity.setCreditDays(dto.getCreditDays());
         entity.setSupplierPaymentStatus(dto.getSupplierPaymentStatus());

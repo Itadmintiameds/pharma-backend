@@ -30,7 +30,7 @@ public class WarehouseDistributionLineResponse {
         private String productName;
         private String brandName;
         private String hsnNo;
-        private BigDecimal gstPercentage;
+        private String gstPercentage;
     }
 
     @Data
