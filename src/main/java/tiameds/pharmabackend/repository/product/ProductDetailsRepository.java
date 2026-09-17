@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ProductDetailsRepository extends JpaRepository<ProductDetails, String> {
@@ -38,4 +39,9 @@ public interface ProductDetailsRepository extends JpaRepository<ProductDetails, 
     // Same de-dup guard for updates: the product being edited must not collide with itself.
     boolean existsByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNoAndProductIdNot(
             Long organizationId, String productName, String brandName, String hsnNo, String productId);
+
+    // Same key as the de-dup guard, but returning the row. Bulk upload uses it to add
+    // packages/batches to a product the organization already has instead of failing the file.
+    Optional<ProductDetails> findByOrganization_OrganizationIdAndProductNameAndBrandNameAndHsnNo(
+            Long organizationId, String productName, String brandName, String hsnNo);
 }

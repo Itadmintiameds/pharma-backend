@@ -47,5 +47,14 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetails, Stri
             String packagingId
     );
 
+    // Same key as the exists check, but returning the row. Bulk upload uses it to tell
+    // an already-imported batch from a new one so a re-upload is a no-op rather than a
+    // duplicate (and so its stock is not counted twice).
+    Optional<BatchDetails> findByBatchNumberAndProduct_ProductIdAndPackagingDetails_PackagingId(
+            String batchNumber,
+            String productId,
+            String packagingId
+    );
+
 
 }

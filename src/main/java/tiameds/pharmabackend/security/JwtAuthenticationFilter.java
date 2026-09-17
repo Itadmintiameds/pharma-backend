@@ -50,6 +50,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Whether someone upstream (the API key filter) has already authenticated this
+        // request. A bad cookie must not undo that — see the catch blocks below.
+        boolean authenticatedUpstream =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication() != null;
+
         try {
 
             String username =
@@ -98,13 +105,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         } catch (JwtException ex) {
 
-            SecurityContextHolder.clearContext();
+            discardPartialAuthentication(authenticatedUpstream);
 
         } catch (Exception ex) {
 
-            SecurityContextHolder.clearContext();
+            discardPartialAuthentication(authenticatedUpstream);
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Drops anything this filter may have half-established after a bad token.
+     * <p>
+     * Only what this filter owns: when the request was already authenticated upstream
+     * — an API key, say — a stale or expired {@code access_token} cookie must leave
+     * that alone. Clearing unconditionally made any lingering cookie in a client
+     * silently revoke a perfectly valid API key, surfacing as a bare 401.
+     */
+    private void discardPartialAuthentication(boolean authenticatedUpstream) {
+
+        if (!authenticatedUpstream) {
+
+            SecurityContextHolder.clearContext();
+        }
     }
 }
