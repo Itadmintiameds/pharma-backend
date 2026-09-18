@@ -66,4 +66,23 @@ public class SupplierMasterController {
 
         return ResponseEntity.ok(supplier);
     }
+
+    @PutMapping("/update/{supplierId}")
+    public ResponseEntity<?> updateSupplier(
+            @PathVariable Long supplierId,
+            @RequestBody SupplierMasterDto supplierDto,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        SupplierMasterDto response =
+                supplierMasterService.updateSupplier(
+                        supplierId,
+                        supplierDto,
+                        currentUser.getUser());
+
+        return ResponseEntity.ok(response);
+    }
 }
