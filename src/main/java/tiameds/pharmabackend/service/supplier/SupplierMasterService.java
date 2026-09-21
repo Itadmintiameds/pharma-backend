@@ -12,4 +12,6 @@ public interface SupplierMasterService {
     List<SupplierMasterDto> getAllSuppliers(UserDetails user);
 
     SupplierMasterDto getSupplierById(Long supplierId, UserDetails user);
+
+    SupplierMasterDto updateSupplier(Long supplierId, SupplierMasterDto supplierDto, UserDetails user);
 }
