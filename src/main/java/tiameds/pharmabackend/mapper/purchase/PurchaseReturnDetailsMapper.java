@@ -16,8 +16,17 @@ public class PurchaseReturnDetailsMapper {
         PurchaseReturnDetailsDto dto = new PurchaseReturnDetailsDto();
 
         dto.setPurchaseReturnDetailId(entity.getPurchaseReturnDetailId());
-        dto.setProductId(entity.getProduct().getProductId());
-        dto.setBatchId(entity.getBatch().getBatchId());
+
+        if (entity.getProduct() != null) {
+            dto.setProductId(entity.getProduct().getProductId());
+            dto.setProductName(entity.getProduct().getProductName());
+        }
+
+        if (entity.getBatch() != null) {
+            dto.setBatchId(entity.getBatch().getBatchId());
+            dto.setBatchNumber(entity.getBatch().getBatchNumber());
+        }
+
         dto.setPurchaseReturnQuantity(entity.getPurchaseReturnQuantity());
         dto.setFreeReturnQuantity(entity.getFreeReturnQuantity());
         dto.setGrossAmount(entity.getGrossAmount());

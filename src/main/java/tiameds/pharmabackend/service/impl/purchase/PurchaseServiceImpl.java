@@ -18,6 +18,7 @@ import tiameds.pharmabackend.entity.purchase.Purchase;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
 import tiameds.pharmabackend.enums.LocationType;
+import tiameds.pharmabackend.enums.ReturnStatus;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
 import tiameds.pharmabackend.mapper.purchase.PurchaseMapper;
@@ -133,6 +134,10 @@ public class PurchaseServiceImpl implements PurchaseService {
         purchase.setModifiedBy(null);
         purchase.setModifiedAt(null);
 
+        // Return status is ours to set, never the caller's: nothing has been sent
+        // back at the moment a purchase is booked.
+        purchase.setReturnStatus(ReturnStatus.NOT_RETURNED);
+
         if (purchase.getPurchaseDetails() != null) {
 
             for (PurchaseDetails detail : purchase.getPurchaseDetails()) {
@@ -142,6 +147,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                 detail.setCreatedAt(LocalDateTime.now());
                 detail.setModifiedBy(null);
                 detail.setModifiedAt(null);
+                detail.setReturnDetailsStatus(ReturnStatus.NOT_RETURNED);
             }
         }
 
@@ -301,6 +307,10 @@ public class PurchaseServiceImpl implements PurchaseService {
         purchase.setModifiedBy(null);
         purchase.setModifiedAt(null);
 
+        // Return status is ours to set, never the caller's: nothing has been sent
+        // back at the moment a purchase is booked.
+        purchase.setReturnStatus(ReturnStatus.NOT_RETURNED);
+
         if (purchase.getPurchaseDetails() != null) {
 
             for (PurchaseDetails detail : purchase.getPurchaseDetails()) {
@@ -310,6 +320,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                 detail.setCreatedAt(now);
                 detail.setModifiedBy(null);
                 detail.setModifiedAt(null);
+                detail.setReturnDetailsStatus(ReturnStatus.NOT_RETURNED);
             }
         }
 
@@ -391,6 +402,48 @@ public class PurchaseServiceImpl implements PurchaseService {
                 .stream()
                 .map(PurchaseMapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public PurchaseDto getPurchaseById(Long purchaseId, UserDetails user) {
+
+        if (purchaseId == null) {
+            throw new RuntimeException("Purchase id is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        Purchase purchase = purchaseRepository.findById(purchaseId)
+                .orElseThrow(() -> new RuntimeException("Purchase not found: " + purchaseId));
+
+        // A purchase is only visible from the location it was raised at.
+        if (location.isWarehouse()) {
+
+            if (!location.getLocationId().equals(purchase.getWarehouseId())) {
+                throw new RuntimeException("This purchase does not belong to your warehouse.");
+            }
+
+            return PurchaseMapper.toDto(purchase);
+        }
+
+        String pharmacyId = location.getLocationId();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        if (!pharmacyId.equals(purchase.getPharmacyId())) {
+            throw new RuntimeException("This purchase does not belong to your pharmacy.");
+        }
+
+        return PurchaseMapper.toDto(purchase);
     }
 
     @Override

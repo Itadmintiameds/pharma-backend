@@ -9,6 +9,7 @@ import lombok.Setter;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.enums.ReturnStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -71,6 +72,12 @@ public class PurchaseDetails {
 
     @Column(name = "net_amount")
     private BigDecimal netAmount;
+
+    // How much of this line has gone back to the supplier. Set when a purchase
+    // return is created against it; the header status is derived from these.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "return_details_status", length = 20)
+    private ReturnStatus returnDetailsStatus = ReturnStatus.NOT_RETURNED;
 
     @Column(name = "created_by")
     private String createdBy;

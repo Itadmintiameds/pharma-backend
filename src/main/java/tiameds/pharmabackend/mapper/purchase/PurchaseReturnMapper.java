@@ -20,7 +20,28 @@ public class PurchaseReturnMapper {
         PurchaseReturnDto dto = new PurchaseReturnDto();
 
         dto.setPurchaseReturnId(entity.getPurchaseReturnId());
-        dto.setPurchaseId(entity.getPurchase().getPurchaseId());
+
+        if (entity.getPurchaseReturnId() != null) {
+            dto.setReturnNo(String.valueOf(entity.getPurchaseReturnId()));
+        }
+
+        dto.setReturnDate(entity.getCreatedAt());
+
+        Purchase purchase = entity.getPurchase();
+
+        if (purchase != null) {
+
+            dto.setPurchaseId(purchase.getPurchaseId());
+            dto.setGrnNo(purchase.getGrnNo());
+            dto.setInvoiceNo(purchase.getInvoiceNo());
+            dto.setInvoiceDate(purchase.getInvoiceDate());
+
+            if (purchase.getSupplier() != null) {
+                dto.setSupplierId(purchase.getSupplier().getSupplierId());
+                dto.setSupplierName(purchase.getSupplier().getSupplierName());
+            }
+        }
+
         dto.setPharmacyId(entity.getPharmacyId());
         dto.setWarehouseId(entity.getWarehouseId());
         dto.setReturnRemarks(entity.getReturnRemarks());
@@ -35,12 +56,18 @@ public class PurchaseReturnMapper {
         dto.setModifiedAt(entity.getModifiedAt());
 
         if (entity.getPurchaseReturnDetails() != null) {
+
             dto.setPurchaseReturnDetails(
                     entity.getPurchaseReturnDetails()
                             .stream()
                             .map(PurchaseReturnDetailsMapper::toDto)
                             .collect(Collectors.toList())
             );
+
+            dto.setItemCount(entity.getPurchaseReturnDetails().size());
+
+        } else {
+            dto.setItemCount(0);
         }
 
         return dto;

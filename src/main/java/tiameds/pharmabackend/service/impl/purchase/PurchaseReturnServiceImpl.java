@@ -22,6 +22,8 @@ import tiameds.pharmabackend.repository.purchase.PurchaseReturnRepository;
 import tiameds.pharmabackend.service.purchase.PurchaseReturnService;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -121,6 +123,80 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
+    }
+
+    @Override
+    public List<PurchaseReturnDto> getAllPurchaseReturns(UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        if (location.isWarehouse()) {
+            return purchaseReturnRepository.findByWarehouseId(location.getLocationId())
+                    .stream()
+                    .map(PurchaseReturnMapper::toDto)
+                    .collect(Collectors.toList());
+        }
+
+        String pharmacyId = location.getLocationId();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        return purchaseReturnRepository.findByPharmacyId(pharmacyId)
+                .stream()
+                .map(PurchaseReturnMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public PurchaseReturnDto getPurchaseReturnById(Long purchaseReturnId, UserDetails user) {
+
+        if (purchaseReturnId == null) {
+            throw new RuntimeException("Purchase return id is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        PurchaseReturn purchaseReturn = purchaseReturnRepository.findById(purchaseReturnId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Purchase return not found: " + purchaseReturnId));
+
+        // A return is only visible from the location it was raised at.
+        if (location.isWarehouse()) {
+
+            if (!location.getLocationId().equals(purchaseReturn.getWarehouseId())) {
+                throw new RuntimeException("This purchase return does not belong to your warehouse.");
+            }
+
+            return PurchaseReturnMapper.toDto(purchaseReturn);
+        }
+
+        String pharmacyId = location.getLocationId();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        if (!pharmacyId.equals(purchaseReturn.getPharmacyId())) {
+            throw new RuntimeException("This purchase return does not belong to your pharmacy.");
+        }
+
+        return PurchaseReturnMapper.toDto(purchaseReturn);
     }
 
     // Resolves the managed product/batch for each return line, matching the
