@@ -10,12 +10,6 @@ import java.util.List;
 public class PurchaseReturnDto {
 
     private Long purchaseReturnId;
-
-    // Read-only summary fields. The return has no number/date column of its own,
-    // so the id doubles as the return number and createdAt as the return date.
-    private String returnNo;
-    private LocalDateTime returnDate;
-
     private Long purchaseId;
 
     // Supplier and invoice are read off the parent purchase, so the return list
@@ -28,9 +22,14 @@ public class PurchaseReturnDto {
 
     private String pharmacyId;
     private String warehouseId;
-    private String returnRemarks;
-    private Boolean isCancel;
-    private String cancelRemark;
+
+    // Read-only summary fields. The return has no number/date column of its own,
+    // so the id doubles as the return number and createdAt as the return date.
+    private String returnNo;
+    private LocalDateTime purchaseReturnDate;
+    private String status;
+    private String cancelReason;
+    private String editReason;
     private BigDecimal totalGrossAmount;
     private BigDecimal totalGstAmount;
     private BigDecimal totalNetAmount;

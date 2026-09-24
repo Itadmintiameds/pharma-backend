@@ -2,16 +2,20 @@ package tiameds.pharmabackend.service.impl.purchase;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.context.LocationContext;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.purchase.PurchaseReturnDto;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Purchase;
 import tiameds.pharmabackend.entity.purchase.PurchaseReturn;
 import tiameds.pharmabackend.entity.purchase.PurchaseReturnDetails;
+import tiameds.pharmabackend.enums.LocationType;
+import tiameds.pharmabackend.enums.TransactionType;
 import tiameds.pharmabackend.mapper.purchase.PurchaseReturnMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
@@ -19,8 +23,12 @@ import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.PurchaseRepository;
 import tiameds.pharmabackend.repository.purchase.PurchaseReturnRepository;
+import tiameds.pharmabackend.service.impl.warehouse.stock.InventoryAdjusters;
 import tiameds.pharmabackend.service.purchase.PurchaseReturnService;
+import tiameds.pharmabackend.service.warehouse.stock.InventoryAdjuster;
+import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,6 +45,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
     private final ProductDetailsRepository pharmaProductDetailsRepository;
     private final BatchDetailsRepository pharmaBatchDetailsRepository;
     private final LocationContextResolver locationContextResolver;
+    private final InventoryAdjusters adjusters;
 
     @Override
     public PurchaseReturnDto createPurchaseReturn(PurchaseReturnDto purchaseReturnDto, UserDetails user) {
@@ -81,6 +90,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         purchaseReturn.setPurchase(purchase);
         purchaseReturn.setPharmacyId(pharmacyId);
         purchaseReturn.setWarehouseId(null);
+        purchaseReturn.setReturnNo(generateReturnNo(pharmacyId));
 
         resolveReturnDetails(purchaseReturn, purchaseReturnDto);
 
@@ -88,6 +98,8 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         LocalDateTime now = LocalDateTime.now();
 
         stampAuditFields(purchaseReturn, actor, now);
+
+        decrementInventoryForReturn(purchaseReturn, LocationType.PHARMACY, pharmacyId, actor, now);
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
@@ -112,6 +124,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         purchaseReturn.setPurchase(purchase);
         purchaseReturn.setPharmacyId(null);
         purchaseReturn.setWarehouseId(warehouseId);
+        purchaseReturn.setReturnNo(generateReturnNoForWarehouse(warehouseId));
 
         resolveReturnDetails(purchaseReturn, purchaseReturnDto);
 
@@ -119,6 +132,8 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         LocalDateTime now = LocalDateTime.now();
 
         stampAuditFields(purchaseReturn, actor, now);
+
+        decrementInventoryForReturn(purchaseReturn, LocationType.WAREHOUSE, warehouseId, actor, now);
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
@@ -227,8 +242,108 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         }
     }
 
+    // A purchase return sends stock back to the supplier — an OUT movement against
+    // whichever location (pharmacy/warehouse) the return was raised at. Reuses the
+    // same InventoryAdjuster the purchase flow uses to bring stock IN, so the
+    // sufficiency check and pharma_inventory_audit / pharma_warehouse_inventory_audit
+    // row are written the same way, just tagged PURCHASE_RETURN / OUT.
+    private void decrementInventoryForReturn(
+            PurchaseReturn purchaseReturn,
+            LocationType locationType,
+            String locationId,
+            String actor,
+            LocalDateTime now) {
+
+        if (purchaseReturn.getPurchaseReturnDetails() == null) {
+            return;
+        }
+
+        InventoryAdjuster adjuster = adjusters.of(locationType);
+
+        for (PurchaseReturnDetails detail : purchaseReturn.getPurchaseReturnDetails()) {
+
+            BatchDetails batch = detail.getBatch();
+            PackagingDetails packaging = batch.getPackagingDetails();
+
+            Long returnQty = detail.getPurchaseReturnQuantity() != null
+                    ? detail.getPurchaseReturnQuantity()
+                    : 0L;
+
+            Long purchaseUnitContains = (packaging != null && packaging.getPurchaseUnitContains() != null)
+                    ? packaging.getPurchaseUnitContains()
+                    : 1L;
+
+            // Stock is tracked in smallest units — same conversion used when the
+            // purchase originally brought this batch in.
+            long stockQty = returnQty * purchaseUnitContains;
+
+            adjuster.decrement(new StockAdjustment(
+                    locationId,
+                    detail.getProduct(),
+                    packaging,
+                    batch,
+                    stockQty,
+                    TransactionType.PURCHASE_RETURN,
+                    null,   // no distribution line for a purchase return
+                    null,   // no purchase line to trace back to — this is a return, not a purchase
+                    actor,
+                    now));
+        }
+    }
+
+    private String generateReturnNo(String pharmacyId) {
+
+        int year = LocalDate.now().getYear();
+        String prefix = "PR-" + year + "-";
+
+        List<String> latest = purchaseReturnRepository.findLatestReturnNo(
+                prefix,
+                pharmacyId,
+                PageRequest.of(0, 1)
+        );
+
+        int nextNumber = 1;
+
+        if (!latest.isEmpty()) {
+
+            String latestReturnNo = latest.get(0);
+
+            String numberPart = latestReturnNo.substring(prefix.length());
+
+            nextNumber = Integer.parseInt(numberPart) + 1;
+        }
+
+        return prefix + String.format("%05d", nextNumber);
+    }
+
+    private String generateReturnNoForWarehouse(String warehouseId) {
+
+        int year = LocalDate.now().getYear();
+        String prefix = "PR-" + year + "-";
+
+        List<String> latest = purchaseReturnRepository.findLatestReturnNoByWarehouse(
+                prefix,
+                warehouseId,
+                PageRequest.of(0, 1)
+        );
+
+        int nextNumber = 1;
+
+        if (!latest.isEmpty()) {
+
+            String latestReturnNo = latest.get(0);
+
+            String numberPart = latestReturnNo.substring(prefix.length());
+
+            nextNumber = Integer.parseInt(numberPart) + 1;
+        }
+
+        return prefix + String.format("%05d", nextNumber);
+    }
+
     private void stampAuditFields(PurchaseReturn purchaseReturn, String actor, LocalDateTime now) {
 
+        purchaseReturn.setPurchaseReturnDate(now);
         purchaseReturn.setCreatedBy(actor);
         purchaseReturn.setCreatedAt(now);
         purchaseReturn.setModifiedBy(null);

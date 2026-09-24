@@ -46,6 +46,9 @@ public class PurchaseReturnDetails {
     @Column(name = "free_return_quantity")
     private String freeReturnQuantity;
 
+    @Column(name = "return_reason")
+    private String returnReason;
+
     @Column(name = "gross_amount")
     private BigDecimal grossAmount;
 

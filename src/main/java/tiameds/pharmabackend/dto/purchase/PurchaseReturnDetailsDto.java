@@ -15,6 +15,7 @@ public class PurchaseReturnDetailsDto {
     private String batchNumber;
     private Long purchaseReturnQuantity;
     private String freeReturnQuantity;
+    private String returnReason;
     private BigDecimal grossAmount;
     private BigDecimal gstAmount;
     private BigDecimal netAmount;

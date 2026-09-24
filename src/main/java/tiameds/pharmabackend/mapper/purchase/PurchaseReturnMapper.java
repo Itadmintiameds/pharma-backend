@@ -20,12 +20,8 @@ public class PurchaseReturnMapper {
         PurchaseReturnDto dto = new PurchaseReturnDto();
 
         dto.setPurchaseReturnId(entity.getPurchaseReturnId());
-
-        if (entity.getPurchaseReturnId() != null) {
-            dto.setReturnNo(String.valueOf(entity.getPurchaseReturnId()));
-        }
-
-        dto.setReturnDate(entity.getCreatedAt());
+        dto.setReturnNo(entity.getReturnNo());
+        dto.setPurchaseReturnDate(entity.getPurchaseReturnDate());
 
         Purchase purchase = entity.getPurchase();
 
@@ -44,9 +40,9 @@ public class PurchaseReturnMapper {
 
         dto.setPharmacyId(entity.getPharmacyId());
         dto.setWarehouseId(entity.getWarehouseId());
-        dto.setReturnRemarks(entity.getReturnRemarks());
-        dto.setIsCancel(entity.getIsCancel());
-        dto.setCancelRemark(entity.getCancelRemark());
+        dto.setStatus(entity.getStatus());
+        dto.setCancelReason(entity.getCancelReason());
+        dto.setEditReason(entity.getEditReason());
         dto.setTotalGrossAmount(entity.getTotalGrossAmount());
         dto.setTotalGstAmount(entity.getTotalGstAmount());
         dto.setTotalNetAmount(entity.getTotalNetAmount());
@@ -90,9 +86,11 @@ public class PurchaseReturnMapper {
 
         entity.setPharmacyId(dto.getPharmacyId());
         entity.setWarehouseId(dto.getWarehouseId());
-        entity.setReturnRemarks(dto.getReturnRemarks());
-        entity.setIsCancel(dto.getIsCancel());
-        entity.setCancelRemark(dto.getCancelRemark());
+        entity.setReturnNo(dto.getReturnNo());
+        entity.setPurchaseReturnDate(dto.getPurchaseReturnDate());
+        entity.setStatus(dto.getStatus());
+        entity.setCancelReason(dto.getCancelReason());
+        entity.setEditReason(dto.getEditReason());
         entity.setTotalGrossAmount(dto.getTotalGrossAmount());
         entity.setTotalGstAmount(dto.getTotalGstAmount());
         entity.setTotalNetAmount(dto.getTotalNetAmount());

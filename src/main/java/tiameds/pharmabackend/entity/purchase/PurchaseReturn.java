@@ -37,14 +37,20 @@ public class PurchaseReturn {
     @Column(name = "warehouse_id")
     private String warehouseId;
 
-    @Column(name = "return_remarks")
-    private String returnRemarks;
+    @Column(name = "return_no")
+    private String returnNo;
 
-    @Column(name = "is_cancel")
-    private Boolean isCancel;
+    @Column(name = "purchase_return_date")
+    private LocalDateTime purchaseReturnDate;
 
-    @Column(name = "cancel_remark")
-    private String cancelRemark;
+    @Column(name = "status")
+    private String status;
+
+    @Column(name = "cancel_reason")
+    private String cancelReason;
+
+    @Column(name = "edit_reason")
+    private String editReason;
 
     @Column(name = "total_gross_amount")
     private BigDecimal totalGrossAmount;

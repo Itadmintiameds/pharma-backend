@@ -29,6 +29,7 @@ public class PurchaseReturnDetailsMapper {
 
         dto.setPurchaseReturnQuantity(entity.getPurchaseReturnQuantity());
         dto.setFreeReturnQuantity(entity.getFreeReturnQuantity());
+        dto.setReturnReason(entity.getReturnReason());
         dto.setGrossAmount(entity.getGrossAmount());
         dto.setGstAmount(entity.getGstAmount());
         dto.setNetAmount(entity.getNetAmount());
@@ -64,6 +65,7 @@ public class PurchaseReturnDetailsMapper {
 
         entity.setPurchaseReturnQuantity(dto.getPurchaseReturnQuantity());
         entity.setFreeReturnQuantity(dto.getFreeReturnQuantity());
+        entity.setReturnReason(dto.getReturnReason());
         entity.setGrossAmount(dto.getGrossAmount());
         entity.setGstAmount(dto.getGstAmount());
         entity.setNetAmount(dto.getNetAmount());
