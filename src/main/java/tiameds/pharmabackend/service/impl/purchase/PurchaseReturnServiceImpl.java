@@ -12,10 +12,12 @@ import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Purchase;
+import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 import tiameds.pharmabackend.entity.purchase.PurchaseReturn;
 import tiameds.pharmabackend.entity.purchase.PurchaseReturnDetails;
 import tiameds.pharmabackend.enums.LocationType;
 import tiameds.pharmabackend.enums.PurchaseReturnStatus;
+import tiameds.pharmabackend.enums.ReturnStatus;
 import tiameds.pharmabackend.enums.TransactionType;
 import tiameds.pharmabackend.mapper.purchase.PurchaseReturnDetailsMapper;
 import tiameds.pharmabackend.mapper.purchase.PurchaseReturnMapper;
@@ -24,6 +26,7 @@ import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.PurchaseRepository;
+import tiameds.pharmabackend.repository.purchase.PurchaseReturnDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.PurchaseReturnRepository;
 import tiameds.pharmabackend.service.impl.warehouse.stock.InventoryAdjusters;
 import tiameds.pharmabackend.service.purchase.PurchaseReturnService;
@@ -33,6 +36,7 @@ import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +50,7 @@ import java.util.stream.Collectors;
 public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
     private final PurchaseReturnRepository purchaseReturnRepository;
+    private final PurchaseReturnDetailsRepository purchaseReturnDetailsRepository;
     private final PurchaseRepository purchaseRepository;
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
@@ -117,6 +122,10 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
+        // Re-derived from every confirmed return against this purchase, so the
+        // purchase and its lines always agree with what has actually gone back.
+        recalculateReturnStatus(savedPurchaseReturn.getPurchase());
+
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
     }
 
@@ -157,6 +166,10 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         }
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
+
+        // Re-derived from every confirmed return against this purchase, so the
+        // purchase and its lines always agree with what has actually gone back.
+        recalculateReturnStatus(savedPurchaseReturn.getPurchase());
 
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
     }
@@ -286,6 +299,10 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
+        // Re-derived from every confirmed return against this purchase, so the
+        // purchase and its lines always agree with what has actually gone back.
+        recalculateReturnStatus(savedPurchaseReturn.getPurchase());
+
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
     }
 
@@ -373,12 +390,16 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
                     ? lineDto.getPurchaseReturnQuantity()
                     : current.getPurchaseReturnQuantity();
 
-            String newFreeQty = lineDto.getFreeReturnQuantity() != null
+            Long newFreeQty = lineDto.getFreeReturnQuantity() != null
                     ? lineDto.getFreeReturnQuantity()
                     : current.getFreeReturnQuantity();
 
             if (newQty != null && newQty < 0) {
                 throw new RuntimeException("Return quantity cannot be negative on line " + detailId);
+            }
+
+            if (newFreeQty != null && newFreeQty < 0) {
+                throw new RuntimeException("Free return quantity cannot be negative on line " + detailId);
             }
 
             if (Objects.equals(newQty, current.getPurchaseReturnQuantity())
@@ -412,6 +433,10 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
+        // Re-derived from every confirmed return against this purchase, so the
+        // purchase and its lines always agree with what has actually gone back.
+        recalculateReturnStatus(savedPurchaseReturn.getPurchase());
+
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
     }
 
@@ -419,7 +444,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
     private PurchaseReturnDetails newRevision(
             PurchaseReturnDetails current,
             Long newQty,
-            String newFreeQty,
+            Long newFreeQty,
             String actor,
             LocalDateTime now) {
 
@@ -459,8 +484,10 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         BatchDetails batch = revision.getBatch();
         PackagingDetails packaging = batch.getPackagingDetails();
 
-        long delta = toStockUnits(packaging, revision.getPurchaseReturnQuantity())
-                - toStockUnits(packaging, previous.getPurchaseReturnQuantity());
+        // Both sides count free units, so revising only the free quantity still
+        // moves stock.
+        long delta = toStockUnits(packaging, returnedUnits(revision))
+                - toStockUnits(packaging, returnedUnits(previous));
 
         if (delta == 0) {
             return;
@@ -489,6 +516,146 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
     // Stock is tracked in smallest units — same conversion used when the
     // purchase originally brought this batch in.
+    /**
+     * Recomputes how much of a purchase has been returned, on the purchase
+     * header and on each of its lines.
+     *
+     * <p>Derived, never incremented: it re-reads every confirmed, current return
+     * line for the purchase and works the answer out from scratch. That is what
+     * makes it correct under revision and cancellation — when {@code /edit}
+     * revises a confirmed return's quantity downward, a line that had reached
+     * FULLY_RETURNED drops back to PARTIALLY_RETURNED on its own, which an
+     * incremental counter could not do.
+     *
+     * <p>Drafts contribute nothing, so this is safe to call after any save.
+     */
+    private void recalculateReturnStatus(Purchase purchase) {
+
+        if (purchase == null || purchase.getPurchaseDetails() == null) {
+            return;
+        }
+
+        List<PurchaseReturnDetails> returnedLines =
+                purchaseReturnDetailsRepository.findCountableLines(
+                        purchase.getPurchaseId(),
+                        PurchaseReturnStatus.CONFIRMED);
+
+        // Returns point at a product and a batch, not at a purchase line, so the
+        // two sides are matched on that pair.
+        Map<String, long[]> returnedByLine = new HashMap<>();
+
+        for (PurchaseReturnDetails line : returnedLines) {
+
+            String key = lineKey(
+                    line.getProduct() != null ? line.getProduct().getProductId() : null,
+                    line.getBatch() != null ? line.getBatch().getBatchId() : null);
+
+            long[] totals = returnedByLine.computeIfAbsent(key, k -> new long[2]);
+
+            totals[0] += line.getPurchaseReturnQuantity() != null
+                    ? line.getPurchaseReturnQuantity()
+                    : 0L;
+
+            totals[1] += line.getFreeReturnQuantity() != null
+                    ? line.getFreeReturnQuantity()
+                    : 0L;
+        }
+
+        boolean allFully = true;
+        boolean allNot = true;
+
+        for (PurchaseDetails detail : purchase.getPurchaseDetails()) {
+
+            String key = lineKey(
+                    detail.getProduct() != null ? detail.getProduct().getProductId() : null,
+                    detail.getBatch() != null ? detail.getBatch().getBatchId() : null);
+
+            long[] returned = returnedByLine.getOrDefault(key, new long[2]);
+
+            ReturnStatus status = lineReturnStatus(
+                    returned[0],
+                    returned[1],
+                    detail.getPurchaseQuantity() != null ? detail.getPurchaseQuantity() : 0L,
+                    detail.getFreeQuantity() != null ? detail.getFreeQuantity() : 0L);
+
+            detail.setReturnDetailsStatus(status);
+
+            if (status != ReturnStatus.FULLY_RETURNED) {
+                allFully = false;
+            }
+
+            if (status != ReturnStatus.NOT_RETURNED) {
+                allNot = false;
+            }
+        }
+
+        // The header is the roll-up of its lines: untouched only while every line
+        // is, complete only once every line is.
+        ReturnStatus headerStatus;
+
+        if (purchase.getPurchaseDetails().isEmpty() || allNot) {
+            headerStatus = ReturnStatus.NOT_RETURNED;
+        } else if (allFully) {
+            headerStatus = ReturnStatus.FULLY_RETURNED;
+        } else {
+            headerStatus = ReturnStatus.PARTIALLY_RETURNED;
+        }
+
+        purchase.setReturnStatus(headerStatus);
+
+        purchaseRepository.save(purchase);
+    }
+
+    /**
+     * Status of one purchase line.
+     *
+     * <p>Quantity and free units are judged separately and both must be settled
+     * before a line counts as fully returned: 50 bought with 10 free is only
+     * complete when all 60 have gone back, not when the 50 have.
+     */
+    private ReturnStatus lineReturnStatus(
+            long returnedQty,
+            long returnedFree,
+            long purchasedQty,
+            long purchasedFree) {
+
+        if (returnedQty <= 0 && returnedFree <= 0) {
+            return ReturnStatus.NOT_RETURNED;
+        }
+
+        if (returnedQty >= purchasedQty && returnedFree >= purchasedFree) {
+            return ReturnStatus.FULLY_RETURNED;
+        }
+
+        return ReturnStatus.PARTIALLY_RETURNED;
+    }
+
+    private String lineKey(String productId, String batchId) {
+        return productId + "|" + batchId;
+    }
+
+    /**
+     * Units leaving stock for one return line: the returned quantity plus the
+     * free units going back with it.
+     *
+     * <p>Free goods were brought IN by the purchase — PurchaseServiceImpl stocks
+     * {@code (purchaseQty + freeQty)} — so a return that left them out would take
+     * less off the books than the purchase put on, and inventory would drift
+     * upward with every return that included free goods.
+     */
+    private long returnedUnits(PurchaseReturnDetails detail) {
+
+        long qty = detail.getPurchaseReturnQuantity() != null
+                ? detail.getPurchaseReturnQuantity()
+                : 0L;
+
+        long freeQty = detail.getFreeReturnQuantity() != null
+                ? detail.getFreeReturnQuantity()
+                : 0L;
+
+        return qty + freeQty;
+    }
+
     private long toStockUnits(PackagingDetails packaging, Long purchaseQty) {
 
         long qty = purchaseQty != null ? purchaseQty : 0L;
@@ -633,7 +800,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
             BatchDetails batch = detail.getBatch();
             PackagingDetails packaging = batch.getPackagingDetails();
 
-            long stockQty = toStockUnits(packaging, detail.getPurchaseReturnQuantity());
+            long stockQty = toStockUnits(packaging, returnedUnits(detail));
 
             adjuster.decrement(new StockAdjustment(
                     locationId,

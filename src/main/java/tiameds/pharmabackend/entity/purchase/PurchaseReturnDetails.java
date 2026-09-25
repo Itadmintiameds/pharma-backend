@@ -43,8 +43,10 @@ public class PurchaseReturnDetails {
     @Column(name = "purchase_return_quantity")
     private Long purchaseReturnQuantity;
 
+    // A count, like purchaseReturnQuantity, and in the same purchase unit —
+    // it has to be arithmetic because free units are stock that moves.
     @Column(name = "free_return_quantity")
-    private String freeReturnQuantity;
+    private Long freeReturnQuantity;
 
     @Column(name = "return_reason")
     private String returnReason;
