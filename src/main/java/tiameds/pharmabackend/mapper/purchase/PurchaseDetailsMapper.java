@@ -2,6 +2,7 @@ package tiameds.pharmabackend.mapper.purchase;
 
 import tiameds.pharmabackend.dto.purchase.PurchaseDetailsDto;
 import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 
@@ -16,8 +17,38 @@ public class PurchaseDetailsMapper {
         PurchaseDetailsDto dto = new PurchaseDetailsDto();
 
         dto.setPurchaseDetailsId(entity.getPurchaseDetailsId());
-        dto.setProductId(entity.getProduct().getProductId());
-        dto.setBatchId(entity.getBatch().getBatchId());
+
+        if (entity.getProduct() != null) {
+            dto.setProductId(entity.getProduct().getProductId());
+            dto.setProductName(entity.getProduct().getProductName());
+        }
+
+        if (entity.getBatch() != null) {
+
+            dto.setBatchId(entity.getBatch().getBatchId());
+            dto.setBatchNumber(entity.getBatch().getBatchNumber());
+            dto.setExpiryDate(entity.getBatch().getExpiryDate());
+
+            PackagingDetails packaging = entity.getBatch().getPackagingDetails();
+
+            if (packaging != null) {
+
+                dto.setPurchaseUnit(packaging.getPurchaseUnit());
+                dto.setUnitContains(packaging.getPurchaseUnitContains());
+
+                if (packaging.getPurchaseSmallestUnit() != null) {
+                    dto.setSmallestUnit(
+                            packaging.getPurchaseSmallestUnit().getPurchaseSmallestUnitName());
+                }
+            }
+
+            // The packaging row is the source of truth, but a batch may carry its
+            // own purchase unit when the packaging never defined one.
+            if (dto.getPurchaseUnit() == null) {
+                dto.setPurchaseUnit(entity.getBatch().getPurchaseUnit());
+            }
+        }
+
         dto.setPurchaseQuantity(entity.getPurchaseQuantity());
         dto.setFreeUnit(entity.getFreeUnit());
         dto.setFreeQuantity(entity.getFreeQuantity());
@@ -25,6 +56,7 @@ public class PurchaseDetailsMapper {
         dto.setGst(entity.getGst());
         dto.setGstPercentage(entity.getGstPercentage());
         dto.setNetAmount(entity.getNetAmount());
+        dto.setReturnDetailsStatus(entity.getReturnDetailsStatus());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());
