@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.purchase;
 
 import lombok.Data;
+import tiameds.pharmabackend.enums.PurchaseReturnStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -27,7 +28,7 @@ public class PurchaseReturnDto {
     // so the id doubles as the return number and createdAt as the return date.
     private String returnNo;
     private LocalDateTime purchaseReturnDate;
-    private String status;
+    private PurchaseReturnStatus status;
     private String cancelReason;
     private String editReason;
     private BigDecimal totalGrossAmount;

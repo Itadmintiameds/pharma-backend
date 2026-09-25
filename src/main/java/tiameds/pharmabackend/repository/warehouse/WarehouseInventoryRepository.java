@@ -3,12 +3,15 @@ package tiameds.pharmabackend.repository.warehouse;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.warehouse.WarehouseInventory;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,4 +40,17 @@ public interface WarehouseInventoryRepository extends JpaRepository<WarehouseInv
     // warehouse stock rows for one batch (single-batch stock view)
     List<WarehouseInventory> findByWarehouse_WarehouseIdAndBatch_BatchId(
             String warehouseId, String batchId);
+
+    // Warehouse-scoped twin of InventoryRepository.sumStockByBatchIds: current
+    // stock for a set of batches as [batchId, totalStock] rows.
+    @Query("""
+        SELECT wi.batch.batchId, SUM(wi.totalStock)
+        FROM WarehouseInventory wi
+        WHERE wi.warehouse.warehouseId = :warehouseId
+          AND wi.batch.batchId IN :batchIds
+        GROUP BY wi.batch.batchId
+    """)
+    List<Object[]> sumStockByBatchIds(
+            @Param("warehouseId") String warehouseId,
+            @Param("batchIds") Collection<String> batchIds);
 }

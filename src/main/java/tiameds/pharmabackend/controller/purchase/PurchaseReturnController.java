@@ -53,6 +53,28 @@ public class PurchaseReturnController {
     }
 
 
+    // Edits a draft return. Sending status CONFIRMED here is what takes the
+    // stock out — a draft moves no inventory until this call.
+    @PreAuthorize("@access.has('PURCHASE_RETURN/PURCHASE_RETURN/EDIT')")
+    @PutMapping("/{purchaseReturnId}")
+    public ResponseEntity<?> updatePurchaseReturn(
+            @PathVariable Long purchaseReturnId,
+            @RequestBody PurchaseReturnDto purchaseReturnDto,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        PurchaseReturnDto response = purchaseReturnService.updatePurchaseReturn(
+                purchaseReturnId,
+                purchaseReturnDto,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(response);
+    }
+
+
     @PreAuthorize("@access.has('PURCHASE_RETURN/PURCHASE_RETURN/VIEW')")
     @GetMapping("/{purchaseReturnId}")
     public ResponseEntity<?> getPurchaseReturnById(

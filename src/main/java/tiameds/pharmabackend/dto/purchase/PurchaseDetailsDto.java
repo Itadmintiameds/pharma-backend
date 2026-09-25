@@ -37,6 +37,11 @@ public class PurchaseDetailsDto {
     // Server-controlled: ignored on create, always reported on read.
     private ReturnStatus returnDetailsStatus;
 
+    // Stock this batch has left right now at the location that raised the
+    // purchase, in smallest units. Not a property of the purchase — it is read
+    // live from inventory, so it moves as the batch is sold or returned.
+    private Long availableStock;
+
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;

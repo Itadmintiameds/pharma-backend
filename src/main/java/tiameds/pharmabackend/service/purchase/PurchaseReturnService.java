@@ -13,4 +13,10 @@ public interface PurchaseReturnService {
 
     PurchaseReturnDto getPurchaseReturnById(Long purchaseReturnId, UserDetails user);
 
+    // Edits a draft return. Confirming it here is what releases the stock.
+    PurchaseReturnDto updatePurchaseReturn(
+            Long purchaseReturnId,
+            PurchaseReturnDto purchaseReturnDto,
+            UserDetails user);
+
 }

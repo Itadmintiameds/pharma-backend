@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
+import tiameds.pharmabackend.enums.PurchaseReturnStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -43,8 +44,11 @@ public class PurchaseReturn {
     @Column(name = "purchase_return_date")
     private LocalDateTime purchaseReturnDate;
 
-    @Column(name = "status")
-    private String status;
+    // Persisted as a name, not an ordinal, so the column stays readable and is
+    // not reshuffled if the enum ever gains a value.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20)
+    private PurchaseReturnStatus status = PurchaseReturnStatus.DRAFT;
 
     @Column(name = "cancel_reason")
     private String cancelReason;

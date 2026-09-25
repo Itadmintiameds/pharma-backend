@@ -15,7 +15,9 @@ import tiameds.pharmabackend.entity.purchase.Purchase;
 import tiameds.pharmabackend.entity.purchase.PurchaseReturn;
 import tiameds.pharmabackend.entity.purchase.PurchaseReturnDetails;
 import tiameds.pharmabackend.enums.LocationType;
+import tiameds.pharmabackend.enums.PurchaseReturnStatus;
 import tiameds.pharmabackend.enums.TransactionType;
+import tiameds.pharmabackend.mapper.purchase.PurchaseReturnDetailsMapper;
 import tiameds.pharmabackend.mapper.purchase.PurchaseReturnMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
@@ -92,6 +94,9 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         purchaseReturn.setWarehouseId(null);
         purchaseReturn.setReturnNo(generateReturnNo(pharmacyId));
 
+        PurchaseReturnStatus status = resolveCreateStatus(purchaseReturnDto.getStatus());
+        purchaseReturn.setStatus(status);
+
         resolveReturnDetails(purchaseReturn, purchaseReturnDto);
 
         String actor = String.valueOf(persistentUser.getUserId());
@@ -99,7 +104,11 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
         stampAuditFields(purchaseReturn, actor, now);
 
-        decrementInventoryForReturn(purchaseReturn, LocationType.PHARMACY, pharmacyId, actor, now);
+        // A draft is only a saved document: no stock leaves and no audit row is
+        // written until it is confirmed.
+        if (status == PurchaseReturnStatus.CONFIRMED) {
+            decrementInventoryForReturn(purchaseReturn, LocationType.PHARMACY, pharmacyId, actor, now);
+        }
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
@@ -126,6 +135,9 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         purchaseReturn.setWarehouseId(warehouseId);
         purchaseReturn.setReturnNo(generateReturnNoForWarehouse(warehouseId));
 
+        PurchaseReturnStatus status = resolveCreateStatus(purchaseReturnDto.getStatus());
+        purchaseReturn.setStatus(status);
+
         resolveReturnDetails(purchaseReturn, purchaseReturnDto);
 
         String actor = String.valueOf(persistentUser.getUserId());
@@ -133,7 +145,11 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
         stampAuditFields(purchaseReturn, actor, now);
 
-        decrementInventoryForReturn(purchaseReturn, LocationType.WAREHOUSE, warehouseId, actor, now);
+        // A draft is only a saved document: no stock leaves and no audit row is
+        // written until it is confirmed.
+        if (status == PurchaseReturnStatus.CONFIRMED) {
+            decrementInventoryForReturn(purchaseReturn, LocationType.WAREHOUSE, warehouseId, actor, now);
+        }
 
         PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
 
@@ -188,13 +204,114 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
                         "Purchase return not found: " + purchaseReturnId));
 
         // A return is only visible from the location it was raised at.
+        assertReturnBelongsToLocation(purchaseReturn, location, persistentUser);
+
+        return PurchaseReturnMapper.toDto(purchaseReturn);
+    }
+
+    @Override
+    public PurchaseReturnDto updatePurchaseReturn(
+            Long purchaseReturnId,
+            PurchaseReturnDto purchaseReturnDto,
+            UserDetails user) {
+
+        if (purchaseReturnId == null) {
+            throw new RuntimeException("Purchase return id is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        PurchaseReturn purchaseReturn = purchaseReturnRepository.findById(purchaseReturnId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Purchase return not found: " + purchaseReturnId));
+
+        assertReturnBelongsToLocation(purchaseReturn, location, persistentUser);
+
+        // Only a draft is still editable. Once a return is confirmed its stock has
+        // already left, and once cancelled it is closed — editing either would put
+        // the document and the inventory out of step.
+        if (purchaseReturn.getStatus() != PurchaseReturnStatus.DRAFT) {
+            throw new RuntimeException(
+                    "Only a draft purchase return can be edited. This one is "
+                            + purchaseReturn.getStatus() + ".");
+        }
+
+        PurchaseReturnStatus requestedStatus = purchaseReturnDto.getStatus() != null
+                ? purchaseReturnDto.getStatus()
+                : PurchaseReturnStatus.DRAFT;
+
+        if (requestedStatus == PurchaseReturnStatus.CANCELLED) {
+            throw new RuntimeException(
+                    "A purchase return cannot be cancelled through this endpoint.");
+        }
+
+        String actor = String.valueOf(persistentUser.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        purchaseReturn.setTotalGrossAmount(purchaseReturnDto.getTotalGrossAmount());
+        purchaseReturn.setTotalGstAmount(purchaseReturnDto.getTotalGstAmount());
+        purchaseReturn.setTotalNetAmount(purchaseReturnDto.getTotalNetAmount());
+        purchaseReturn.setEditReason(purchaseReturnDto.getEditReason());
+        purchaseReturn.setModifiedBy(actor);
+        purchaseReturn.setModifiedAt(now);
+
+        replaceReturnDetails(purchaseReturn, purchaseReturnDto, actor, now);
+
+        purchaseReturn.setStatus(requestedStatus);
+
+        // Confirming is the point the goods count as gone: this is the one place
+        // an edit moves stock, and it can only happen on the DRAFT -> CONFIRMED
+        // step guarded above, so a return can never be shipped out twice.
+        if (requestedStatus == PurchaseReturnStatus.CONFIRMED) {
+
+            LocationType locationType = location.isWarehouse()
+                    ? LocationType.WAREHOUSE
+                    : LocationType.PHARMACY;
+
+            decrementInventoryForReturn(
+                    purchaseReturn,
+                    locationType,
+                    location.getLocationId(),
+                    actor,
+                    now);
+        }
+
+        PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
+
+        return PurchaseReturnMapper.toDto(savedPurchaseReturn);
+    }
+
+    // A return created with no status is a draft: the safe reading of an absent
+    // value is "not yet committed", never "move the stock".
+    private PurchaseReturnStatus resolveCreateStatus(PurchaseReturnStatus requested) {
+
+        if (requested == null) {
+            return PurchaseReturnStatus.DRAFT;
+        }
+
+        if (requested == PurchaseReturnStatus.CANCELLED) {
+            throw new RuntimeException("A purchase return cannot be created as CANCELLED.");
+        }
+
+        return requested;
+    }
+
+    // Throws unless the return was raised at the caller's current location.
+    private void assertReturnBelongsToLocation(
+            PurchaseReturn purchaseReturn,
+            LocationContext location,
+            UserDetails persistentUser) {
+
         if (location.isWarehouse()) {
 
             if (!location.getLocationId().equals(purchaseReturn.getWarehouseId())) {
                 throw new RuntimeException("This purchase return does not belong to your warehouse.");
             }
 
-            return PurchaseReturnMapper.toDto(purchaseReturn);
+            return;
         }
 
         String pharmacyId = location.getLocationId();
@@ -210,8 +327,38 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         if (!pharmacyId.equals(purchaseReturn.getPharmacyId())) {
             throw new RuntimeException("This purchase return does not belong to your pharmacy.");
         }
+    }
 
-        return PurchaseReturnMapper.toDto(purchaseReturn);
+    // Swaps a draft's lines for the ones in the payload. orphanRemoval on the
+    // association deletes the replaced rows, so the draft always matches what was
+    // last sent rather than accumulating lines across edits.
+    private void replaceReturnDetails(
+            PurchaseReturn purchaseReturn,
+            PurchaseReturnDto purchaseReturnDto,
+            String actor,
+            LocalDateTime now) {
+
+        purchaseReturn.getPurchaseReturnDetails().clear();
+
+        if (purchaseReturnDto.getPurchaseReturnDetails() == null) {
+            return;
+        }
+
+        for (var detailsDto : purchaseReturnDto.getPurchaseReturnDetails()) {
+
+            PurchaseReturnDetails detail = PurchaseReturnDetailsMapper.toEntity(detailsDto);
+
+            detail.setPurchaseReturn(purchaseReturn);
+            detail.setCreatedBy(actor);
+            detail.setCreatedAt(now);
+            detail.setModifiedBy(null);
+            detail.setModifiedAt(null);
+
+            purchaseReturn.getPurchaseReturnDetails().add(detail);
+        }
+
+        // Same index-aligned product/batch resolution the create path uses.
+        resolveReturnDetails(purchaseReturn, purchaseReturnDto);
     }
 
     // Resolves the managed product/batch for each return line, matching the
