@@ -32,7 +32,12 @@ import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -284,6 +289,217 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
     }
 
+    @Override
+    public PurchaseReturnDto editPurchaseReturn(
+            Long purchaseReturnId,
+            PurchaseReturnDto purchaseReturnDto,
+            UserDetails user) {
+
+        if (purchaseReturnId == null) {
+            throw new RuntimeException("Purchase return id is required");
+        }
+
+        if (purchaseReturnDto.getEditReason() == null || purchaseReturnDto.getEditReason().isBlank()) {
+            throw new RuntimeException("Edit reason is required");
+        }
+
+        if (purchaseReturnDto.getPurchaseReturnDetails() == null
+                || purchaseReturnDto.getPurchaseReturnDetails().isEmpty()) {
+            throw new RuntimeException("At least one purchase return line is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        PurchaseReturn purchaseReturn = purchaseReturnRepository.findById(purchaseReturnId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Purchase return not found: " + purchaseReturnId));
+
+        assertReturnBelongsToLocation(purchaseReturn, location, persistentUser);
+
+        if (purchaseReturn.getStatus() == PurchaseReturnStatus.CANCELLED) {
+            throw new RuntimeException("A cancelled purchase return cannot be edited.");
+        }
+
+        // Only a confirmed return has already taken stock out, so only then does
+        // a quantity change have to be squared against inventory.
+        boolean adjustStock = purchaseReturn.getStatus() == PurchaseReturnStatus.CONFIRMED;
+
+        LocationType locationType = purchaseReturn.getWarehouseId() != null
+                ? LocationType.WAREHOUSE
+                : LocationType.PHARMACY;
+
+        String locationId = purchaseReturn.getWarehouseId() != null
+                ? purchaseReturn.getWarehouseId()
+                : purchaseReturn.getPharmacyId();
+
+        String actor = String.valueOf(persistentUser.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        Map<Long, PurchaseReturnDetails> currentById = purchaseReturn.getPurchaseReturnDetails()
+                .stream()
+                .filter(PurchaseReturnDetails::isCurrent)
+                .collect(Collectors.toMap(PurchaseReturnDetails::getPurchaseReturnDetailId, d -> d));
+
+        Set<Long> seen = new HashSet<>();
+        List<PurchaseReturnDetails> revisions = new ArrayList<>();
+
+        for (var lineDto : purchaseReturnDto.getPurchaseReturnDetails()) {
+
+            Long detailId = lineDto.getPurchaseReturnDetailId();
+
+            if (detailId == null) {
+                throw new RuntimeException("purchaseReturnDetailId is required on every line");
+            }
+
+            if (!seen.add(detailId)) {
+                throw new RuntimeException("Purchase return line " + detailId + " is sent more than once");
+            }
+
+            // Only the latest revision can be edited — editing a superseded row
+            // would fork the line's history.
+            PurchaseReturnDetails current = currentById.get(detailId);
+
+            if (current == null) {
+                throw new RuntimeException(
+                        "Purchase return line " + detailId
+                                + " is not a current line of this return");
+            }
+
+            // A field left out of the payload keeps its current value.
+            Long newQty = lineDto.getPurchaseReturnQuantity() != null
+                    ? lineDto.getPurchaseReturnQuantity()
+                    : current.getPurchaseReturnQuantity();
+
+            String newFreeQty = lineDto.getFreeReturnQuantity() != null
+                    ? lineDto.getFreeReturnQuantity()
+                    : current.getFreeReturnQuantity();
+
+            if (newQty != null && newQty < 0) {
+                throw new RuntimeException("Return quantity cannot be negative on line " + detailId);
+            }
+
+            if (Objects.equals(newQty, current.getPurchaseReturnQuantity())
+                    && Objects.equals(newFreeQty, current.getFreeReturnQuantity())) {
+                continue;
+            }
+
+            PurchaseReturnDetails revision = newRevision(current, newQty, newFreeQty, actor, now);
+
+            current.setIsActive(false);
+            current.setModifiedBy(actor);
+            current.setModifiedAt(now);
+
+            if (adjustStock) {
+                adjustStockForRevision(current, revision, locationType, locationId, actor, now);
+            }
+
+            revisions.add(revision);
+        }
+
+        if (revisions.isEmpty()) {
+            throw new RuntimeException("No quantity changes to save");
+        }
+
+        purchaseReturn.getPurchaseReturnDetails().addAll(revisions);
+
+        // The header row is kept as is apart from the reason for this edit.
+        purchaseReturn.setEditReason(purchaseReturnDto.getEditReason());
+        purchaseReturn.setModifiedBy(actor);
+        purchaseReturn.setModifiedAt(now);
+
+        PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.save(purchaseReturn);
+
+        return PurchaseReturnMapper.toDto(savedPurchaseReturn);
+    }
+
+    // Copies a line into its next revision, changing only the two quantities.
+    private PurchaseReturnDetails newRevision(
+            PurchaseReturnDetails current,
+            Long newQty,
+            String newFreeQty,
+            String actor,
+            LocalDateTime now) {
+
+        PurchaseReturnDetails revision = new PurchaseReturnDetails();
+
+        revision.setPurchaseReturn(current.getPurchaseReturn());
+        revision.setProduct(current.getProduct());
+        revision.setBatch(current.getBatch());
+        revision.setPurchaseReturnQuantity(newQty);
+        revision.setFreeReturnQuantity(newFreeQty);
+        revision.setReturnReason(current.getReturnReason());
+        revision.setGrossAmount(current.getGrossAmount());
+        revision.setGstAmount(current.getGstAmount());
+        revision.setNetAmount(current.getNetAmount());
+        revision.setRevisionNo(current.currentRevisionNo() + 1);
+        revision.setIsActive(true);
+        revision.setPreviousDetailId(current.getPurchaseReturnDetailId());
+        revision.setCreatedBy(actor);
+        revision.setCreatedAt(now);
+        revision.setModifiedBy(null);
+        revision.setModifiedAt(null);
+
+        return revision;
+    }
+
+    // On a confirmed return the old quantity has already left stock, so only the
+    // difference moves: returning more takes more out, returning less puts the
+    // surplus back.
+    private void adjustStockForRevision(
+            PurchaseReturnDetails previous,
+            PurchaseReturnDetails revision,
+            LocationType locationType,
+            String locationId,
+            String actor,
+            LocalDateTime now) {
+
+        BatchDetails batch = revision.getBatch();
+        PackagingDetails packaging = batch.getPackagingDetails();
+
+        long delta = toStockUnits(packaging, revision.getPurchaseReturnQuantity())
+                - toStockUnits(packaging, previous.getPurchaseReturnQuantity());
+
+        if (delta == 0) {
+            return;
+        }
+
+        StockAdjustment adjustment = new StockAdjustment(
+                locationId,
+                revision.getProduct(),
+                packaging,
+                batch,
+                Math.abs(delta),
+                TransactionType.PURCHASE_RETURN,
+                null,
+                null,
+                actor,
+                now);
+
+        InventoryAdjuster adjuster = adjusters.of(locationType);
+
+        if (delta > 0) {
+            adjuster.decrement(adjustment);
+        } else {
+            adjuster.increment(adjustment);
+        }
+    }
+
+    // Stock is tracked in smallest units — same conversion used when the
+    // purchase originally brought this batch in.
+    private long toStockUnits(PackagingDetails packaging, Long purchaseQty) {
+
+        long qty = purchaseQty != null ? purchaseQty : 0L;
+
+        long purchaseUnitContains = (packaging != null && packaging.getPurchaseUnitContains() != null)
+                ? packaging.getPurchaseUnitContains()
+                : 1L;
+
+        return qty * purchaseUnitContains;
+    }
+
     // A return created with no status is a draft: the safe reading of an absent
     // value is "not yet committed", never "move the stock".
     private PurchaseReturnStatus resolveCreateStatus(PurchaseReturnStatus requested) {
@@ -409,20 +625,15 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
         for (PurchaseReturnDetails detail : purchaseReturn.getPurchaseReturnDetails()) {
 
+            // Superseded revisions are history, not stock to move.
+            if (!detail.isCurrent()) {
+                continue;
+            }
+
             BatchDetails batch = detail.getBatch();
             PackagingDetails packaging = batch.getPackagingDetails();
 
-            Long returnQty = detail.getPurchaseReturnQuantity() != null
-                    ? detail.getPurchaseReturnQuantity()
-                    : 0L;
-
-            Long purchaseUnitContains = (packaging != null && packaging.getPurchaseUnitContains() != null)
-                    ? packaging.getPurchaseUnitContains()
-                    : 1L;
-
-            // Stock is tracked in smallest units — same conversion used when the
-            // purchase originally brought this batch in.
-            long stockQty = returnQty * purchaseUnitContains;
+            long stockQty = toStockUnits(packaging, detail.getPurchaseReturnQuantity());
 
             adjuster.decrement(new StockAdjustment(
                     locationId,

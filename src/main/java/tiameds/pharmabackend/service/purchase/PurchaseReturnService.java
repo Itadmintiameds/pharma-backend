@@ -19,4 +19,11 @@ public interface PurchaseReturnService {
             PurchaseReturnDto purchaseReturnDto,
             UserDetails user);
 
+    // Revises the quantity / free quantity of existing lines. Each changed line
+    // gets a new revision row; on the header only the edit reason changes.
+    PurchaseReturnDto editPurchaseReturn(
+            Long purchaseReturnId,
+            PurchaseReturnDto purchaseReturnDto,
+            UserDetails user);
+
 }

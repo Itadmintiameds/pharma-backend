@@ -33,6 +33,9 @@ public class PurchaseReturnDetailsMapper {
         dto.setGrossAmount(entity.getGrossAmount());
         dto.setGstAmount(entity.getGstAmount());
         dto.setNetAmount(entity.getNetAmount());
+        dto.setRevisionNo(entity.currentRevisionNo());
+        dto.setIsActive(entity.isCurrent());
+        dto.setPreviousDetailId(entity.getPreviousDetailId());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());

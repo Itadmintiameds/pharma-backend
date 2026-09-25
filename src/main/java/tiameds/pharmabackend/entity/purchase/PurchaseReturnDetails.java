@@ -58,6 +58,19 @@ public class PurchaseReturnDetails {
     @Column(name = "net_amount")
     private BigDecimal netAmount;
 
+    // Lines are never edited in place once a return is revised: the old row is
+    // marked inactive and a new row carries the next revision number, pointing
+    // back at the row it supersedes. Nullable so ddl-auto can add the columns to
+    // a table that already has rows — a null reads as revision 1 / active.
+    @Column(name = "revision_no")
+    private Integer revisionNo = 1;
+
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
+    @Column(name = "previous_detail_id")
+    private Long previousDetailId;
+
     @Column(name = "created_by")
     private String createdBy;
 
@@ -70,4 +83,13 @@ public class PurchaseReturnDetails {
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
 
+    // True for the line's latest revision. Rows written before revisioning have
+    // a null flag and count as current.
+    public boolean isCurrent() {
+        return !Boolean.FALSE.equals(isActive);
+    }
+
+    public int currentRevisionNo() {
+        return revisionNo != null ? revisionNo : 1;
+    }
 }

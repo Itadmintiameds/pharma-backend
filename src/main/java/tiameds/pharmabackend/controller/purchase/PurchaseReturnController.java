@@ -75,6 +75,29 @@ public class PurchaseReturnController {
     }
 
 
+    // Revises line quantities on a draft or confirmed return. Only
+    // editReason and, per line, purchaseReturnDetailId / purchaseReturnQuantity /
+    // freeReturnQuantity are read from the body.
+    @PreAuthorize("@access.has('PURCHASE_RETURN/PURCHASE_RETURN/EDIT')")
+    @PutMapping("/{purchaseReturnId}/edit")
+    public ResponseEntity<?> editPurchaseReturn(
+            @PathVariable Long purchaseReturnId,
+            @RequestBody PurchaseReturnDto purchaseReturnDto,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        PurchaseReturnDto response = purchaseReturnService.editPurchaseReturn(
+                purchaseReturnId,
+                purchaseReturnDto,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(response);
+    }
+
+
     @PreAuthorize("@access.has('PURCHASE_RETURN/PURCHASE_RETURN/VIEW')")
     @GetMapping("/{purchaseReturnId}")
     public ResponseEntity<?> getPurchaseReturnById(

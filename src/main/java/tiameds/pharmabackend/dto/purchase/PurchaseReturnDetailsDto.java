@@ -19,6 +19,12 @@ public class PurchaseReturnDetailsDto {
     private BigDecimal grossAmount;
     private BigDecimal gstAmount;
     private BigDecimal netAmount;
+
+    // Read-only revision info; set by the server, ignored on input.
+    private Integer revisionNo;
+    private Boolean isActive;
+    private Long previousDetailId;
+
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;
