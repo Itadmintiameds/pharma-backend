@@ -131,6 +131,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
             line.setPackaging(packagingRepository.getReferenceById(lr.getPackagingId()));
             line.setBatch(batchRepository.getReferenceById(lr.getBatchId()));
             line.setIssueQuantity(lr.getIssueQuantity());
+            line.setStockReturnStatus("Not return");
             line.setCreatedBy(actor);
             line.setCreatedAt(now);
             detailsRepository.save(line);
@@ -473,6 +474,49 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         Long organizationId = organizationService.getUserOrganization(user.getUserId())
                 .getOrganizationId();
         return allocationNoGenerator.generate(organizationId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DamagedStockResponse> getDamagedStockNotReturned() {
+        List<WarehouseDistributionDetails> lines = detailsRepository.findDamagedStockNotReturned();
+        return lines.stream().map(this::toDamagedStockResponse).toList();
+    }
+
+    private DamagedStockResponse toDamagedStockResponse(WarehouseDistributionDetails line) {
+        DamagedStockResponse dto = new DamagedStockResponse();
+        dto.setWarehouseDistributionDetailsId(line.getWarehouseDistributionDetailsId());
+        
+        WarehouseDistribution dist = line.getWarehouseDistribution();
+        if (dist != null) {
+            dto.setTransferNo(dist.getAllocationNo());
+            dto.setTransferDate(dist.getAllocationDate());
+            dto.setFromStore(resolveStoreName(dist.getSourceType(), dist.getSourceId()));
+        }
+        
+        ProductDetails product = line.getProduct();
+        if (product != null) {
+            dto.setProductName(product.getProductName());
+        }
+        
+        BatchDetails batch = line.getBatch();
+        if (batch != null) {
+            dto.setBatchNo(batch.getBatchNumber());
+            dto.setExpiryDate(batch.getExpiryDate());
+        }
+        
+        PackagingDetails packaging = line.getPackaging();
+        if (packaging != null) {
+            String unit = packaging.getPurchaseUnit();
+            if (packaging.getPurchaseUnitContains() != null) {
+                unit += " (" + packaging.getPurchaseUnitContains() + ")";
+            }
+            dto.setPurchaseUnit(unit);
+        }
+        
+        dto.setDamagedQty(line.getDamagedQuantity());
+        
+        return dto;
     }
 
     /**
