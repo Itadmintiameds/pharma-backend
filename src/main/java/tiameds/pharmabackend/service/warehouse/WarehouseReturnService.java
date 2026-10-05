@@ -19,7 +19,7 @@ public interface WarehouseReturnService {
     // Sends a DRAFT return to the warehouse: every line is dispatched at its full
     // return quantity, taken out of the pharmacy's inventory, and the return moves
     // to PENDING_RECEIPT.
-    WarehouseReturnDto dispatchWarehouseReturn(Long warehouseReturnId, UserDetails user);
+//    WarehouseReturnDto dispatchWarehouseReturn(Long warehouseReturnId, UserDetails user);
 
     // Records what the warehouse received against a Pending Receipt return:
     // per-line received / not received quantities and the header totals, then
@@ -28,4 +28,10 @@ public interface WarehouseReturnService {
             Long warehouseReturnId,
             WarehouseReturnDto warehouseReturnDto,
             UserDetails user);
+
+    WarehouseReturnDto submitWarehouseReturn(
+            Long warehouseReturnId,
+            WarehouseReturnDto warehouseReturnDto,
+            UserDetails user
+    );
 }

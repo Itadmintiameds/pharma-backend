@@ -73,22 +73,22 @@ public class WarehouseReturnController {
     // Dispatches a draft return in full: each line's dispatchQuantity is set to its
     // returnQuantity, pharmacy stock goes out and the status moves to PENDING_RECEIPT.
     // No request body.
-    @PreAuthorize("@access.has('WAREHOUSE_RETURN/WAREHOUSE_RETURN/EDIT')")
-    @PutMapping("/{warehouseReturnId}/dispatch")
-    public ResponseEntity<?> dispatchWarehouseReturn(
-            @PathVariable Long warehouseReturnId,
-            @AuthenticationPrincipal CustomUserDetails currentUser) {
-
-        if (currentUser == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
-        WarehouseReturnDto response = warehouseReturnService.dispatchWarehouseReturn(
-                warehouseReturnId,
-                currentUser.getUser());
-
-        return ResponseEntity.ok(response);
-    }
+//    @PreAuthorize("@access.has('WAREHOUSE_RETURN/WAREHOUSE_RETURN/EDIT')")
+//    @PutMapping("/{warehouseReturnId}/dispatch")
+//    public ResponseEntity<?> dispatchWarehouseReturn(
+//            @PathVariable Long warehouseReturnId,
+//            @AuthenticationPrincipal CustomUserDetails currentUser) {
+//
+//        if (currentUser == null) {
+//            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+//        }
+//
+//        WarehouseReturnDto response = warehouseReturnService.dispatchWarehouseReturn(
+//                warehouseReturnId,
+//                currentUser.getUser());
+//
+//        return ResponseEntity.ok(response);
+//    }
 
 
     // Warehouse records what it received against a Pending Receipt return and the
@@ -110,6 +110,27 @@ public class WarehouseReturnController {
                 warehouseReturnId,
                 warehouseReturnDto,
                 currentUser.getUser());
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    @PreAuthorize("@access.has('WAREHOUSE_RETURN/WAREHOUSE_RETURN/EDIT')")
+    @PutMapping("/{warehouseReturnId}/submit")
+    public ResponseEntity<?> submitWarehouseReturn(
+            @PathVariable Long warehouseReturnId,
+            @RequestBody WarehouseReturnDto warehouseReturnDto,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        WarehouseReturnDto response =
+                warehouseReturnService.submitWarehouseReturn(
+                        warehouseReturnId,
+                        warehouseReturnDto,
+                        currentUser.getUser());
 
         return ResponseEntity.ok(response);
     }
