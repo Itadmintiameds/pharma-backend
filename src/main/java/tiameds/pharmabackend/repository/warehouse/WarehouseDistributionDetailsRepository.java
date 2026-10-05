@@ -76,6 +76,17 @@ public interface WarehouseDistributionDetailsRepository
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
+    // Fetch products where damaged_qty > 0 and stock_return_status is 'Not return'
+    @Query("""
+        SELECT d FROM WarehouseDistributionDetails d
+        LEFT JOIN FETCH d.product
+        LEFT JOIN FETCH d.packaging
+        LEFT JOIN FETCH d.batch
+        LEFT JOIN FETCH d.warehouseDistribution wd
+        WHERE d.damagedQuantity > 0 AND d.stockReturnStatus = 'Not return'
+    """)
+    List<WarehouseDistributionDetails> findDamagedStockNotReturned();
+
     // Projection for aggregateLinesByDistribution()
     interface DistributionLineAggregate {
         Long getDistributionId();

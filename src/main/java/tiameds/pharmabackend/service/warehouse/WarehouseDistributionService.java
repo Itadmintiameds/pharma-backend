@@ -8,6 +8,8 @@ import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionRequestedByKpiRe
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionSourceKpiResponse;
 import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionSummaryResponse;
+import tiameds.pharmabackend.dto.warehouse.WarehouseDistributionLineResponse;
+import tiameds.pharmabackend.dto.warehouse.DamagedStockResponse;
 import tiameds.pharmabackend.entity.UserDetails;
 
 import java.util.List;
@@ -91,4 +93,7 @@ public interface WarehouseDistributionService {
      * sequence). Preview only — the authoritative number is assigned at create time.
      */
     String peekNextAllocationNo(UserDetails user);
+
+    /** Get product details for distribution lines with damaged quantity > 0 and stock return status 'Not return' */
+    List<DamagedStockResponse> getDamagedStockNotReturned();
 }

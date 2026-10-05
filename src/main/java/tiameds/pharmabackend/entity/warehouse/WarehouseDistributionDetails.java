@@ -60,6 +60,9 @@ public class WarehouseDistributionDetails {
     @Column(name = "damaged_quantity")      // reported by the receiver at Stock Received: damaged / not-received units; 0 when all good
     private Long damagedQuantity;
 
+    @Column(name = "stock_return_status")       
+    private String stockReturnStatus;
+
     // OLD: single ambiguous "remarks" — split into dispatchRemarks (sender) and
     // receiveRemarks (receiver) now that both stages capture a note.
     // @Column(name = "remarks")
