@@ -29,7 +29,7 @@ public interface WarehouseReturnService {
             WarehouseReturnDto warehouseReturnDto,
             UserDetails user);
 
-    WarehouseReturnDto submitWarehouseReturn(
+    WarehouseReturnDto updateWarehouseReturn(
             Long warehouseReturnId,
             WarehouseReturnDto warehouseReturnDto,
             UserDetails user

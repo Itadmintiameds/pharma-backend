@@ -116,8 +116,8 @@ public class WarehouseReturnController {
 
 
     @PreAuthorize("@access.has('WAREHOUSE_RETURN/WAREHOUSE_RETURN/EDIT')")
-    @PutMapping("/{warehouseReturnId}/submit")
-    public ResponseEntity<?> submitWarehouseReturn(
+    @PutMapping({"{warehouseReturnId}", "/{warehouseReturnId}/submit"})
+    public ResponseEntity<?> updateWarehouseReturn(
             @PathVariable Long warehouseReturnId,
             @RequestBody WarehouseReturnDto warehouseReturnDto,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
@@ -127,7 +127,7 @@ public class WarehouseReturnController {
         }
 
         WarehouseReturnDto response =
-                warehouseReturnService.submitWarehouseReturn(
+                warehouseReturnService.updateWarehouseReturn(
                         warehouseReturnId,
                         warehouseReturnDto,
                         currentUser.getUser());

@@ -21,6 +21,7 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseReturnRepository;
 import tiameds.pharmabackend.service.impl.warehouse.stock.InventoryAdjusters;
 import tiameds.pharmabackend.service.warehouse.WarehouseReturnService;
@@ -46,6 +47,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
     private final BatchDetailsRepository pharmaBatchDetailsRepository;
     private final LocationContextResolver locationContextResolver;
     private final InventoryAdjusters adjusters;
+    private final WarehouseRepository warehouseRepository;
 
 //    @Override
 //    public WarehouseReturnDto createWarehouseReturn(WarehouseReturnDto warehouseReturnDto, UserDetails user) {
@@ -286,7 +288,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
         WarehouseReturn savedWarehouseReturn =
                 warehouseReturnRepository.save(warehouseReturn);
 
-        return WarehouseReturnMapper.toDto(savedWarehouseReturn);
+        return mapToDtoWithWarehouseName(savedWarehouseReturn);
     }
 
     @Override
@@ -300,7 +302,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
         if (location.isWarehouse()) {
             return warehouseReturnRepository.findByToWarehouseId(location.getLocationId())
                     .stream()
-                    .map(WarehouseReturnMapper::toDto)
+                    .map(this::mapToDtoWithWarehouseName)
                     .collect(Collectors.toList());
         }
 
@@ -316,7 +318,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
 
         return warehouseReturnRepository.findByFromPharmacyId(pharmacyId)
                 .stream()
-                .map(WarehouseReturnMapper::toDto)
+                .map(this::mapToDtoWithWarehouseName)
                 .collect(Collectors.toList());
     }
 
@@ -341,7 +343,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
                 throw new RuntimeException("This warehouse return was not sent to your warehouse.");
             }
 
-            return WarehouseReturnMapper.toDto(warehouseReturn);
+            return mapToDtoWithWarehouseName(warehouseReturn);
         }
 
         String pharmacyId = location.getLocationId();
@@ -358,7 +360,16 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
             throw new RuntimeException("This warehouse return does not belong to your pharmacy.");
         }
 
-        return WarehouseReturnMapper.toDto(warehouseReturn);
+        return mapToDtoWithWarehouseName(warehouseReturn);
+    }
+
+    private WarehouseReturnDto mapToDtoWithWarehouseName(WarehouseReturn warehouseReturn) {
+        WarehouseReturnDto dto = WarehouseReturnMapper.toDto(warehouseReturn);
+        if (dto != null && dto.getToWarehouseId() != null) {
+            warehouseRepository.findById(dto.getToWarehouseId())
+                    .ifPresent(w -> dto.setToWarehouseName(w.getWarehouseName()));
+        }
+        return dto;
     }
 
 //    @Override
@@ -434,7 +445,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
 //    }
 
     @Override
-    public WarehouseReturnDto submitWarehouseReturn(
+    public WarehouseReturnDto updateWarehouseReturn(
             Long warehouseReturnId,
             WarehouseReturnDto warehouseReturnDto,
             UserDetails user) {
@@ -577,28 +588,24 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
                 totalReturnQuantity
         );
 
-        /*
-         * ---------------------------------------------------------
-         * DEDUCT PHARMACY INVENTORY
-         * ---------------------------------------------------------
-         */
+        StockReturnStatus requestedStatus = warehouseReturnDto.getStockReturnStatus();
+        if (requestedStatus == null) {
+            requestedStatus = StockReturnStatus.PENDING_RECEIPT;
+        }
 
-        deductPharmacyInventory(
-                warehouseReturn,
-                pharmacyId,
-                actor,
-                now
-        );
-
-        /*
-         * ---------------------------------------------------------
-         * UPDATE STATUS
-         * ---------------------------------------------------------
-         */
-
-        warehouseReturn.setStockReturnStatus(
-                StockReturnStatus.PENDING_RECEIPT
-        );
+        if (requestedStatus == StockReturnStatus.PENDING_RECEIPT) {
+            deductPharmacyInventory(
+                    warehouseReturn,
+                    pharmacyId,
+                    actor,
+                    now
+            );
+            warehouseReturn.setStockReturnStatus(StockReturnStatus.PENDING_RECEIPT);
+        } else if (requestedStatus == StockReturnStatus.DRAFT) {
+            warehouseReturn.setStockReturnStatus(StockReturnStatus.DRAFT);
+        } else {
+            throw new RuntimeException("Invalid stock return status: " + requestedStatus + ". Allowed values are DRAFT or PENDING_RECEIPT.");
+        }
 
         warehouseReturn.setModifiedBy(actor);
         warehouseReturn.setModifiedAt(now);
@@ -606,7 +613,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
         WarehouseReturn savedWarehouseReturn =
                 warehouseReturnRepository.save(warehouseReturn);
 
-        return WarehouseReturnMapper.toDto(savedWarehouseReturn);
+        return mapToDtoWithWarehouseName(savedWarehouseReturn);
     }
 
     private void updateReturnDetails(
@@ -854,7 +861,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
 
         WarehouseReturn savedWarehouseReturn = warehouseReturnRepository.save(warehouseReturn);
 
-        return WarehouseReturnMapper.toDto(savedWarehouseReturn);
+        return mapToDtoWithWarehouseName(savedWarehouseReturn);
     }
 
     private Map<Long, WarehouseReturnDetailsDto> receivedLinesById(WarehouseReturnDto warehouseReturnDto) {

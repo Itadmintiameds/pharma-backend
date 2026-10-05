@@ -12,6 +12,7 @@ public class WarehouseReturnDto {
     private Long warehouseReturnId;
     private String fromPharmacyId;
     private String toWarehouseId;
+    private String toWarehouseName;
     private String stockReturnNo;
     private LocalDateTime stockReturnDate;
     private String stockReturnType;
