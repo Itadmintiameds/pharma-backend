@@ -11,8 +11,11 @@ import tiameds.pharmabackend.dto.warehouse.WarehouseReturnDto;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.entity.warehouse.WarehouseDistribution;
+import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
 import tiameds.pharmabackend.entity.warehouse.WarehouseReturn;
 import tiameds.pharmabackend.entity.warehouse.WarehouseReturnDetails;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
 import tiameds.pharmabackend.enums.LocationType;
 import tiameds.pharmabackend.enums.StockReturnStatus;
 import tiameds.pharmabackend.enums.TransactionType;
@@ -21,6 +24,7 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseDistributionDetailsRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseReturnRepository;
 import tiameds.pharmabackend.service.impl.warehouse.stock.InventoryAdjusters;
@@ -31,8 +35,10 @@ import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,6 +54,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
     private final LocationContextResolver locationContextResolver;
     private final InventoryAdjusters adjusters;
     private final WarehouseRepository warehouseRepository;
+    private final WarehouseDistributionDetailsRepository distributionDetailsRepository;
 
 //    @Override
 //    public WarehouseReturnDto createWarehouseReturn(WarehouseReturnDto warehouseReturnDto, UserDetails user) {
@@ -146,7 +153,8 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
          */
         resolveReturnDetails(
                 warehouseReturn,
-                warehouseReturnDto
+                warehouseReturnDto,
+                pharmacyId
         );
 
         String actor = String.valueOf(persistentUser.getUserId());
@@ -254,6 +262,8 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
                 detail.setModifiedBy(actor);
                 detail.setModifiedAt(now);
             }
+
+            markDamagedLinesReturned(warehouseReturn, actor, now);
 
             warehouseReturn.setStockReturnStatus(
                     StockReturnStatus.PENDING_RECEIPT
@@ -535,7 +545,8 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
 
         updateReturnDetails(
                 warehouseReturn,
-                warehouseReturnDto
+                warehouseReturnDto,
+                pharmacyId
         );
 
         String actor = String.valueOf(persistentUser.getUserId());
@@ -600,6 +611,7 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
                     actor,
                     now
             );
+            markDamagedLinesReturned(warehouseReturn, actor, now);
             warehouseReturn.setStockReturnStatus(StockReturnStatus.PENDING_RECEIPT);
         } else if (requestedStatus == StockReturnStatus.DRAFT) {
             warehouseReturn.setStockReturnStatus(StockReturnStatus.DRAFT);
@@ -618,10 +630,13 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
 
     private void updateReturnDetails(
             WarehouseReturn warehouseReturn,
-            WarehouseReturnDto warehouseReturnDto) {
+            WarehouseReturnDto warehouseReturnDto,
+            String pharmacyId) {
 
         List<WarehouseReturnDetails> existingDetails =
                 warehouseReturn.getWarehouseReturnDetails();
+
+        Set<Long> linkedDistributionLines = new HashSet<>();
 
         /*
          * Remove existing lines.
@@ -675,6 +690,8 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
             detail.setWarehouseReturn(warehouseReturn);
             detail.setProduct(product);
             detail.setBatch(batch);
+            detail.setDistributionLine(resolveDistributionLine(
+                    dto, product, batch, pharmacyId, linkedDistributionLines));
 
             detail.setReturnQuantity(dto.getReturnQuantity());
 
@@ -929,7 +946,12 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
 
     // Resolves the managed product/batch for each return line (same index-aligned
     // pattern PurchaseReturnServiceImpl uses).
-    private void resolveReturnDetails(WarehouseReturn warehouseReturn, WarehouseReturnDto warehouseReturnDto) {
+    private void resolveReturnDetails(
+            WarehouseReturn warehouseReturn,
+            WarehouseReturnDto warehouseReturnDto,
+            String pharmacyId) {
+
+        Set<Long> linkedDistributionLines = new HashSet<>();
 
         for (int i = 0; i < warehouseReturn.getWarehouseReturnDetails().size(); i++) {
 
@@ -958,6 +980,78 @@ public class WarehouseReturnServiceImpl implements WarehouseReturnService {
             detail.setWarehouseReturnDetailId(null);
             detail.setProduct(product);
             detail.setBatch(batch);
+            detail.setDistributionLine(resolveDistributionLine(
+                    dto, product, batch, pharmacyId, linkedDistributionLines));
+        }
+    }
+
+    // Loads the damaged distribution line a return line points at, if any, and
+    // checks it really is outstanding damaged stock received by this pharmacy for
+    // the same product and batch.
+    private WarehouseDistributionDetails resolveDistributionLine(
+            WarehouseReturnDetailsDto dto,
+            ProductDetails product,
+            BatchDetails batch,
+            String pharmacyId,
+            Set<Long> alreadyLinked) {
+
+        Long lineId = dto.getWarehouseDistributionDetailsId();
+
+        if (lineId == null) {
+            return null;
+        }
+
+        if (!alreadyLinked.add(lineId)) {
+            throw new RuntimeException(
+                    "Distribution line " + lineId + " is returned more than once on this return");
+        }
+
+        WarehouseDistributionDetails line = distributionDetailsRepository.findById(lineId)
+                .orElseThrow(() -> new RuntimeException("Distribution line not found: " + lineId));
+
+        WarehouseDistribution distribution = line.getWarehouseDistribution();
+
+        if (distribution.getDestinationType() != LocationType.PHARMACY
+                || !pharmacyId.equals(distribution.getDestinationId())) {
+            throw new RuntimeException(
+                    "Distribution line " + lineId + " was not received by your pharmacy.");
+        }
+
+        if (line.getDamagedQuantity() == null || line.getDamagedQuantity() <= 0) {
+            throw new RuntimeException(
+                    "Distribution line " + lineId + " has no damaged quantity to return.");
+        }
+
+        if (line.getStockReturnStatus() == DamagedReturnStatus.RETURNED) {
+            throw new RuntimeException(
+                    "Damaged stock on distribution line " + lineId + " has already been returned.");
+        }
+
+        if (!product.getProductId().equals(line.getProduct().getProductId())
+                || line.getBatch() == null
+                || !batch.getBatchId().equals(line.getBatch().getBatchId())) {
+            throw new RuntimeException(
+                    "Product and batch do not match distribution line " + lineId);
+        }
+
+        return line;
+    }
+
+    // Called once the return is sent (Pending Receipt): the damaged stock on each
+    // linked distribution line is now on its way back to the warehouse.
+    private void markDamagedLinesReturned(WarehouseReturn warehouseReturn, String actor, LocalDateTime now) {
+
+        for (WarehouseReturnDetails detail : warehouseReturn.getWarehouseReturnDetails()) {
+
+            WarehouseDistributionDetails line = detail.getDistributionLine();
+
+            if (line == null) {
+                continue;
+            }
+
+            line.setStockReturnStatus(DamagedReturnStatus.RETURNED);
+            line.setModifiedBy(actor);
+            line.setModifiedAt(now);
         }
     }
 

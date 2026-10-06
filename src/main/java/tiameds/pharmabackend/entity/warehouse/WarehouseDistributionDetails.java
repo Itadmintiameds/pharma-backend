@@ -9,6 +9,8 @@ import lombok.Setter;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
+import tiameds.pharmabackend.enums.DamagedReturnStatusConverter;
 
 import java.time.LocalDateTime;
 
@@ -60,8 +62,9 @@ public class WarehouseDistributionDetails {
     @Column(name = "damaged_quantity")      // reported by the receiver at Stock Received: damaged / not-received units; 0 when all good
     private Long damagedQuantity;
 
-    @Column(name = "stock_return_status")       
-    private String stockReturnStatus;
+    @Column(name = "stock_return_status")   // whether the damaged quantity has been sent back on a warehouse return
+    @Convert(converter = DamagedReturnStatusConverter.class)
+    private DamagedReturnStatus stockReturnStatus = DamagedReturnStatus.NOT_RETURNED;
 
     // OLD: single ambiguous "remarks" — split into dispatchRemarks (sender) and
     // receiveRemarks (receiver) now that both stages capture a note.

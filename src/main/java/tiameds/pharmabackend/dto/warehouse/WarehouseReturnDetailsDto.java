@@ -8,10 +8,15 @@ import java.time.LocalDateTime;
 public class WarehouseReturnDetailsDto {
 
     private Long warehouseReturnDetailId;
+    // Damaged distribution line being returned; send it when returning from the damaged-not-returned list.
+    private Long warehouseDistributionDetailsId;
     private String productId;
     private String productName;
     private String batchId;
     private String batchNumber;
+    private String purchaseUnit;
+    private Long purchaseUnitContains;
+    private String smallestUnit;
     private Long returnQuantity;
     private Long dispatchQuantity;
     private Long receivedQuantity;

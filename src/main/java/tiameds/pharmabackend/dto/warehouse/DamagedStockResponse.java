@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.warehouse;
 
 import lombok.Data;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,4 +17,5 @@ public class DamagedStockResponse {
     private LocalDate expiryDate;
     private String purchaseUnit;
     private Long damagedQty;
+    private DamagedReturnStatus stockReturnStatus;
 }

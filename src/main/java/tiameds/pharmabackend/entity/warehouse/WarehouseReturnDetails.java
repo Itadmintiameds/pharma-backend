@@ -39,6 +39,14 @@ public class WarehouseReturnDetails {
     @JsonIgnore
     private BatchDetails batch;
 
+    // The damaged distribution line this return sends back, when the return was
+    // raised from the damaged-not-returned list. Null for an ordinary return.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_distribution_details_id",
+            referencedColumnName = "warehouse_distribution_details_id")
+    @JsonIgnore
+    private WarehouseDistributionDetails distributionLine;
+
     @Column(name = "return_quantity")
     private Long returnQuantity;
 
