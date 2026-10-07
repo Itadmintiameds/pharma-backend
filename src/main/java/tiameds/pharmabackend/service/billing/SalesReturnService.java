@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.service.billing;
 
 import tiameds.pharmabackend.dto.billing.SalesReturnDto;
+import tiameds.pharmabackend.dto.billing.SalesReturnKpiResponse;
 import tiameds.pharmabackend.entity.UserDetails;
 
 import java.util.List;
@@ -14,4 +15,6 @@ public interface SalesReturnService {
     List<SalesReturnDto> getAllSalesReturns(UserDetails user);
 
     SalesReturnDto getSalesReturnById(Long salesReturnId, UserDetails user);
+
+    SalesReturnKpiResponse getSalesReturnKpis(UserDetails user);
 }

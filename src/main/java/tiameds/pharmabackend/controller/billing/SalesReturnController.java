@@ -56,6 +56,21 @@ public class SalesReturnController {
     }
 
 
+    // KPI cards for the sales return screen: number of returns and total
+    // amount refunded, for the selected pharmacy.
+    @PreAuthorize("@access.has('SALES_RETURN/SALES_RETURN/VIEW')")
+    @GetMapping("/kpi")
+    public ResponseEntity<?> getSalesReturnKpis(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(salesReturnService.getSalesReturnKpis(currentUser.getUser()));
+    }
+
+
     @PreAuthorize("@access.has('SALES_RETURN/SALES_RETURN/VIEW')")
     @GetMapping("/{salesReturnId}")
     public ResponseEntity<?> getSalesReturnById(

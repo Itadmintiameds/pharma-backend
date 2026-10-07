@@ -6,7 +6,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.billing.SalesReturn;
+import tiameds.pharmabackend.enums.SalesReturnStatus;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +28,18 @@ public interface SalesReturnRepository extends JpaRepository<SalesReturn, Long> 
     List<SalesReturn> findByPharmacyId(@Param("pharmacyId") String pharmacyId);
 
     Optional<SalesReturn> findBySalesReturnIdAndPharmacyId(Long salesReturnId, String pharmacyId);
+
+    long countByPharmacyIdAndSalesReturnStatus(String pharmacyId, SalesReturnStatus status);
+
+    @Query("""
+        SELECT COALESCE(SUM(sr.totalNetAmount), 0)
+        FROM SalesReturn sr
+        WHERE sr.pharmacyId = :pharmacyId
+          AND sr.salesReturnStatus = :status
+    """)
+    BigDecimal sumTotalNetAmount(
+            @Param("pharmacyId") String pharmacyId,
+            @Param("status") SalesReturnStatus status);
 
     // Sales return numbers run as their own sequence per pharmacy, so each
     // pharmacy gets SLR-<year>-00001 onwards independently of the others.

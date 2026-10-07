@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.billing.SalesReturnDetailsDto;
 import tiameds.pharmabackend.dto.billing.SalesReturnDto;
+import tiameds.pharmabackend.dto.billing.SalesReturnKpiResponse;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.billing.BillingDetails;
@@ -213,6 +214,23 @@ public class SalesReturnServiceImpl implements SalesReturnService {
                         "Sales return not found in this pharmacy with id : " + salesReturnId));
 
         return SalesReturnMapper.toDto(salesReturn);
+    }
+
+
+    @Override
+    public SalesReturnKpiResponse getSalesReturnKpis(UserDetails user) {
+
+        String pharmacyId = requirePharmacy(requireUser(user));
+
+        SalesReturnKpiResponse response = new SalesReturnKpiResponse();
+
+        response.setTotalSalesReturns(salesReturnRepository
+                .countByPharmacyIdAndSalesReturnStatus(pharmacyId, SalesReturnStatus.COMPLETED));
+
+        response.setTotalReturnAmount(salesReturnRepository
+                .sumTotalNetAmount(pharmacyId, SalesReturnStatus.COMPLETED));
+
+        return response;
     }
 
 
