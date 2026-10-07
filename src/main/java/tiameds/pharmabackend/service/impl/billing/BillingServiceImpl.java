@@ -119,19 +119,51 @@ public class BillingServiceImpl implements BillingService {
 
         BillingContext context = resolveContext(user);
 
+        return toDtosWithReturns(
+                billingRepository.findByPharmacy_PharmacyId(context.pharmacyId()),
+                context.pharmacyId());
+    }
+
+
+    @Override
+    public List<BillingDto> getAllBillingsByPhoneNumber(String phoneNo, UserDetails user) {
+
+        BillingContext context = resolveContext(user);
+
+        if (phoneNo == null || phoneNo.isBlank()) {
+            throw new RuntimeException("Phone number is required");
+        }
+
+        // Every customer on that number is included, since one number can
+        // carry several people (see resolveCustomer).
+        return toDtosWithReturns(
+                billingRepository.findByPharmacy_PharmacyIdAndCustomer_CustomerPhoneNoOrderByBillingIdDesc(
+                        context.pharmacyId(),
+                        phoneNo.trim()),
+                context.pharmacyId());
+    }
+
+
+    // Maps bills of one pharmacy with returnedQuantity filled on each line.
+    private List<BillingDto> toDtosWithReturns(List<Billing> billings, String pharmacyId) {
+
+        if (billings.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         // Returned quantities for every bill of the pharmacy in one query,
         // keyed by bill, rather than one query per bill.
         Map<Long, Map<ReturnKey, Long>> returnedByBill = new HashMap<>();
 
         for (Object[] row : salesReturnDetailsRepository.sumReturnedQuantityByPharmacy(
-                context.pharmacyId(), SalesReturnStatus.COMPLETED)) {
+                pharmacyId, SalesReturnStatus.COMPLETED)) {
 
             returnedByBill
                     .computeIfAbsent((Long) row[0], id -> new HashMap<>())
                     .put(new ReturnKey((String) row[1], (String) row[2]), toLong(row[3]));
         }
 
-        return billingRepository.findByPharmacy_PharmacyId(context.pharmacyId())
+        return billings
                 .stream()
                 .map(billing -> {
                     BillingDto dto = BillingMapper.toDto(billing);

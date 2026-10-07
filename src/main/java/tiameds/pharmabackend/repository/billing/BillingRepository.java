@@ -17,6 +17,10 @@ public interface BillingRepository extends JpaRepository<Billing, Long> {
 
     List<Billing> findByPharmacy_PharmacyId(String pharmacyId);
 
+    List<Billing> findByPharmacy_PharmacyIdAndCustomer_CustomerPhoneNoOrderByBillingIdDesc(
+            String pharmacyId,
+            String customerPhoneNo);
+
     Optional<Billing> findByBillingIdAndPharmacy_PharmacyId(Long billingId, String pharmacyId);
 
     // Bill numbers run as their own sequence per pharmacy, so each pharmacy gets
