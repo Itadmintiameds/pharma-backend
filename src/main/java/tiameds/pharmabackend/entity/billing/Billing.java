@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.enums.BillReturnStatus;
+import tiameds.pharmabackend.enums.BillReturnStatusConverter;
 import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.enums.PaymentType;
 
@@ -58,6 +60,12 @@ public class Billing {
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_type")
     private PaymentType paymentType;
+
+    // How much of the bill has come back through sales returns. Re-derived by
+    // the sales return service after every return; never taken from the client.
+    @Convert(converter = BillReturnStatusConverter.class)
+    @Column(name = "sales_return_status", length = 20)
+    private BillReturnStatus salesReturnStatus = BillReturnStatus.NOT_RETURNED;
 
     @Column(name = "prescription_url")
     private String prescriptionUrl;
