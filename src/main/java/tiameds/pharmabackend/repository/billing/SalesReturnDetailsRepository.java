@@ -25,4 +25,19 @@ public interface SalesReturnDetailsRepository extends JpaRepository<SalesReturnD
     List<Object[]> sumReturnedQuantityByProductAndBatch(
             @Param("billingId") Long billingId,
             @Param("status") SalesReturnStatus status);
+
+    // Same totals for every bill of a pharmacy in one query, for the bill list.
+    // Each row is [billingId (Long), productId (String), batchId (String),
+    // returnedQuantity (Long)].
+    @Query("""
+        SELECT d.salesReturn.billing.billingId, d.product.productId, d.batch.batchId,
+               SUM(d.salesReturnQuantity)
+        FROM SalesReturnDetails d
+        WHERE d.salesReturn.pharmacyId = :pharmacyId
+          AND d.salesReturn.salesReturnStatus = :status
+        GROUP BY d.salesReturn.billing.billingId, d.product.productId, d.batch.batchId
+    """)
+    List<Object[]> sumReturnedQuantityByPharmacy(
+            @Param("pharmacyId") String pharmacyId,
+            @Param("status") SalesReturnStatus status);
 }

@@ -21,6 +21,9 @@ public class BillingDetailsDto {
     private Double mrpPerUnit;
     private String unit;
     private Long billQuantity;
+    // Read-only: units of this line already returned through sales returns,
+    // in the same unit as billQuantity. Filled on the bill view endpoints.
+    private Long returnedQuantity;
     private BigDecimal grossAmount;
     private BigDecimal totalMrpAmountPerUnit;
     private BigDecimal discountPercentage;

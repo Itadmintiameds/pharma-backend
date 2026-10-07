@@ -2,6 +2,7 @@ package tiameds.pharmabackend.dto.billing;
 
 import lombok.Data;
 import tiameds.pharmabackend.enums.BillReturnStatus;
+import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.enums.SalesReturnStatus;
 
 import java.math.BigDecimal;
@@ -18,6 +19,12 @@ public class SalesReturnDto {
     // was returned against and where that bill now stands.
     private String billNo;
     private BillReturnStatus billReturnStatus;
+
+    // Read-only: the bill's customer. Null for an anonymous walk-in bill.
+    private Long customerId;
+    private String customerName;
+    private String customerPhoneNo;
+    private CustomerType customerType;
 
     private String pharmacyId;
 

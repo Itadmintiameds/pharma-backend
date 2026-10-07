@@ -10,6 +10,8 @@ import tiameds.pharmabackend.dto.billing.SalesReturnDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.billing.SalesReturnService;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/sales-return")
 @RequiredArgsConstructor
@@ -35,5 +37,39 @@ public class SalesReturnController {
                 currentUser.getUser());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+
+    @PreAuthorize("@access.has('SALES_RETURN/SALES_RETURN/VIEW')")
+    @GetMapping("/allSalesReturn")
+    public ResponseEntity<?> getAllSalesReturns(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<SalesReturnDto> salesReturns =
+                salesReturnService.getAllSalesReturns(currentUser.getUser());
+
+        return ResponseEntity.ok(salesReturns);
+    }
+
+
+    @PreAuthorize("@access.has('SALES_RETURN/SALES_RETURN/VIEW')")
+    @GetMapping("/{salesReturnId}")
+    public ResponseEntity<?> getSalesReturnById(
+            @PathVariable Long salesReturnId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        SalesReturnDto salesReturn = salesReturnService.getSalesReturnById(
+                salesReturnId,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(salesReturn);
     }
 }

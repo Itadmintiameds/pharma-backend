@@ -31,6 +31,14 @@ public class SalesReturnMapper {
             dto.setBillReturnStatus(billing.getSalesReturnStatus() != null
                     ? billing.getSalesReturnStatus()
                     : BillReturnStatus.NOT_RETURNED);
+
+            dto.setCustomerType(billing.getCustomerType());
+
+            if (billing.getCustomer() != null) {
+                dto.setCustomerId(billing.getCustomer().getCustomerId());
+                dto.setCustomerName(billing.getCustomer().getCustomerName());
+                dto.setCustomerPhoneNo(billing.getCustomer().getCustomerPhoneNo());
+            }
         }
 
         dto.setPharmacyId(entity.getPharmacyId());

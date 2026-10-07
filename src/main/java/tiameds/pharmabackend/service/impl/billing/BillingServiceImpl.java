@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.entity.purchase.InventoryAudit;
 import tiameds.pharmabackend.enums.PaymentType;
+import tiameds.pharmabackend.enums.SalesReturnStatus;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
 import tiameds.pharmabackend.mapper.billing.BillingDetailsMapper;
@@ -45,6 +47,7 @@ import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.billing.BillingRepository;
 import tiameds.pharmabackend.repository.billing.CustomerManagementRepository;
 import tiameds.pharmabackend.repository.billing.DoctorDetailsRepository;
+import tiameds.pharmabackend.repository.billing.SalesReturnDetailsRepository;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.InventoryAuditRepository;
@@ -69,6 +72,7 @@ public class BillingServiceImpl implements BillingService {
     private final BatchDetailsRepository batchDetailsRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryAuditRepository inventoryAuditRepository;
+    private final SalesReturnDetailsRepository salesReturnDetailsRepository;
     private final CurrentPharmacyContext pharmacyContext;
     private final S3Service s3Service;
 
@@ -115,9 +119,27 @@ public class BillingServiceImpl implements BillingService {
 
         BillingContext context = resolveContext(user);
 
+        // Returned quantities for every bill of the pharmacy in one query,
+        // keyed by bill, rather than one query per bill.
+        Map<Long, Map<ReturnKey, Long>> returnedByBill = new HashMap<>();
+
+        for (Object[] row : salesReturnDetailsRepository.sumReturnedQuantityByPharmacy(
+                context.pharmacyId(), SalesReturnStatus.COMPLETED)) {
+
+            returnedByBill
+                    .computeIfAbsent((Long) row[0], id -> new HashMap<>())
+                    .put(new ReturnKey((String) row[1], (String) row[2]), toLong(row[3]));
+        }
+
         return billingRepository.findByPharmacy_PharmacyId(context.pharmacyId())
                 .stream()
-                .map(BillingMapper::toDto)
+                .map(billing -> {
+                    BillingDto dto = BillingMapper.toDto(billing);
+                    applyReturnedQuantities(
+                            dto,
+                            returnedByBill.getOrDefault(billing.getBillingId(), Map.of()));
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -129,7 +151,54 @@ public class BillingServiceImpl implements BillingService {
 
         Billing billing = requireBilling(billingId, context.pharmacyId());
 
-        return BillingMapper.toDto(billing);
+        Map<ReturnKey, Long> returned = new HashMap<>();
+
+        for (Object[] row : salesReturnDetailsRepository.sumReturnedQuantityByProductAndBatch(
+                billingId, SalesReturnStatus.COMPLETED)) {
+
+            returned.put(new ReturnKey((String) row[0], (String) row[1]), toLong(row[2]));
+        }
+
+        BillingDto dto = BillingMapper.toDto(billing);
+
+        applyReturnedQuantities(dto, returned);
+
+        return dto;
+    }
+
+
+    /**
+     * Sets returnedQuantity on each bill line from the quantities returned per
+     * product + batch. A batch can sit on more than one line of a bill, so the
+     * returned quantity is filled into those lines in order, each up to its
+     * billed quantity, instead of being repeated on every one of them.
+     */
+    private void applyReturnedQuantities(BillingDto dto, Map<ReturnKey, Long> returned) {
+
+        if (dto.getBillingDetails() == null) {
+            return;
+        }
+
+        Map<ReturnKey, Long> remaining = new HashMap<>(returned);
+
+        for (BillingDetailsDto line : dto.getBillingDetails()) {
+
+            ReturnKey key = new ReturnKey(line.getProductId(), line.getBatchId());
+
+            long available = remaining.getOrDefault(key, 0L);
+            long billQuantity = line.getBillQuantity() != null ? line.getBillQuantity() : 0L;
+
+            long returnedOnLine = Math.min(available, billQuantity);
+
+            line.setReturnedQuantity(returnedOnLine);
+
+            remaining.put(key, available - returnedOnLine);
+        }
+    }
+
+
+    private static long toLong(Object value) {
+        return value != null ? ((Number) value).longValue() : 0L;
     }
 
 
@@ -917,6 +986,10 @@ public class BillingServiceImpl implements BillingService {
 
         return "pharmacy/" + pharmacyId + "/billing/" + billingId
                 + "/prescription/RX_" + timestamp + extension;
+    }
+
+
+    private record ReturnKey(String productId, String batchId) {
     }
 
 

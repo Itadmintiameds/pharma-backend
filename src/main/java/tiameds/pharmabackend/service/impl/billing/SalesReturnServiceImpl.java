@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -59,18 +60,9 @@ public class SalesReturnServiceImpl implements SalesReturnService {
     @Override
     public SalesReturnDto createSalesReturn(SalesReturnDto salesReturnDto, UserDetails user) {
 
-        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        UserDetails persistentUser = requireUser(user);
 
-        String pharmacyId = pharmacyContext.getCurrentPharmacy();
-
-        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
-                pharmacyId,
-                persistentUser.getUserId());
-
-        if (!valid) {
-            throw new RuntimeException("You are not authorized to use this pharmacy.");
-        }
+        String pharmacyId = requirePharmacy(persistentUser);
 
         requireLines(salesReturnDto);
 
@@ -195,6 +187,56 @@ public class SalesReturnServiceImpl implements SalesReturnService {
         billingRepository.save(billing);
 
         return SalesReturnMapper.toDto(savedSalesReturn);
+    }
+
+
+    @Override
+    public List<SalesReturnDto> getAllSalesReturns(UserDetails user) {
+
+        String pharmacyId = requirePharmacy(requireUser(user));
+
+        return salesReturnRepository.findByPharmacyId(pharmacyId)
+                .stream()
+                .map(SalesReturnMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+
+    @Override
+    public SalesReturnDto getSalesReturnById(Long salesReturnId, UserDetails user) {
+
+        String pharmacyId = requirePharmacy(requireUser(user));
+
+        SalesReturn salesReturn = salesReturnRepository
+                .findBySalesReturnIdAndPharmacyId(salesReturnId, pharmacyId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Sales return not found in this pharmacy with id : " + salesReturnId));
+
+        return SalesReturnMapper.toDto(salesReturn);
+    }
+
+
+    private UserDetails requireUser(UserDetails user) {
+
+        return userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+
+    // The selected pharmacy, after checking the user is mapped to it.
+    private String requirePharmacy(UserDetails persistentUser) {
+
+        String pharmacyId = pharmacyContext.getCurrentPharmacy();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        return pharmacyId;
     }
 
 
