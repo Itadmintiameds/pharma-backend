@@ -13,14 +13,16 @@ import java.util.Optional;
 @Repository
 public interface WarehouseReturnRepository extends JpaRepository<WarehouseReturn, Long> {
 
-    // Lines, products and batches are shown with every return, so they are
-    // fetched with it instead of one lazy load per row.
+    // Lines, products, batches and their packaging are shown with every return,
+    // so they are fetched with it instead of one lazy load per row.
     @Query("""
         SELECT DISTINCT wr
         FROM WarehouseReturn wr
         LEFT JOIN FETCH wr.warehouseReturnDetails d
         LEFT JOIN FETCH d.product
-        LEFT JOIN FETCH d.batch
+        LEFT JOIN FETCH d.batch b
+        LEFT JOIN FETCH b.packagingDetails pk
+        LEFT JOIN FETCH pk.purchaseSmallestUnit
         WHERE wr.fromPharmacyId = :pharmacyId
           AND (wr.isDelete IS NULL OR wr.isDelete = false)
         ORDER BY wr.warehouseReturnId DESC
@@ -32,7 +34,9 @@ public interface WarehouseReturnRepository extends JpaRepository<WarehouseReturn
         FROM WarehouseReturn wr
         LEFT JOIN FETCH wr.warehouseReturnDetails d
         LEFT JOIN FETCH d.product
-        LEFT JOIN FETCH d.batch
+        LEFT JOIN FETCH d.batch b
+        LEFT JOIN FETCH b.packagingDetails pk
+        LEFT JOIN FETCH pk.purchaseSmallestUnit
         WHERE wr.toWarehouseId = :warehouseId
           AND (wr.isDelete IS NULL OR wr.isDelete = false)
         ORDER BY wr.warehouseReturnId DESC
@@ -44,7 +48,9 @@ public interface WarehouseReturnRepository extends JpaRepository<WarehouseReturn
         FROM WarehouseReturn wr
         LEFT JOIN FETCH wr.warehouseReturnDetails d
         LEFT JOIN FETCH d.product
-        LEFT JOIN FETCH d.batch
+        LEFT JOIN FETCH d.batch b
+        LEFT JOIN FETCH b.packagingDetails pk
+        LEFT JOIN FETCH pk.purchaseSmallestUnit
         WHERE wr.warehouseReturnId = :warehouseReturnId
           AND (wr.isDelete IS NULL OR wr.isDelete = false)
     """)

@@ -31,8 +31,12 @@ spring:
       hibernate:
         format_sql: true
 
+  # Run db/migration scripts on startup. The test DB predates Flyway, so
+  # baseline it at version 0 (not the default 1) so V1 still runs.
   flyway:
-    enabled: false
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
 
 app:
   cookie:

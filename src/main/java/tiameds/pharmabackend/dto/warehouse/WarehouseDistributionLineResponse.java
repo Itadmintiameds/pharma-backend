@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.warehouse;
 
 import lombok.Data;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -17,7 +18,7 @@ public class WarehouseDistributionLineResponse {
     private String dispatchRemarks;
     private Long receivedQuantity;
     private Long damagedQuantity;
-    private String stockReturnStatus;
+    private DamagedReturnStatus stockReturnStatus;
     private String receiveRemarks;
 
     // Nested detail objects so the frontend can render each line without extra lookups.

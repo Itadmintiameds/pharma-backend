@@ -17,8 +17,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: itadmin@tiameds.ai
-    password: xcyrxrvtxahesjur
-
+    password: ugejmrtofdxpgarn
 
     properties:
       mail:

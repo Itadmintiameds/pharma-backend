@@ -2,6 +2,7 @@ package tiameds.pharmabackend.mapper.warehouse;
 
 import tiameds.pharmabackend.dto.warehouse.WarehouseReturnDetailsDto;
 import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.warehouse.WarehouseReturnDetails;
 
@@ -17,6 +18,11 @@ public class WarehouseReturnDetailsMapper {
 
         dto.setWarehouseReturnDetailId(entity.getWarehouseReturnDetailId());
 
+        if (entity.getDistributionLine() != null) {
+            dto.setWarehouseDistributionDetailsId(
+                    entity.getDistributionLine().getWarehouseDistributionDetailsId());
+        }
+
         if (entity.getProduct() != null) {
             dto.setProductId(entity.getProduct().getProductId());
             dto.setProductName(entity.getProduct().getProductName());
@@ -25,6 +31,23 @@ public class WarehouseReturnDetailsMapper {
         if (entity.getBatch() != null) {
             dto.setBatchId(entity.getBatch().getBatchId());
             dto.setBatchNumber(entity.getBatch().getBatchNumber());
+
+            PackagingDetails packaging = entity.getBatch().getPackagingDetails();
+
+            if (packaging != null) {
+                dto.setPurchaseUnit(packaging.getPurchaseUnit());
+                dto.setPurchaseUnitContains(packaging.getPurchaseUnitContains());
+
+                if (packaging.getPurchaseSmallestUnit() != null) {
+                    dto.setSmallestUnit(
+                            packaging.getPurchaseSmallestUnit().getPurchaseSmallestUnitName());
+                }
+            }
+
+            // Fall back to the batch's own purchase unit when packaging has none.
+            if (dto.getPurchaseUnit() == null) {
+                dto.setPurchaseUnit(entity.getBatch().getPurchaseUnit());
+            }
         }
 
         dto.setReturnQuantity(entity.getReturnQuantity());

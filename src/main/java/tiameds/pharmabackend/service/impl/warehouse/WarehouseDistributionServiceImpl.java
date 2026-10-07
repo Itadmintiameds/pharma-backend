@@ -18,6 +18,7 @@ import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistribution;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionStatus;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
 import tiameds.pharmabackend.enums.DistributionStatus;
 import tiameds.pharmabackend.enums.LocationType;
 import tiameds.pharmabackend.exception.ResourceNotFoundException;
@@ -131,7 +132,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
             line.setPackaging(packagingRepository.getReferenceById(lr.getPackagingId()));
             line.setBatch(batchRepository.getReferenceById(lr.getBatchId()));
             line.setIssueQuantity(lr.getIssueQuantity());
-            line.setStockReturnStatus("Not return");
+            line.setStockReturnStatus(DamagedReturnStatus.NOT_RETURNED);
             line.setCreatedBy(actor);
             line.setCreatedAt(now);
             detailsRepository.save(line);
@@ -479,7 +480,9 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
     @Override
     @Transactional(readOnly = true)
     public List<DamagedStockResponse> getDamagedStockNotReturned() {
-        List<WarehouseDistributionDetails> lines = detailsRepository.findDamagedStockNotReturned();
+        // Partially returned lines still have damaged stock outstanding, so they stay on the list.
+        List<WarehouseDistributionDetails> lines = detailsRepository.findDamagedStockByReturnStatus(
+                List.of(DamagedReturnStatus.NOT_RETURNED, DamagedReturnStatus.PARTIALLY_RETURNED));
         return lines.stream().map(this::toDamagedStockResponse).toList();
     }
 
@@ -515,7 +518,8 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         }
         
         dto.setDamagedQty(line.getDamagedQuantity());
-        
+        dto.setStockReturnStatus(line.getStockReturnStatus());
+
         return dto;
     }
 
@@ -814,6 +818,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         dto.setDispatchRemarks(line.getDispatchRemarks());
         dto.setReceivedQuantity(line.getReceivedQuantity());
         dto.setDamagedQuantity(line.getDamagedQuantity());
+        dto.setStockReturnStatus(line.getStockReturnStatus());
         dto.setReceiveRemarks(line.getReceiveRemarks());
 
         ProductDetails product = line.getProduct();

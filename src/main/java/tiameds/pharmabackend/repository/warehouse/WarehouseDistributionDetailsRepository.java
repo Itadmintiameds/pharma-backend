@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
 import tiameds.pharmabackend.enums.DistributionStatus;
 import tiameds.pharmabackend.enums.LocationType;
 
@@ -76,16 +77,17 @@ public interface WarehouseDistributionDetailsRepository
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
-    // Fetch products where damaged_qty > 0 and stock_return_status is 'Not return'
+    // Lines with damaged_qty > 0 whose damaged stock return status is one of the given statuses
     @Query("""
         SELECT d FROM WarehouseDistributionDetails d
         LEFT JOIN FETCH d.product
         LEFT JOIN FETCH d.packaging
         LEFT JOIN FETCH d.batch
         LEFT JOIN FETCH d.warehouseDistribution wd
-        WHERE d.damagedQuantity > 0 AND d.stockReturnStatus = 'Not return'
+        WHERE d.damagedQuantity > 0 AND d.stockReturnStatus IN :statuses
     """)
-    List<WarehouseDistributionDetails> findDamagedStockNotReturned();
+    List<WarehouseDistributionDetails> findDamagedStockByReturnStatus(
+            @Param("statuses") Collection<DamagedReturnStatus> statuses);
 
     // Projection for aggregateLinesByDistribution()
     interface DistributionLineAggregate {
