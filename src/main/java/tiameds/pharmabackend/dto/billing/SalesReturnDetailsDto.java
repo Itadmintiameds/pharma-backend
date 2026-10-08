@@ -18,7 +18,7 @@ public class SalesReturnDetailsDto {
     private Long salesReturnQuantity;
     private String salesReturnReason;
 
-    // Read-only: priced off the original bill line, ignored on input.
+    // Computed on the client and stored as sent.
     private BigDecimal grossAmount;
     private BigDecimal gstAmount;
     private BigDecimal netAmount;

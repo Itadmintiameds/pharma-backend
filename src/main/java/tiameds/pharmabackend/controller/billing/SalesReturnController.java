@@ -19,9 +19,9 @@ public class SalesReturnController {
 
     private final SalesReturnService salesReturnService;
 
-    // Reads billingId, optional salesReturnDate, and per line productId /
-    // batchId / salesReturnQuantity / salesReturnReason. Amounts are priced
-    // off the bill by the server.
+    // Reads billingId, optional salesReturnDate, the total amounts, and per
+    // line productId / batchId / salesReturnQuantity / salesReturnReason /
+    // amounts. Amounts are computed on the client and stored as sent.
     @PreAuthorize("@access.has('SALES_RETURN/SALES_RETURN/CREATE')")
     @PostMapping("/create")
     public ResponseEntity<?> createSalesReturn(

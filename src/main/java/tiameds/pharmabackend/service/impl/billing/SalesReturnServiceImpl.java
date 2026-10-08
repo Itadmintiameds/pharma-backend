@@ -1,7 +1,5 @@
 package tiameds.pharmabackend.service.impl.billing;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -98,14 +96,16 @@ public class SalesReturnServiceImpl implements SalesReturnService {
                 ? salesReturnDto.getSalesReturnDate()
                 : now);
         salesReturn.setSalesReturnStatus(SalesReturnStatus.COMPLETED);
+
+        // Amounts are computed on the client and stored as sent, like the bill's.
+        salesReturn.setTotalGrossAmount(salesReturnDto.getTotalGrossAmount());
+        salesReturn.setTotalGstAmount(salesReturnDto.getTotalGstAmount());
+        salesReturn.setTotalNetAmount(salesReturnDto.getTotalNetAmount());
+
         salesReturn.setCreatedBy(actor);
         salesReturn.setCreatedAt(now);
         salesReturn.setModifiedBy(null);
         salesReturn.setModifiedAt(null);
-
-        BigDecimal totalGross = BigDecimal.ZERO;
-        BigDecimal totalGst = BigDecimal.ZERO;
-        BigDecimal totalNet = BigDecimal.ZERO;
 
         for (SalesReturnDetailsDto lineDto : salesReturnDto.getSalesReturnDetails()) {
 
@@ -137,9 +137,7 @@ public class SalesReturnServiceImpl implements SalesReturnService {
             long previouslyReturned = returnedBefore.getOrDefault(key, 0L)
                     + requestedNow.getOrDefault(key, 0L);
 
-            long cumulativeReturned = previouslyReturned + quantity;
-
-            if (cumulativeReturned > billed.quantity()) {
+            if (previouslyReturned + quantity > billed.quantity()) {
                 throw new RuntimeException(
                         "Cannot return " + quantity + " of product "
                                 + billed.product().getProductName()
@@ -157,28 +155,16 @@ public class SalesReturnServiceImpl implements SalesReturnService {
             detail.setBatch(billed.batch());
             detail.setSalesReturnQuantity(quantity);
             detail.setSalesReturnReason(lineDto.getSalesReturnReason());
-
-            // Refunded at what the customer actually paid on the bill, not at a
-            // client-sent price.
-            detail.setGrossAmount(share(billed.grossAmount(), previouslyReturned, cumulativeReturned, billed.quantity()));
-            detail.setGstAmount(share(billed.gstAmount(), previouslyReturned, cumulativeReturned, billed.quantity()));
-            detail.setNetAmount(share(billed.netAmount(), previouslyReturned, cumulativeReturned, billed.quantity()));
-
+            detail.setGrossAmount(lineDto.getGrossAmount());
+            detail.setGstAmount(lineDto.getGstAmount());
+            detail.setNetAmount(lineDto.getNetAmount());
             detail.setCreatedBy(actor);
             detail.setCreatedAt(now);
             detail.setModifiedBy(null);
             detail.setModifiedAt(null);
 
             salesReturn.getSalesReturnDetails().add(detail);
-
-            totalGross = totalGross.add(detail.getGrossAmount());
-            totalGst = totalGst.add(detail.getGstAmount());
-            totalNet = totalNet.add(detail.getNetAmount());
         }
-
-        salesReturn.setTotalGrossAmount(totalGross);
-        salesReturn.setTotalGstAmount(totalGst);
-        salesReturn.setTotalNetAmount(totalNet);
 
         SalesReturn savedSalesReturn = salesReturnRepository.save(salesReturn);
 
@@ -337,7 +323,7 @@ public class SalesReturnServiceImpl implements SalesReturnService {
 
     /**
      * The bill's lines grouped by product + batch. A batch can appear on more
-     * than one line of a bill, so quantities and amounts are summed per key.
+     * than one line of a bill, so quantities are summed per key.
      */
     private Map<LineKey, BilledLine> summarizeBill(Billing billing) {
 
@@ -356,10 +342,7 @@ public class SalesReturnServiceImpl implements SalesReturnService {
             BilledLine line = new BilledLine(
                     detail.getProduct(),
                     detail.getBatch(),
-                    detail.getBillQuantity() != null ? detail.getBillQuantity() : 0L,
-                    orZero(detail.getGrossAmount()),
-                    orZero(detail.getGstAmount()),
-                    orZero(detail.getNetAmount()));
+                    detail.getBillQuantity() != null ? detail.getBillQuantity() : 0L);
 
             billedLines.merge(key, line, BilledLine::plus);
         }
@@ -385,35 +368,6 @@ public class SalesReturnServiceImpl implements SalesReturnService {
         }
 
         return returned;
-    }
-
-
-    /**
-     * The part of a bill line's amount that belongs to units
-     * (previouslyReturned, cumulativeReturned]. Taken as the difference of two
-     * cumulative shares so that a line returned in several goes adds up to
-     * exactly the billed amount, with no rounding drift.
-     */
-    private BigDecimal share(
-            BigDecimal lineAmount,
-            long previouslyReturned,
-            long cumulativeReturned,
-            long billedQuantity) {
-
-        if (billedQuantity <= 0L) {
-            return BigDecimal.ZERO;
-        }
-
-        return cumulativeShare(lineAmount, cumulativeReturned, billedQuantity)
-                .subtract(cumulativeShare(lineAmount, previouslyReturned, billedQuantity));
-    }
-
-
-    private BigDecimal cumulativeShare(BigDecimal lineAmount, long quantity, long billedQuantity) {
-
-        return lineAmount
-                .multiply(BigDecimal.valueOf(quantity))
-                .divide(BigDecimal.valueOf(billedQuantity), 2, RoundingMode.HALF_UP);
     }
 
 
@@ -472,11 +426,6 @@ public class SalesReturnServiceImpl implements SalesReturnService {
     }
 
 
-    private static BigDecimal orZero(BigDecimal value) {
-        return value != null ? value : BigDecimal.ZERO;
-    }
-
-
     private record LineKey(String productId, String batchId) {
     }
 
@@ -484,19 +433,10 @@ public class SalesReturnServiceImpl implements SalesReturnService {
     private record BilledLine(
             ProductDetails product,
             BatchDetails batch,
-            long quantity,
-            BigDecimal grossAmount,
-            BigDecimal gstAmount,
-            BigDecimal netAmount) {
+            long quantity) {
 
         BilledLine plus(BilledLine other) {
-            return new BilledLine(
-                    product,
-                    batch,
-                    quantity + other.quantity,
-                    grossAmount.add(other.grossAmount),
-                    gstAmount.add(other.gstAmount),
-                    netAmount.add(other.netAmount));
+            return new BilledLine(product, batch, quantity + other.quantity);
         }
     }
 }

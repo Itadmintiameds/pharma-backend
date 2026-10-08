@@ -35,7 +35,7 @@ public class SalesReturnDto {
     // Optional on create; defaults to now.
     private LocalDateTime salesReturnDate;
 
-    // Read-only: computed from the lines, which are priced off the bill.
+    // Computed on the client and stored as sent.
     private BigDecimal totalGrossAmount;
     private BigDecimal totalGstAmount;
     private BigDecimal totalNetAmount;
