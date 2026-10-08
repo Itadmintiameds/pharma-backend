@@ -14,6 +14,8 @@ public interface BillingService {
 
     List<BillingDto> getAllBillings(UserDetails user);
 
+    List<BillingDto> getAllBillingsByPhoneNumber(String phoneNo, UserDetails user);
+
     BillingDto getBillingById(Long billingId, UserDetails user);
 
     BillingDto updateBilling(Long billingId, BillingDto billingDto, UserDetails user);

@@ -78,6 +78,25 @@ public class BillingController {
         return ResponseEntity.ok(billings);
     }
 
+    // Bills of the selected pharmacy whose customer has this phone number,
+    // newest first. Anonymous walk-in bills have no customer and never match.
+    @PreAuthorize("@access.has('SALES/SALES/VIEW')")
+    @GetMapping("/byPhoneNumber")
+    public ResponseEntity<?> getAllBillingsByPhoneNumber(
+            @RequestParam String phoneNo,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<BillingDto> billings = billingService.getAllBillingsByPhoneNumber(
+                phoneNo,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(billings);
+    }
+
     @PreAuthorize("@access.has('SALES/SALES/VIEW')")
     @GetMapping("/{billingId}")
     public ResponseEntity<?> getBillingById(
