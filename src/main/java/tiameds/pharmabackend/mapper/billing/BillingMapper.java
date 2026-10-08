@@ -4,6 +4,7 @@ import tiameds.pharmabackend.dto.billing.BillingDto;
 import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.billing.BillingDetails;
 import tiameds.pharmabackend.entity.billing.BillingPayment;
+import tiameds.pharmabackend.enums.BillReturnStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +54,12 @@ public class BillingMapper {
         dto.setRoundOffAmount(entity.getRoundOffAmount());
         dto.setTotalNetAmountAfterRoundOff(entity.getTotalNetAmountAfterRoundOff());
         dto.setSellingType(entity.getSellingType());
+
+        // Bills raised before the column existed carry a null.
+        dto.setSalesReturnStatus(entity.getSalesReturnStatus() != null
+                ? entity.getSalesReturnStatus()
+                : BillReturnStatus.NOT_RETURNED);
+
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());

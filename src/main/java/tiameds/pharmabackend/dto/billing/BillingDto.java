@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.billing;
 
 import lombok.Data;
+import tiameds.pharmabackend.enums.BillReturnStatus;
 import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.enums.PaymentType;
 
@@ -36,6 +37,8 @@ public class BillingDto {
     // totalNetAmount + roundOffAmount — the whole-rupee amount collected
     private BigDecimal totalNetAmountAfterRoundOff;
     private String sellingType;
+    // Read-only: re-derived by the sales return service, ignored on input.
+    private BillReturnStatus salesReturnStatus;
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;
