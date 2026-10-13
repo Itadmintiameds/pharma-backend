@@ -39,6 +39,12 @@ public class LocationContextResolver {
      * <p>A warehouse manager may be mapped to several warehouses; the one for this
      * request comes from the {@code X-Warehouse-Id} header ({@link CurrentWarehouseContext}).
      * If they are mapped to exactly one warehouse the header is optional.
+     *
+     * <p>Anyone else — a SUPER ADMIN or any other role, e.g. a supplier that can
+     * belong to a warehouse instead of a pharmacy — operates on a warehouse for
+     * this one request when {@code X-Warehouse-Id} was sent and validated by
+     * {@link tiameds.pharmabackend.security.CurrentPharmacyFilter}; otherwise
+     * they fall back to the pharmacy selected via {@code X-Pharmacy-Id}.
      */
     public LocationContext resolve(UserDetails user) {
 
@@ -46,16 +52,9 @@ public class LocationContextResolver {
             return new LocationContext(LocationType.WAREHOUSE, resolveWarehouseId(user));
         }
 
-        // A SUPER ADMIN may operate on a warehouse in their own organization. When the
-        // X-Warehouse-Id header was sent and validated (same-organization) by
-        // CurrentPharmacyFilter, the warehouse context is set and we route there,
-        // making the superadmin behave like a warehouse manager for that warehouse.
-        // With no warehouse selected they fall through to the pharmacy branch below.
-        if (isSuperAdmin(user)) {
-            String warehouseId = warehouseContext.getCurrentWarehouseOrNull();
-            if (warehouseId != null && !warehouseId.isBlank()) {
-                return new LocationContext(LocationType.WAREHOUSE, warehouseId);
-            }
+        String warehouseId = warehouseContext.getCurrentWarehouseOrNull();
+        if (warehouseId != null && !warehouseId.isBlank()) {
+            return new LocationContext(LocationType.WAREHOUSE, warehouseId);
         }
 
         return new LocationContext(

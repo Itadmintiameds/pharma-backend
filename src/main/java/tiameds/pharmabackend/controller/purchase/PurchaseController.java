@@ -75,4 +75,21 @@ public class PurchaseController {
 
         return ResponseEntity.ok(purchases);
     }
+
+
+    @PreAuthorize("@access.has('PURCHASE/PURCHASE/VIEW')")
+    @GetMapping("/{purchaseId}")
+    public ResponseEntity<?> getPurchaseById(
+            @PathVariable Long purchaseId,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        PurchaseDto purchase =
+                purchaseService.getPurchaseById(purchaseId, currentUser.getUser());
+
+        return ResponseEntity.ok(purchase);
+    }
 }

@@ -8,6 +8,7 @@ import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
+import tiameds.pharmabackend.enums.SupplierStatus;
 import tiameds.pharmabackend.mapper.supplier.SupplierMasterMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
@@ -57,6 +58,8 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
             supplier.setPharmacyId(pharmacyId);
             supplier.setWarehouseId(null);
         }
+
+        supplier.setStatus(SupplierStatus.ACTIVE);
 
         supplier.setCreatedBy(String.valueOf(persistentUser.getUserId()));
         supplier.setCreatedAt(LocalDateTime.now());
@@ -136,5 +139,73 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
         }
 
         return supplierMasterMapper.toDto(supplier);
+    }
+
+
+    @Override
+    public SupplierMasterDto updateSupplier(
+            Long supplierId,
+            SupplierMasterDto supplierDto,
+            UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        SupplierMaster supplier;
+
+        if (location.isWarehouse()) {
+            supplier = supplierMasterRepository
+                    .findBySupplierIdAndWarehouseId(supplierId, location.getLocationId())
+                    .orElseThrow(() -> new RuntimeException("Supplier not found"));
+        } else {
+            String pharmacyId = location.getLocationId();
+
+            boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                    pharmacyId,
+                    persistentUser.getUserId());
+
+            if (!valid) {
+                throw new RuntimeException("You are not authorized to use this pharmacy.");
+            }
+
+            supplier = supplierMasterRepository
+                    .findBySupplierIdAndPharmacyId(supplierId, pharmacyId)
+                    .orElseThrow(() -> new RuntimeException("Supplier not found"));
+        }
+
+        supplier.setSupplierName(supplierDto.getSupplierName());
+        supplier.setDlno(supplierDto.getDlno());
+        supplier.setGstinNo(supplierDto.getGstinNo());
+        supplier.setPanNo(supplierDto.getPanNo());
+        supplier.setDlExpiryDate(supplierDto.getDlExpiryDate());
+        supplier.setIssuingAuthority(supplierDto.getIssuingAuthority());
+        supplier.setFssaiNo(supplierDto.getFssaiNo());
+        supplier.setContactPersonName(supplierDto.getContactPersonName());
+        supplier.setMobileNumber(supplierDto.getMobileNumber());
+        supplier.setSupplierEmail(supplierDto.getSupplierEmail());
+        supplier.setAddress(supplierDto.getAddress());
+        supplier.setBuildingNo(supplierDto.getBuildingNo());
+        supplier.setPincode(supplierDto.getPincode());
+        supplier.setCity(supplierDto.getCity());
+        supplier.setDistrict(supplierDto.getDistrict());
+        supplier.setState(supplierDto.getState());
+        supplier.setBankName(supplierDto.getBankName());
+        supplier.setAccountHolderName(supplierDto.getAccountHolderName());
+        supplier.setAccountNumber(supplierDto.getAccountNumber());
+        supplier.setIfscCode(supplierDto.getIfscCode());
+
+        if (supplierDto.getStatus() != null) {
+            supplier.setStatus(supplierDto.getStatus());
+        }
+
+        supplier.setModifiedBy(String.valueOf(persistentUser.getUserId()));
+        supplier.setModifiedAt(LocalDateTime.now());
+
+        SupplierMaster updatedSupplier =
+                supplierMasterRepository.save(supplier);
+
+        return supplierMasterMapper.toDto(updatedSupplier);
     }
 }

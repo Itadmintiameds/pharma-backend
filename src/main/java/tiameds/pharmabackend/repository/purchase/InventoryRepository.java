@@ -3,12 +3,15 @@ package tiameds.pharmabackend.repository.purchase;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Inventory;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,4 +49,18 @@ public interface InventoryRepository extends JpaRepository <Inventory, Long> {
 
     // stock rows of one batch within a pharmacy (used for the batch lookup)
     List<Inventory> findByPharmacy_PharmacyIdAndBatch_BatchId(String pharmacyId, String batchId);
+
+    // Current stock for a set of batches in one pharmacy, as [batchId, totalStock]
+    // rows. Summed because a batch can hold one row per packaging. Used to show
+    // available stock on purchase lines without a lookup per line.
+    @Query("""
+        SELECT i.batch.batchId, SUM(i.totalStock)
+        FROM Inventory i
+        WHERE i.pharmacy.pharmacyId = :pharmacyId
+          AND i.batch.batchId IN :batchIds
+        GROUP BY i.batch.batchId
+    """)
+    List<Object[]> sumStockByBatchIds(
+            @Param("pharmacyId") String pharmacyId,
+            @Param("batchIds") Collection<String> batchIds);
 }

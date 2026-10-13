@@ -18,6 +18,7 @@ import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistribution;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
 import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionStatus;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
 import tiameds.pharmabackend.enums.DistributionStatus;
 import tiameds.pharmabackend.enums.LocationType;
 import tiameds.pharmabackend.exception.ResourceNotFoundException;
@@ -131,6 +132,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
             line.setPackaging(packagingRepository.getReferenceById(lr.getPackagingId()));
             line.setBatch(batchRepository.getReferenceById(lr.getBatchId()));
             line.setIssueQuantity(lr.getIssueQuantity());
+            line.setStockReturnStatus(DamagedReturnStatus.NOT_RETURNED);
             line.setCreatedBy(actor);
             line.setCreatedAt(now);
             detailsRepository.save(line);
@@ -475,6 +477,52 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         return allocationNoGenerator.generate(organizationId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<DamagedStockResponse> getDamagedStockNotReturned() {
+        // Partially returned lines still have damaged stock outstanding, so they stay on the list.
+        List<WarehouseDistributionDetails> lines = detailsRepository.findDamagedStockByReturnStatus(
+                List.of(DamagedReturnStatus.NOT_RETURNED, DamagedReturnStatus.PARTIALLY_RETURNED));
+        return lines.stream().map(this::toDamagedStockResponse).toList();
+    }
+
+    private DamagedStockResponse toDamagedStockResponse(WarehouseDistributionDetails line) {
+        DamagedStockResponse dto = new DamagedStockResponse();
+        dto.setWarehouseDistributionDetailsId(line.getWarehouseDistributionDetailsId());
+        
+        WarehouseDistribution dist = line.getWarehouseDistribution();
+        if (dist != null) {
+            dto.setTransferNo(dist.getAllocationNo());
+            dto.setTransferDate(dist.getAllocationDate());
+            dto.setFromStore(resolveStoreName(dist.getSourceType(), dist.getSourceId()));
+        }
+        
+        ProductDetails product = line.getProduct();
+        if (product != null) {
+            dto.setProductName(product.getProductName());
+        }
+        
+        BatchDetails batch = line.getBatch();
+        if (batch != null) {
+            dto.setBatchNo(batch.getBatchNumber());
+            dto.setExpiryDate(batch.getExpiryDate());
+        }
+        
+        PackagingDetails packaging = line.getPackaging();
+        if (packaging != null) {
+            String unit = packaging.getPurchaseUnit();
+            if (packaging.getPurchaseUnitContains() != null) {
+                unit += " (" + packaging.getPurchaseUnitContains() + ")";
+            }
+            dto.setPurchaseUnit(unit);
+        }
+        
+        dto.setDamagedQty(line.getDamagedQuantity());
+        dto.setStockReturnStatus(line.getStockReturnStatus());
+
+        return dto;
+    }
+
     /**
      * Turns a page of distributions into summary rows for {@code warehouseId}. The
      * line totals, latest status and store names are each fetched in one bulk query
@@ -770,6 +818,7 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
         dto.setDispatchRemarks(line.getDispatchRemarks());
         dto.setReceivedQuantity(line.getReceivedQuantity());
         dto.setDamagedQuantity(line.getDamagedQuantity());
+        dto.setStockReturnStatus(line.getStockReturnStatus());
         dto.setReceiveRemarks(line.getReceiveRemarks());
 
         ProductDetails product = line.getProduct();

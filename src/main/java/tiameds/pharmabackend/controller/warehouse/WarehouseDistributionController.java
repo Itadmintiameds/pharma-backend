@@ -193,4 +193,18 @@ public class WarehouseDistributionController {
 
         return ResponseEntity.ok(distributionService.getById(distributionId));
     }
+
+    // Get product details for damaged stock that is not returned
+    @PreAuthorize("@access.hasAny('WAREHOUSE_DISTRIBUTION/WAREHOUSE_DISTRIBUTION/VIEW', " +
+            "'WAREHOUSE_RECEIPT/WAREHOUSE_RECEIPT/VIEW')")
+    @GetMapping("/damaged-not-returned")
+    public ResponseEntity<?> getDamagedStockNotReturned(
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(distributionService.getDamagedStockNotReturned());
+    }
 }

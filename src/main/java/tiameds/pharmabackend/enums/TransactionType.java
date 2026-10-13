@@ -7,6 +7,7 @@ public enum TransactionType {
     SALES_RETURN,
     STOCK_ADJUSTMENT,
     STOCK_TRANSFER,
+    STOCK_RETURN,
     DAMAGE,
     EXPIRED
 }

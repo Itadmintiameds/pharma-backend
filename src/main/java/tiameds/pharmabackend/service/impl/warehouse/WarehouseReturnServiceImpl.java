@@ -1,0 +1,1100 @@
+package tiameds.pharmabackend.service.impl.warehouse;
+
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import tiameds.pharmabackend.context.LocationContext;
+import tiameds.pharmabackend.context.LocationContextResolver;
+import tiameds.pharmabackend.dto.warehouse.WarehouseReturnDetailsDto;
+import tiameds.pharmabackend.dto.warehouse.WarehouseReturnDto;
+import tiameds.pharmabackend.entity.UserDetails;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.entity.warehouse.WarehouseDistribution;
+import tiameds.pharmabackend.entity.warehouse.WarehouseDistributionDetails;
+import tiameds.pharmabackend.entity.warehouse.WarehouseReturn;
+import tiameds.pharmabackend.entity.warehouse.WarehouseReturnDetails;
+import tiameds.pharmabackend.enums.DamagedReturnStatus;
+import tiameds.pharmabackend.enums.LocationType;
+import tiameds.pharmabackend.enums.StockReturnStatus;
+import tiameds.pharmabackend.enums.TransactionType;
+import tiameds.pharmabackend.mapper.warehouse.WarehouseReturnMapper;
+import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
+import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
+import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseDistributionDetailsRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseReturnRepository;
+import tiameds.pharmabackend.service.impl.warehouse.stock.InventoryAdjusters;
+import tiameds.pharmabackend.service.warehouse.WarehouseReturnService;
+import tiameds.pharmabackend.service.warehouse.stock.InventoryAdjuster;
+import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class WarehouseReturnServiceImpl implements WarehouseReturnService {
+
+    private final WarehouseReturnRepository warehouseReturnRepository;
+    private final UserDetailsRepository userDetailsRepository;
+    private final PharmacyDetailsRepository pharmacyDetailsRepository;
+    private final ProductDetailsRepository pharmaProductDetailsRepository;
+    private final BatchDetailsRepository pharmaBatchDetailsRepository;
+    private final LocationContextResolver locationContextResolver;
+    private final InventoryAdjusters adjusters;
+    private final WarehouseRepository warehouseRepository;
+    private final WarehouseDistributionDetailsRepository distributionDetailsRepository;
+
+//    @Override
+//    public WarehouseReturnDto createWarehouseReturn(WarehouseReturnDto warehouseReturnDto, UserDetails user) {
+//
+//        if (warehouseReturnDto == null) {
+//            throw new RuntimeException("Warehouse return details are required");
+//        }
+//
+//        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+//                .orElseThrow(() -> new RuntimeException("User not found"));
+//
+//        String pharmacyId = resolveUserPharmacy(persistentUser);
+//
+//        String warehouseId = warehouseReturnDto.getToWarehouseId();
+//
+//        if (warehouseId == null || warehouseId.isBlank()) {
+//            throw new RuntimeException("Warehouse id is required");
+//        }
+//
+//        if (!locationContextResolver.warehouseInUserOrganization(warehouseId, persistentUser)) {
+//            throw new RuntimeException("This warehouse does not belong to your organization.");
+//        }
+//
+//        if (warehouseReturnDto.getWarehouseReturnDetails() == null
+//                || warehouseReturnDto.getWarehouseReturnDetails().isEmpty()) {
+//            throw new RuntimeException("At least one warehouse return line is required");
+//        }
+//
+//        WarehouseReturn warehouseReturn = WarehouseReturnMapper.toEntity(warehouseReturnDto);
+//
+//        warehouseReturn.setWarehouseReturnId(null);
+//        warehouseReturn.setFromPharmacyId(pharmacyId);
+//        warehouseReturn.setToWarehouseId(warehouseId);
+//        warehouseReturn.setStockReturnNo(generateStockReturnNo(pharmacyId));
+//        warehouseReturn.setStockReturnStatus(resolveCreateStatus(warehouseReturnDto.getStockReturnStatus()));
+//        warehouseReturn.setIsDelete(false);
+//
+//        resolveReturnDetails(warehouseReturn, warehouseReturnDto);
+//
+//        String actor = String.valueOf(persistentUser.getUserId());
+//        LocalDateTime now = LocalDateTime.now();
+//
+//        stampAuditFields(warehouseReturn, actor, now);
+//
+//        WarehouseReturn savedWarehouseReturn = warehouseReturnRepository.save(warehouseReturn);
+//
+//        return WarehouseReturnMapper.toDto(savedWarehouseReturn);
+//    }
+
+    @Override
+    public WarehouseReturnDto createWarehouseReturn(
+            WarehouseReturnDto warehouseReturnDto,
+            UserDetails user) {
+
+        if (warehouseReturnDto == null) {
+            throw new RuntimeException("Warehouse return details are required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = resolveUserPharmacy(persistentUser);
+
+        String warehouseId = warehouseReturnDto.getToWarehouseId();
+
+        if (warehouseId == null || warehouseId.isBlank()) {
+            throw new RuntimeException("Warehouse id is required");
+        }
+
+        if (!locationContextResolver.warehouseInUserOrganization(
+                warehouseId,
+                persistentUser)) {
+
+            throw new RuntimeException(
+                    "This warehouse does not belong to your organization.");
+        }
+
+        if (warehouseReturnDto.getWarehouseReturnDetails() == null
+                || warehouseReturnDto.getWarehouseReturnDetails().isEmpty()) {
+
+            throw new RuntimeException(
+                    "At least one warehouse return line is required");
+        }
+
+        WarehouseReturn warehouseReturn =
+                WarehouseReturnMapper.toEntity(warehouseReturnDto);
+
+        warehouseReturn.setWarehouseReturnId(null);
+        warehouseReturn.setFromPharmacyId(pharmacyId);
+        warehouseReturn.setToWarehouseId(warehouseId);
+        warehouseReturn.setStockReturnNo(generateStockReturnNo(pharmacyId));
+        warehouseReturn.setIsDelete(false);
+
+        /*
+         * Resolve product and batch entities first.
+         */
+        resolveReturnDetails(
+                warehouseReturn,
+                warehouseReturnDto,
+                pharmacyId
+        );
+
+        String actor = String.valueOf(persistentUser.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        /*
+         * ---------------------------------------------------------
+         * DETERMINE REQUESTED STATUS
+         * ---------------------------------------------------------
+         */
+
+        StockReturnStatus requestedStatus =
+                warehouseReturnDto.getStockReturnStatus();
+
+        if (requestedStatus == null) {
+            throw new RuntimeException(
+                    "Stock return status is required");
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * DRAFT
+         * ---------------------------------------------------------
+         *
+         * Return is only created.
+         *
+         * Pharmacy inventory is NOT touched.
+         */
+
+        if (requestedStatus == StockReturnStatus.DRAFT) {
+
+            warehouseReturn.setStockReturnStatus(
+                    StockReturnStatus.DRAFT
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * PENDING RECEIPT
+         * ---------------------------------------------------------
+         *
+         * The return is being submitted immediately.
+         *
+         * Therefore:
+         *
+         * 1. Deduct pharmacy inventory
+         * 2. Set dispatch quantity = return quantity
+         * 3. Set status = PENDING_RECEIPT
+         */
+
+        else if (requestedStatus == StockReturnStatus.PENDING_RECEIPT) {
+
+            InventoryAdjuster pharmacyAdjuster =
+                    adjusters.of(LocationType.PHARMACY);
+
+            for (WarehouseReturnDetails detail :
+                    warehouseReturn.getWarehouseReturnDetails()) {
+
+                long returnQuantity =
+                        detail.getReturnQuantity() != null
+                                ? detail.getReturnQuantity()
+                                : 0L;
+
+                if (returnQuantity <= 0) {
+                    throw new RuntimeException(
+                            "Return quantity must be greater than zero");
+                }
+
+                BatchDetails batch = detail.getBatch();
+
+                if (batch == null) {
+                    throw new RuntimeException(
+                            "Batch is required for product "
+                                    + detail.getProduct().getProductId());
+                }
+
+                /*
+                 * Deduct stock from pharmacy inventory.
+                 *
+                 * InventoryAdjuster will:
+                 * - validate available stock
+                 * - decrease pharmacy inventory
+                 * - create inventory audit
+                 */
+                pharmacyAdjuster.decrement(
+                        new StockAdjustment(
+                                pharmacyId,
+                                detail.getProduct(),
+                                batch.getPackagingDetails(),
+                                batch,
+                                returnQuantity,
+                                TransactionType.STOCK_RETURN,
+                                null,
+                                null,
+                                actor,
+                                now
+                        )
+                );
+
+                /*
+                 * Since this return is immediately submitted,
+                 * dispatch quantity equals return quantity.
+                 */
+                detail.setDispatchQuantity(returnQuantity);
+                detail.setModifiedBy(actor);
+                detail.setModifiedAt(now);
+            }
+
+            markDamagedLinesReturned(warehouseReturn, actor, now);
+
+            warehouseReturn.setStockReturnStatus(
+                    StockReturnStatus.PENDING_RECEIPT
+            );
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * INVALID STATUS
+         * ---------------------------------------------------------
+         */
+
+        else {
+            throw new RuntimeException(
+                    "Invalid stock return status: "
+                            + requestedStatus
+                            + ". Allowed values are DRAFT or PENDING_RECEIPT.");
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * AUDIT FIELDS
+         * ---------------------------------------------------------
+         */
+
+        stampAuditFields(
+                warehouseReturn,
+                actor,
+                now
+        );
+
+        WarehouseReturn savedWarehouseReturn =
+                warehouseReturnRepository.save(warehouseReturn);
+
+        return mapToDtoWithWarehouseName(savedWarehouseReturn);
+    }
+
+    @Override
+    public List<WarehouseReturnDto> getAllWarehouseReturns(UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        if (location.isWarehouse()) {
+            return warehouseReturnRepository.findByToWarehouseId(location.getLocationId())
+                    .stream()
+                    .map(this::mapToDtoWithWarehouseName)
+                    .collect(Collectors.toList());
+        }
+
+        String pharmacyId = location.getLocationId();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        return warehouseReturnRepository.findByFromPharmacyId(pharmacyId)
+                .stream()
+                .map(this::mapToDtoWithWarehouseName)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public WarehouseReturnDto getWarehouseReturnById(Long warehouseReturnId, UserDetails user) {
+
+        if (warehouseReturnId == null) {
+            throw new RuntimeException("Warehouse return id is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        WarehouseReturn warehouseReturn = warehouseReturnRepository.findActiveByIdWithDetails(warehouseReturnId)
+                .orElseThrow(() -> new RuntimeException("Warehouse return not found: " + warehouseReturnId));
+
+        if (location.isWarehouse()) {
+
+            if (!location.getLocationId().equals(warehouseReturn.getToWarehouseId())) {
+                throw new RuntimeException("This warehouse return was not sent to your warehouse.");
+            }
+
+            return mapToDtoWithWarehouseName(warehouseReturn);
+        }
+
+        String pharmacyId = location.getLocationId();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        if (!pharmacyId.equals(warehouseReturn.getFromPharmacyId())) {
+            throw new RuntimeException("This warehouse return does not belong to your pharmacy.");
+        }
+
+        return mapToDtoWithWarehouseName(warehouseReturn);
+    }
+
+    private WarehouseReturnDto mapToDtoWithWarehouseName(WarehouseReturn warehouseReturn) {
+        WarehouseReturnDto dto = WarehouseReturnMapper.toDto(warehouseReturn);
+        if (dto != null && dto.getToWarehouseId() != null) {
+            warehouseRepository.findById(dto.getToWarehouseId())
+                    .ifPresent(w -> dto.setToWarehouseName(w.getWarehouseName()));
+        }
+        return dto;
+    }
+
+//    @Override
+//    public WarehouseReturnDto dispatchWarehouseReturn(Long warehouseReturnId, UserDetails user) {
+//
+//        if (warehouseReturnId == null) {
+//            throw new RuntimeException("Warehouse return id is required");
+//        }
+//
+//        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+//                .orElseThrow(() -> new RuntimeException("User not found"));
+//
+//        String pharmacyId = resolveUserPharmacy(persistentUser);
+//
+//        WarehouseReturn warehouseReturn = warehouseReturnRepository.findById(warehouseReturnId)
+//                .filter(wr -> !Boolean.TRUE.equals(wr.getIsDelete()))
+//                .orElseThrow(() -> new RuntimeException("Warehouse return not found: " + warehouseReturnId));
+//
+//        if (!pharmacyId.equals(warehouseReturn.getFromPharmacyId())) {
+//            throw new RuntimeException("This warehouse return does not belong to your pharmacy.");
+//        }
+//
+//        // Only a draft may be dispatched, so the pharmacy stock can never be
+//        // taken out twice for the same return.
+//        if (warehouseReturn.getStockReturnStatus() != StockReturnStatus.DRAFT) {
+//            throw new RuntimeException(
+//                    "Only a Draft warehouse return can be dispatched. Current status: "
+//                            + warehouseReturn.getStockReturnStatus().getLabel());
+//        }
+//
+//        String actor = String.valueOf(persistentUser.getUserId());
+//        LocalDateTime now = LocalDateTime.now();
+//
+//        InventoryAdjuster pharmacyAdjuster = adjusters.of(LocationType.PHARMACY);
+//
+//        for (WarehouseReturnDetails detail : warehouseReturn.getWarehouseReturnDetails()) {
+//
+//            // Every line is sent in full: what goes out is what was put on the return.
+//            long dispatched = detail.getReturnQuantity() != null ? detail.getReturnQuantity() : 0L;
+//
+//            detail.setDispatchQuantity(dispatched);
+//            detail.setModifiedBy(actor);
+//            detail.setModifiedAt(now);
+//
+//            if (dispatched == 0) {
+//                continue;
+//            }
+//
+//            BatchDetails batch = detail.getBatch();
+//
+//            // OUT leg against the pharmacy: checks there is enough stock, lowers
+//            // pharma_inventory and writes the pharma_inventory_audit row.
+//            pharmacyAdjuster.decrement(new StockAdjustment(
+//                    pharmacyId,
+//                    detail.getProduct(),
+//                    batch.getPackagingDetails(),
+//                    batch,
+//                    dispatched,
+//                    TransactionType.STOCK_RETURN,
+//                    null,   // not a distribution line
+//                    null,   // not a purchase line
+//                    actor,
+//                    now));
+//        }
+//
+//        warehouseReturn.setStockReturnStatus(StockReturnStatus.PENDING_RECEIPT);
+//        warehouseReturn.setModifiedBy(actor);
+//        warehouseReturn.setModifiedAt(now);
+//
+//        WarehouseReturn savedWarehouseReturn = warehouseReturnRepository.save(warehouseReturn);
+//
+//        return WarehouseReturnMapper.toDto(savedWarehouseReturn);
+//    }
+
+    @Override
+    public WarehouseReturnDto updateWarehouseReturn(
+            Long warehouseReturnId,
+            WarehouseReturnDto warehouseReturnDto,
+            UserDetails user) {
+
+        if (warehouseReturnId == null) {
+            throw new RuntimeException("Warehouse return id is required");
+        }
+
+        if (warehouseReturnDto == null
+                || warehouseReturnDto.getWarehouseReturnDetails() == null
+                || warehouseReturnDto.getWarehouseReturnDetails().isEmpty()) {
+
+            throw new RuntimeException(
+                    "At least one warehouse return line is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String pharmacyId = resolveUserPharmacy(persistentUser);
+
+        WarehouseReturn warehouseReturn =
+                warehouseReturnRepository.findById(warehouseReturnId)
+                        .filter(wr -> !Boolean.TRUE.equals(wr.getIsDelete()))
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Warehouse return not found: "
+                                                + warehouseReturnId));
+
+        /*
+         * ---------------------------------------------------------
+         * OWNERSHIP VALIDATION
+         * ---------------------------------------------------------
+         */
+
+        if (!pharmacyId.equals(warehouseReturn.getFromPharmacyId())) {
+            throw new RuntimeException(
+                    "This warehouse return does not belong to your pharmacy.");
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * STATUS VALIDATION
+         * ---------------------------------------------------------
+         */
+
+        if (warehouseReturn.getStockReturnStatus()
+                != StockReturnStatus.DRAFT) {
+
+            throw new RuntimeException(
+                    "Only a Draft warehouse return can be submitted. "
+                            + "Current status: "
+                            + warehouseReturn.getStockReturnStatus().getLabel());
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * WAREHOUSE VALIDATION
+         * ---------------------------------------------------------
+         */
+
+        String warehouseId = warehouseReturn.getToWarehouseId();
+
+        if (warehouseId == null || warehouseId.isBlank()) {
+            throw new RuntimeException("Warehouse id is required");
+        }
+
+        if (!locationContextResolver.warehouseInUserOrganization(
+                warehouseId,
+                persistentUser)) {
+
+            throw new RuntimeException(
+                    "This warehouse does not belong to your organization.");
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * UPDATE FINAL RETURN DETAILS
+         * ---------------------------------------------------------
+         *
+         * Allows:
+         * - existing product quantity update
+         * - existing batch update
+         * - adding new products
+         * - removing products from draft
+         */
+
+        updateReturnDetails(
+                warehouseReturn,
+                warehouseReturnDto,
+                pharmacyId
+        );
+
+        String actor = String.valueOf(persistentUser.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        /*
+         * ---------------------------------------------------------
+         * UPDATE DISPATCH QUANTITY + HEADER TOTALS
+         * ---------------------------------------------------------
+         */
+
+        long totalReturnQuantity = 0L;
+
+        for (WarehouseReturnDetails detail :
+                warehouseReturn.getWarehouseReturnDetails()) {
+
+            Long returnQuantity = detail.getReturnQuantity();
+
+            if (returnQuantity == null || returnQuantity <= 0) {
+                throw new RuntimeException(
+                        "Return quantity must be greater than zero");
+            }
+
+            /*
+             * Since this PUT submits the return,
+             * everything being returned is dispatched.
+             */
+            detail.setDispatchQuantity(returnQuantity);
+
+            detail.setModifiedBy(actor);
+            detail.setModifiedAt(now);
+
+            /*
+             * Calculate total return quantity from the
+             * actual return detail lines.
+             */
+            totalReturnQuantity += returnQuantity;
+        }
+
+        /*
+         * Header totals.
+         *
+         * Do NOT depend on the frontend values.
+         */
+        warehouseReturn.setTotalReturnProducts(
+                (long) warehouseReturn.getWarehouseReturnDetails().size()
+        );
+
+        warehouseReturn.setTotalReturnQuantity(
+                totalReturnQuantity
+        );
+
+        StockReturnStatus requestedStatus = warehouseReturnDto.getStockReturnStatus();
+        if (requestedStatus == null) {
+            requestedStatus = StockReturnStatus.PENDING_RECEIPT;
+        }
+
+        if (requestedStatus == StockReturnStatus.PENDING_RECEIPT) {
+            deductPharmacyInventory(
+                    warehouseReturn,
+                    pharmacyId,
+                    actor,
+                    now
+            );
+            markDamagedLinesReturned(warehouseReturn, actor, now);
+            warehouseReturn.setStockReturnStatus(StockReturnStatus.PENDING_RECEIPT);
+        } else if (requestedStatus == StockReturnStatus.DRAFT) {
+            warehouseReturn.setStockReturnStatus(StockReturnStatus.DRAFT);
+        } else {
+            throw new RuntimeException("Invalid stock return status: " + requestedStatus + ". Allowed values are DRAFT or PENDING_RECEIPT.");
+        }
+
+        warehouseReturn.setModifiedBy(actor);
+        warehouseReturn.setModifiedAt(now);
+
+        WarehouseReturn savedWarehouseReturn =
+                warehouseReturnRepository.save(warehouseReturn);
+
+        return mapToDtoWithWarehouseName(savedWarehouseReturn);
+    }
+
+    private void updateReturnDetails(
+            WarehouseReturn warehouseReturn,
+            WarehouseReturnDto warehouseReturnDto,
+            String pharmacyId) {
+
+        List<WarehouseReturnDetails> existingDetails =
+                warehouseReturn.getWarehouseReturnDetails();
+
+        Set<Long> linkedDistributionLines = new HashSet<>();
+
+        /*
+         * Remove existing lines.
+         *
+         * Because orphanRemoval=true, removed lines will be
+         * deleted from pharma_warehouse_return_details.
+         */
+        existingDetails.clear();
+
+        for (WarehouseReturnDetailsDto dto :
+                warehouseReturnDto.getWarehouseReturnDetails()) {
+
+            if (dto.getProductId() == null) {
+                throw new RuntimeException(
+                        "Product is required on every return line");
+            }
+
+            if (dto.getBatchId() == null) {
+                throw new RuntimeException(
+                        "Batch is required on every return line");
+            }
+
+            if (dto.getReturnQuantity() == null
+                    || dto.getReturnQuantity() <= 0) {
+
+                throw new RuntimeException(
+                        "Return quantity must be greater than zero "
+                                + "for product "
+                                + dto.getProductId());
+            }
+
+            ProductDetails product =
+                    pharmaProductDetailsRepository
+                            .findById(dto.getProductId())
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Product not found: "
+                                                    + dto.getProductId()));
+
+            BatchDetails batch =
+                    pharmaBatchDetailsRepository
+                            .findById(dto.getBatchId())
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Batch not found: "
+                                                    + dto.getBatchId()));
+
+            WarehouseReturnDetails detail =
+                    new WarehouseReturnDetails();
+
+            detail.setWarehouseReturn(warehouseReturn);
+            detail.setProduct(product);
+            detail.setBatch(batch);
+            detail.setDistributionLine(resolveDistributionLine(
+                    dto, product, batch, pharmacyId, linkedDistributionLines));
+
+            detail.setReturnQuantity(dto.getReturnQuantity());
+
+            /*
+             * It hasn't been dispatched before.
+             */
+            detail.setDispatchQuantity(
+                    dto.getReturnQuantity()
+            );
+
+            detail.setReceivedQuantity(0L);
+            detail.setNotReceivedQuantity(0L);
+
+            detail.setReturnReason(dto.getReturnReason());
+
+            existingDetails.add(detail);
+        }
+    }
+
+    private void deductPharmacyInventory(
+            WarehouseReturn warehouseReturn,
+            String pharmacyId,
+            String actor,
+            LocalDateTime now) {
+
+        InventoryAdjuster pharmacyAdjuster =
+                adjusters.of(LocationType.PHARMACY);
+
+        for (WarehouseReturnDetails detail :
+                warehouseReturn.getWarehouseReturnDetails()) {
+
+            long quantity =
+                    detail.getReturnQuantity() != null
+                            ? detail.getReturnQuantity()
+                            : 0L;
+
+            if (quantity <= 0) {
+                continue;
+            }
+
+            ProductDetails product = detail.getProduct();
+            BatchDetails batch = detail.getBatch();
+
+            if (product == null) {
+                throw new RuntimeException(
+                        "Product is required for every return line");
+            }
+
+            if (batch == null) {
+                throw new RuntimeException(
+                        "Batch is required for product "
+                                + product.getProductId());
+            }
+
+            pharmacyAdjuster.decrement(
+                    new StockAdjustment(
+                            pharmacyId,
+                            product,
+                            batch.getPackagingDetails(),
+                            batch,
+                            quantity,
+                            TransactionType.STOCK_RETURN,
+                            null,
+                            null,
+                            actor,
+                            now
+                    )
+            );
+
+            detail.setDispatchQuantity(quantity);
+            detail.setModifiedBy(actor);
+            detail.setModifiedAt(now);
+        }
+    }
+
+    @Override
+    public WarehouseReturnDto receiveWarehouseReturn(
+            Long warehouseReturnId,
+            WarehouseReturnDto warehouseReturnDto,
+            UserDetails user) {
+
+        if (warehouseReturnId == null) {
+            throw new RuntimeException("Warehouse return id is required");
+        }
+
+        if (warehouseReturnDto == null
+                || warehouseReturnDto.getWarehouseReturnDetails() == null
+                || warehouseReturnDto.getWarehouseReturnDetails().isEmpty()) {
+            throw new RuntimeException("Received quantities are required for every warehouse return line");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // The receiving side of a return is the warehouse it was sent to.
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        if (!location.isWarehouse()) {
+            throw new RuntimeException("A warehouse return can only be received by a warehouse.");
+        }
+
+        String warehouseId = location.getLocationId();
+
+        WarehouseReturn warehouseReturn = warehouseReturnRepository.findById(warehouseReturnId)
+                .filter(wr -> !Boolean.TRUE.equals(wr.getIsDelete()))
+                .orElseThrow(() -> new RuntimeException("Warehouse return not found: " + warehouseReturnId));
+
+        if (!warehouseId.equals(warehouseReturn.getToWarehouseId())) {
+            throw new RuntimeException("This warehouse return was not sent to your warehouse.");
+        }
+
+        // Only dispatched goods can be received, and only once.
+        if (warehouseReturn.getStockReturnStatus() != StockReturnStatus.PENDING_RECEIPT) {
+            throw new RuntimeException(
+                    "Only a Pending Receipt warehouse return can be received. Current status: "
+                            + warehouseReturn.getStockReturnStatus().getLabel());
+        }
+
+        Map<Long, WarehouseReturnDetailsDto> receivedByLine = receivedLinesById(warehouseReturnDto);
+
+        String actor = String.valueOf(persistentUser.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        InventoryAdjuster warehouseAdjuster = adjusters.of(LocationType.WAREHOUSE);
+
+        for (WarehouseReturnDetails detail : warehouseReturn.getWarehouseReturnDetails()) {
+
+            WarehouseReturnDetailsDto line = receivedByLine.remove(detail.getWarehouseReturnDetailId());
+
+            if (line == null) {
+                throw new RuntimeException(
+                        "Received quantity is missing for line " + detail.getWarehouseReturnDetailId());
+            }
+
+            long dispatched = detail.getDispatchQuantity() != null ? detail.getDispatchQuantity() : 0L;
+
+            if (line.getReceivedQuantity() > dispatched) {
+                throw new RuntimeException(
+                        "Received quantity (" + line.getReceivedQuantity()
+                                + ") cannot exceed the dispatched quantity (" + dispatched
+                                + ") for line " + detail.getWarehouseReturnDetailId());
+            }
+
+            detail.setReceivedQuantity(line.getReceivedQuantity());
+            detail.setNotReceivedQuantity(line.getNotReceivedQuantity());
+            detail.setModifiedBy(actor);
+            detail.setModifiedAt(now);
+
+            if (line.getReceivedQuantity() == 0) {
+                continue;
+            }
+
+            BatchDetails batch = detail.getBatch();
+
+            // IN leg against the warehouse: only what actually arrived goes into
+            // stock. Finds or creates the pharma_warehouse_inventory row, raises it
+            // and writes the pharma_warehouse_inventory_audit row.
+            warehouseAdjuster.increment(new StockAdjustment(
+                    warehouseId,
+                    detail.getProduct(),
+                    batch.getPackagingDetails(),
+                    batch,
+                    line.getReceivedQuantity(),
+                    TransactionType.STOCK_RETURN,
+                    null,   // not a distribution line
+                    null,   // not a purchase line
+                    actor,
+                    now));
+        }
+
+        // Anything left over was sent for a line this return does not have.
+        if (!receivedByLine.isEmpty()) {
+            throw new RuntimeException(
+                    "Lines do not belong to warehouse return " + warehouseReturnId + ": "
+                            + receivedByLine.keySet());
+        }
+
+        // Header totals come from the frontend, the same as on create.
+        warehouseReturn.setTotalReceivedQuantity(warehouseReturnDto.getTotalReceivedQuantity());
+        warehouseReturn.setTotalNotReceivedQuantity(warehouseReturnDto.getTotalNotReceivedQuantity());
+        warehouseReturn.setStockReturnStatus(StockReturnStatus.COMPLETE);
+        warehouseReturn.setModifiedBy(actor);
+        warehouseReturn.setModifiedAt(now);
+
+        WarehouseReturn savedWarehouseReturn = warehouseReturnRepository.save(warehouseReturn);
+
+        return mapToDtoWithWarehouseName(savedWarehouseReturn);
+    }
+
+    private Map<Long, WarehouseReturnDetailsDto> receivedLinesById(WarehouseReturnDto warehouseReturnDto) {
+
+        Map<Long, WarehouseReturnDetailsDto> byLine = new HashMap<>();
+
+        for (WarehouseReturnDetailsDto line : warehouseReturnDto.getWarehouseReturnDetails()) {
+
+            Long detailId = line.getWarehouseReturnDetailId();
+
+            if (detailId == null) {
+                throw new RuntimeException("warehouseReturnDetailId is required on every received line");
+            }
+
+            if (line.getReceivedQuantity() == null || line.getReceivedQuantity() < 0) {
+                throw new RuntimeException("Received quantity must be zero or positive on line " + detailId);
+            }
+
+            if (line.getNotReceivedQuantity() == null || line.getNotReceivedQuantity() < 0) {
+                throw new RuntimeException("Not received quantity must be zero or positive on line " + detailId);
+            }
+
+            if (byLine.put(detailId, line) != null) {
+                throw new RuntimeException("Warehouse return line " + detailId + " is sent more than once");
+            }
+        }
+
+        return byLine;
+    }
+
+    // A stock return always goes from a pharmacy back to a warehouse, so it can
+    // only be raised or dispatched from a pharmacy the user belongs to.
+    private String resolveUserPharmacy(UserDetails persistentUser) {
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        if (!location.isPharmacy()) {
+            throw new RuntimeException("A warehouse return can only be raised from a pharmacy.");
+        }
+
+        String pharmacyId = location.getLocationId();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        return pharmacyId;
+    }
+
+    // A return is always created as DRAFT. It moves to PENDING_RECEIPT only through
+    // dispatch, which is where the pharmacy stock is taken out.
+    private StockReturnStatus resolveCreateStatus(StockReturnStatus requested) {
+
+        if (requested != null && requested != StockReturnStatus.DRAFT) {
+            throw new RuntimeException(
+                    "A warehouse return can only be created as Draft. Use dispatch to send it.");
+        }
+
+        return StockReturnStatus.DRAFT;
+    }
+
+    // Resolves the managed product/batch for each return line (same index-aligned
+    // pattern PurchaseReturnServiceImpl uses).
+    private void resolveReturnDetails(
+            WarehouseReturn warehouseReturn,
+            WarehouseReturnDto warehouseReturnDto,
+            String pharmacyId) {
+
+        Set<Long> linkedDistributionLines = new HashSet<>();
+
+        for (int i = 0; i < warehouseReturn.getWarehouseReturnDetails().size(); i++) {
+
+            WarehouseReturnDetails detail = warehouseReturn.getWarehouseReturnDetails().get(i);
+            WarehouseReturnDetailsDto dto = warehouseReturnDto.getWarehouseReturnDetails().get(i);
+
+            if (dto.getProductId() == null || dto.getBatchId() == null) {
+                throw new RuntimeException("Product and batch are required on every return line");
+            }
+
+            if (dto.getReturnQuantity() == null || dto.getReturnQuantity() <= 0) {
+                throw new RuntimeException(
+                        "Return quantity must be greater than zero for product " + dto.getProductId());
+            }
+
+            ProductDetails product = pharmaProductDetailsRepository
+                    .findById(dto.getProductId())
+                    .orElseThrow(() ->
+                            new RuntimeException("Product not found: " + dto.getProductId()));
+
+            BatchDetails batch = pharmaBatchDetailsRepository
+                    .findById(dto.getBatchId())
+                    .orElseThrow(() ->
+                            new RuntimeException("Batch not found: " + dto.getBatchId()));
+
+            detail.setWarehouseReturnDetailId(null);
+            detail.setProduct(product);
+            detail.setBatch(batch);
+            detail.setDistributionLine(resolveDistributionLine(
+                    dto, product, batch, pharmacyId, linkedDistributionLines));
+        }
+    }
+
+    // Loads the damaged distribution line a return line points at, if any, and
+    // checks it really is outstanding damaged stock received by this pharmacy for
+    // the same product and batch.
+    private WarehouseDistributionDetails resolveDistributionLine(
+            WarehouseReturnDetailsDto dto,
+            ProductDetails product,
+            BatchDetails batch,
+            String pharmacyId,
+            Set<Long> alreadyLinked) {
+
+        Long lineId = dto.getWarehouseDistributionDetailsId();
+
+        if (lineId == null) {
+            return null;
+        }
+
+        if (!alreadyLinked.add(lineId)) {
+            throw new RuntimeException(
+                    "Distribution line " + lineId + " is returned more than once on this return");
+        }
+
+        WarehouseDistributionDetails line = distributionDetailsRepository.findById(lineId)
+                .orElseThrow(() -> new RuntimeException("Distribution line not found: " + lineId));
+
+        WarehouseDistribution distribution = line.getWarehouseDistribution();
+
+        if (distribution.getDestinationType() != LocationType.PHARMACY
+                || !pharmacyId.equals(distribution.getDestinationId())) {
+            throw new RuntimeException(
+                    "Distribution line " + lineId + " was not received by your pharmacy.");
+        }
+
+        if (line.getDamagedQuantity() == null || line.getDamagedQuantity() <= 0) {
+            throw new RuntimeException(
+                    "Distribution line " + lineId + " has no damaged quantity to return.");
+        }
+
+        if (line.getStockReturnStatus() == DamagedReturnStatus.RETURNED) {
+            throw new RuntimeException(
+                    "Damaged stock on distribution line " + lineId + " has already been returned.");
+        }
+
+        if (!product.getProductId().equals(line.getProduct().getProductId())
+                || line.getBatch() == null
+                || !batch.getBatchId().equals(line.getBatch().getBatchId())) {
+            throw new RuntimeException(
+                    "Product and batch do not match distribution line " + lineId);
+        }
+
+        return line;
+    }
+
+    // Called once the return is sent (Pending Receipt): the damaged stock on each
+    // linked distribution line is now on its way back to the warehouse.
+    private void markDamagedLinesReturned(WarehouseReturn warehouseReturn, String actor, LocalDateTime now) {
+
+        for (WarehouseReturnDetails detail : warehouseReturn.getWarehouseReturnDetails()) {
+
+            WarehouseDistributionDetails line = detail.getDistributionLine();
+
+            if (line == null) {
+                continue;
+            }
+
+            line.setStockReturnStatus(DamagedReturnStatus.RETURNED);
+            line.setModifiedBy(actor);
+            line.setModifiedAt(now);
+        }
+    }
+
+    private String generateStockReturnNo(String pharmacyId) {
+
+        int year = LocalDate.now().getYear();
+        String prefix = "STR-" + year + "-";
+
+        List<String> latest = warehouseReturnRepository.findLatestStockReturnNo(
+                prefix,
+                pharmacyId,
+                PageRequest.of(0, 1)
+        );
+
+        int nextNumber = 1;
+
+        if (!latest.isEmpty()) {
+
+            String latestStockReturnNo = latest.get(0);
+
+            String numberPart = latestStockReturnNo.substring(prefix.length());
+
+            nextNumber = Integer.parseInt(numberPart) + 1;
+        }
+
+        return prefix + String.format("%05d", nextNumber);
+    }
+
+    private void stampAuditFields(WarehouseReturn warehouseReturn, String actor, LocalDateTime now) {
+
+        warehouseReturn.setStockReturnDate(now);
+        warehouseReturn.setCreatedBy(actor);
+        warehouseReturn.setCreatedAt(now);
+        warehouseReturn.setModifiedBy(null);
+        warehouseReturn.setModifiedAt(null);
+
+        for (WarehouseReturnDetails detail : warehouseReturn.getWarehouseReturnDetails()) {
+
+            detail.setWarehouseReturn(warehouseReturn);
+            detail.setCreatedBy(actor);
+            detail.setCreatedAt(now);
+            detail.setModifiedBy(null);
+            detail.setModifiedAt(null);
+        }
+    }
+}

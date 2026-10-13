@@ -22,7 +22,11 @@ public class PurchaseMapper {
         dto.setPurchaseId(entity.getPurchaseId());
         dto.setPharmacyId(entity.getPharmacyId());
         dto.setWarehouseId(entity.getWarehouseId());
-        dto.setSupplierId(entity.getSupplier().getSupplierId());
+        if (entity.getSupplier() != null) {
+            dto.setSupplierId(entity.getSupplier().getSupplierId());
+            dto.setSupplierName(entity.getSupplier().getSupplierName());
+        }
+
         dto.setGrnNo(entity.getGrnNo());
         dto.setInvoiceNo(entity.getInvoiceNo());
         dto.setInvoiceDate(entity.getInvoiceDate());
@@ -34,6 +38,7 @@ public class PurchaseMapper {
         dto.setTotalDiscount(entity.getTotalDiscount());
         dto.setTotalGst(entity.getTotalGst());
         dto.setTotalNetAmount(entity.getTotalNetAmount());
+        dto.setReturnStatus(entity.getReturnStatus());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());

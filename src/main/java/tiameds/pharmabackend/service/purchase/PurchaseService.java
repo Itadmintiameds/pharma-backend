@@ -11,6 +11,8 @@ public interface PurchaseService {
 
     List<PurchaseDto> getAllPurchases(UserDetails user);
 
+    PurchaseDto getPurchaseById(Long purchaseId, UserDetails user);
+
     // true when this supplier already has that invoice number in that year
     boolean checkInvoiceExists(
             Long supplierId,

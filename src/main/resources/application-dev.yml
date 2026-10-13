@@ -17,8 +17,9 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: itadmin@tiameds.ai
-    password: ugejmrtofdxpgarn
+    password: xcyrxrvtxahesjur
 
+ 
     properties:
       mail:
         smtp:
@@ -34,8 +35,12 @@ spring:
       hibernate:
         format_sql: true
 
+  # Dev only: run db/migration scripts on startup. The local DB predates Flyway,
+  # so baseline it at version 0 (not the default 1) so V1 still runs.
   flyway:
-    enabled: false
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
 
 server:
   port: 8080

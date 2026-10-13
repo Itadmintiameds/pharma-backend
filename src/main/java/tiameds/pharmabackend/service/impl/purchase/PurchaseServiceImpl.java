@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.context.LocationContext;
 import tiameds.pharmabackend.context.LocationContextResolver;
+import tiameds.pharmabackend.dto.purchase.PurchaseDetailsDto;
 import tiameds.pharmabackend.dto.purchase.PurchaseDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -18,6 +19,7 @@ import tiameds.pharmabackend.entity.purchase.Purchase;
 import tiameds.pharmabackend.entity.purchase.PurchaseDetails;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
 import tiameds.pharmabackend.enums.LocationType;
+import tiameds.pharmabackend.enums.ReturnStatus;
 import tiameds.pharmabackend.enums.StockMovement;
 import tiameds.pharmabackend.enums.TransactionType;
 import tiameds.pharmabackend.mapper.purchase.PurchaseMapper;
@@ -29,6 +31,7 @@ import tiameds.pharmabackend.repository.purchase.InventoryAuditRepository;
 import tiameds.pharmabackend.repository.purchase.InventoryRepository;
 import tiameds.pharmabackend.repository.purchase.PurchaseRepository;
 import tiameds.pharmabackend.repository.supplier.SupplierMasterRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseInventoryRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.impl.warehouse.stock.InventoryAdjusters;
 import tiameds.pharmabackend.service.purchase.PurchaseService;
@@ -37,7 +40,11 @@ import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,6 +63,7 @@ public class PurchaseServiceImpl implements PurchaseService {
     private final LocationContextResolver locationContextResolver;
     private final InventoryAdjusters adjusters;
     private final WarehouseRepository warehouseRepository;
+    private final WarehouseInventoryRepository warehouseInventoryRepository;
 
 
     @Override
@@ -133,6 +141,10 @@ public class PurchaseServiceImpl implements PurchaseService {
         purchase.setModifiedBy(null);
         purchase.setModifiedAt(null);
 
+        // Return status is ours to set, never the caller's: nothing has been sent
+        // back at the moment a purchase is booked.
+        purchase.setReturnStatus(ReturnStatus.NOT_RETURNED);
+
         if (purchase.getPurchaseDetails() != null) {
 
             for (PurchaseDetails detail : purchase.getPurchaseDetails()) {
@@ -142,6 +154,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                 detail.setCreatedAt(LocalDateTime.now());
                 detail.setModifiedBy(null);
                 detail.setModifiedAt(null);
+                detail.setReturnDetailsStatus(ReturnStatus.NOT_RETURNED);
             }
         }
 
@@ -301,6 +314,10 @@ public class PurchaseServiceImpl implements PurchaseService {
         purchase.setModifiedBy(null);
         purchase.setModifiedAt(null);
 
+        // Return status is ours to set, never the caller's: nothing has been sent
+        // back at the moment a purchase is booked.
+        purchase.setReturnStatus(ReturnStatus.NOT_RETURNED);
+
         if (purchase.getPurchaseDetails() != null) {
 
             for (PurchaseDetails detail : purchase.getPurchaseDetails()) {
@@ -310,6 +327,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                 detail.setCreatedAt(now);
                 detail.setModifiedBy(null);
                 detail.setModifiedAt(null);
+                detail.setReturnDetailsStatus(ReturnStatus.NOT_RETURNED);
             }
         }
 
@@ -371,10 +389,16 @@ public class PurchaseServiceImpl implements PurchaseService {
         LocationContext location = locationContextResolver.resolve(persistentUser);
 
         if (location.isWarehouse()) {
-            return purchaseRepository.findByWarehouseId(location.getLocationId())
+
+            List<PurchaseDto> purchases = purchaseRepository
+                    .findByWarehouseId(location.getLocationId())
                     .stream()
                     .map(PurchaseMapper::toDto)
                     .collect(Collectors.toList());
+
+            applyAvailableStock(purchases, location);
+
+            return purchases;
         }
 
         String pharmacyId = location.getLocationId();
@@ -387,10 +411,115 @@ public class PurchaseServiceImpl implements PurchaseService {
             throw new RuntimeException("You are not authorized to use this pharmacy.");
         }
 
-        return purchaseRepository.findByPharmacyId(pharmacyId)
+        List<PurchaseDto> purchases = purchaseRepository.findByPharmacyId(pharmacyId)
                 .stream()
                 .map(PurchaseMapper::toDto)
                 .collect(Collectors.toList());
+
+        applyAvailableStock(purchases, location);
+
+        return purchases;
+    }
+
+    @Override
+    public PurchaseDto getPurchaseById(Long purchaseId, UserDetails user) {
+
+        if (purchaseId == null) {
+            throw new RuntimeException("Purchase id is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        Purchase purchase = purchaseRepository.findById(purchaseId)
+                .orElseThrow(() -> new RuntimeException("Purchase not found: " + purchaseId));
+
+        // A purchase is only visible from the location it was raised at.
+        if (location.isWarehouse()) {
+
+            if (!location.getLocationId().equals(purchase.getWarehouseId())) {
+                throw new RuntimeException("This purchase does not belong to your warehouse.");
+            }
+
+            PurchaseDto dto = PurchaseMapper.toDto(purchase);
+
+            applyAvailableStock(List.of(dto), location);
+
+            return dto;
+        }
+
+        String pharmacyId = location.getLocationId();
+
+        boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                pharmacyId,
+                persistentUser.getUserId());
+
+        if (!valid) {
+            throw new RuntimeException("You are not authorized to use this pharmacy.");
+        }
+
+        if (!pharmacyId.equals(purchase.getPharmacyId())) {
+            throw new RuntimeException("This purchase does not belong to your pharmacy.");
+        }
+
+        PurchaseDto dto = PurchaseMapper.toDto(purchase);
+
+        applyAvailableStock(List.of(dto), location);
+
+        return dto;
+    }
+
+    /**
+     * Fills {@code availableStock} on every purchase line from live inventory.
+     *
+     * <p>Stock is not part of the purchase — it is the batch's current level at
+     * the location that raised it, so it is read fresh rather than stored. One
+     * grouped query covers the whole list instead of a lookup per line, and a
+     * batch with no stock row reports 0 rather than null.
+     */
+    private void applyAvailableStock(List<PurchaseDto> purchases, LocationContext location) {
+
+        if (purchases == null || purchases.isEmpty()) {
+            return;
+        }
+
+        Set<String> batchIds = purchases.stream()
+                .map(PurchaseDto::getPurchaseDetails)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .map(PurchaseDetailsDto::getBatchId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        if (batchIds.isEmpty()) {
+            return;
+        }
+
+        List<Object[]> rows = location.isWarehouse()
+                ? warehouseInventoryRepository.sumStockByBatchIds(location.getLocationId(), batchIds)
+                : inventoryRepository.sumStockByBatchIds(location.getLocationId(), batchIds);
+
+        Map<String, Long> stockByBatch = new HashMap<>();
+
+        for (Object[] row : rows) {
+            stockByBatch.put(
+                    (String) row[0],
+                    row[1] == null ? 0L : ((Number) row[1]).longValue());
+        }
+
+        for (PurchaseDto purchase : purchases) {
+
+            if (purchase.getPurchaseDetails() == null) {
+                continue;
+            }
+
+            for (PurchaseDetailsDto detail : purchase.getPurchaseDetails()) {
+                detail.setAvailableStock(
+                        stockByBatch.getOrDefault(detail.getBatchId(), 0L));
+            }
+        }
     }
 
     @Override
