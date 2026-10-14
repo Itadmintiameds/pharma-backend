@@ -71,7 +71,7 @@ public class StockAdjustmentController {
 
 
     @PreAuthorize("@access.has('STOCK_ADJUSTMENT/STOCK_ADJUSTMENT/VIEW')")
-    @GetMapping(" {stockAdjustmentId}")
+    @GetMapping("/getById/{stockAdjustmentId}")
     public ResponseEntity<?> getStockAdjustmentById(
             @PathVariable Long stockAdjustmentId,
             @AuthenticationPrincipal CustomUserDetails currentUser) {

@@ -120,10 +120,14 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-    // All batches of the pharmacy with product, packaging, stock and pricing
+    // All batches of the pharmacy with product, packaging, stock and pricing.
+    // ?batchNumber= narrows it to batches whose number contains that text.
     @GetMapping("/batches")
-    public ResponseEntity<Map<String, Object>> getAllBatches() {
-        List<BatchStockDto> batches = pharmaProductService.getAllBatches();
+    public ResponseEntity<Map<String, Object>> getAllBatches(
+            @RequestParam(required = false) String batchNumber) {
+        List<BatchStockDto> batches = batchNumber == null || batchNumber.isBlank()
+                ? pharmaProductService.getAllBatches()
+                : pharmaProductService.searchBatchesByBatchNumber(batchNumber);
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Batches retrieved successfully");
         response.put("count", batches.size());
