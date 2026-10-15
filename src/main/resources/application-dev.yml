@@ -19,7 +19,6 @@ spring:
     username: itadmin@tiameds.ai
     password: xcyrxrvtxahesjur
 
- 
     properties:
       mail:
         smtp:

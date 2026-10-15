@@ -35,6 +35,17 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetails, Stri
             String warehouseId
     );
 
+    // batch-number search at one location (partial, case-insensitive)
+    List<BatchDetails> findByProduct_Pharmacies_PharmacyIdAndBatchNumberContainingIgnoreCase(
+            String pharmacyId,
+            String batchNumber
+    );
+
+    List<BatchDetails> findByProduct_Warehouses_WarehouseIdAndBatchNumberContainingIgnoreCase(
+            String warehouseId,
+            String batchNumber
+    );
+
     @Query(value = """
         SELECT MAX(CAST(SUBSTRING(batch_id, LENGTH(batch_id) - 4, 5) AS INTEGER))
         FROM pharma_batch_details

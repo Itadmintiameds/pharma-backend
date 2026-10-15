@@ -1478,6 +1478,25 @@ public class ProductServiceImpl implements ProductService {
         return getBatches(currentLocation());
     }
 
+    // Filtered in the query, so only the matching batches are loaded and only
+    // their stock is totalled.
+    @Override
+    @Transactional(readOnly = true)
+    public List<BatchStockDto> searchBatchesByBatchNumber(String batchNumber) {
+        LocationContext loc = currentLocation();
+        String query = batchNumber.trim();
+
+        List<BatchDetails> batches = loc.isWarehouse()
+                ? batchRepo.findByProduct_Warehouses_WarehouseIdAndBatchNumberContainingIgnoreCase(
+                        loc.getLocationId(), query)
+                : batchRepo.findByProduct_Pharmacies_PharmacyIdAndBatchNumberContainingIgnoreCase(
+                        loc.getLocationId(), query);
+
+        return batches.stream()
+                .map(batch -> toBatchStock(batch, stockForBatch(loc, batch.getBatchId())))
+                .collect(Collectors.toList());
+    }
+
     // Batches at an arbitrary pharmacy rather than the caller's currently active one —
     // needed when picking products for a pharmacy-to-pharmacy transfer whose source
     // pharmacy (chosen in the transfer wizard) differs from the pharmacy the caller is
