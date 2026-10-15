@@ -2,6 +2,7 @@ package tiameds.pharmabackend.service.product.bulk;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -288,7 +289,9 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
 
     private String currentActor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
+        // The endpoint is open (passcode-gated), so an upload without a login
+        // arrives with Spring's anonymous token rather than no authentication.
+        if (auth == null || auth instanceof AnonymousAuthenticationToken) {
             return "System";
         }
         if (auth.getPrincipal() instanceof CustomUserDetails cud) {

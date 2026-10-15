@@ -59,7 +59,14 @@ public class SecurityConfig {
                                 // the registration screen renders the terms before any account exists
                                 "/terms/**",
                                 "/error",
-                                "/pharmacyDocuments"
+                                "/pharmacyDocuments",
+                                // catalogue onboarding runs without a login; the controller
+                                // gates it with its own passcode (X-Upload-Passcode)
+                                "/product/bulk-upload",
+                                "/product/bulk-upload/**",
+                                // operator directory of organizations/pharmacies/warehouses,
+                                // gated by the same passcode in its controller
+                                "/admin/organizations"
 //                                "/pharmacy/**",
 //                                "/organization/reject/**"
                         ).permitAll()

@@ -33,12 +33,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             "/organization/reject/**",
             // publishing the terms & privacy policy is a platform-operator action:
             // it happens before any tenant exists, so there is no user to log in as
-            "/admin/terms/**",
-            // onboarding a tenant's catalogue is run by an operator/migration script
-            // rather than from a logged-in session. There is no user to resolve a
-            // location from, so these endpoints take the pharmacy/warehouse id explicitly.
-            "/product/bulk-upload",
-            "/product/bulk-upload/**"
+            "/admin/terms/**"
     );
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();

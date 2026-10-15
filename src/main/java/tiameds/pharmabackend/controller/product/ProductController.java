@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.product.*;
 import tiameds.pharmabackend.dto.product.bulk.BulkUploadResponse;
 import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.security.OperatorPasscode;
 import tiameds.pharmabackend.service.product.ProductService;
 import tiameds.pharmabackend.service.product.bulk.ProductBulkUploadService;
 
@@ -36,8 +37,10 @@ public class ProductController {
     // it falls back to the X-Pharmacy-Id / X-Warehouse-Id header the rest of the
     // product endpoints use, which needs a logged-in user.
     //
-    // Auth: a JWT as usual, or the internal X-API-KEY header for operator/migration
-    // runs — that path has no user, so it must name pharmacyId or warehouseId.
+    // Auth: the endpoint is open in SecurityConfig (no JWT needed) and is gated by
+    // the hardcoded passcode in the X-Upload-Passcode header instead. Without a
+    // logged-in user there is no location context, so pharmacyId or warehouseId
+    // must be passed. A logged-in caller still gets its tenant checks.
     //
     // Rows are grouped by "Product Code": all the lines sharing one code become one
     // product, each line becoming a batch under the package its unit/pack-size
@@ -48,10 +51,17 @@ public class ProductController {
     // writing. Always returns 200: outcomes are reported per row, not as an HTTP error.
     @PostMapping(value = "/bulk-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> bulkUploadProducts(
+            @RequestHeader(value = OperatorPasscode.HEADER, required = false) String passcode,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun,
             @RequestParam(value = "pharmacyId", required = false) String pharmacyId,
             @RequestParam(value = "warehouseId", required = false) String warehouseId) {
+
+        if (!OperatorPasscode.isValid(passcode)) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("message", "Invalid or missing " + OperatorPasscode.HEADER);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
 
         BulkUploadResponse result = bulkUploadService.upload(file, dryRun, pharmacyId, warehouseId);
 
