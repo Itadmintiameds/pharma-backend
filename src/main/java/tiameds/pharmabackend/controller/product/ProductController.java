@@ -33,14 +33,12 @@ public class ProductController {
     // Imports a CSV of products, packages, batches and opening stock into one
     // pharmacy or one warehouse.
     //
-    // Destination: pass pharmacyId or warehouseId to name it outright; with neither,
-    // it falls back to the X-Pharmacy-Id / X-Warehouse-Id header the rest of the
-    // product endpoints use, which needs a logged-in user.
+    // Destination: the pharmacyId or warehouseId query param, one of which is required.
+    // The X-Pharmacy-Id / X-Warehouse-Id headers are not used.
     //
-    // Auth: the endpoint is open in SecurityConfig (no JWT needed) and is gated by
-    // the hardcoded passcode in the X-Upload-Passcode header instead. Without a
-    // logged-in user there is no location context, so pharmacyId or warehouseId
-    // must be passed. A logged-in caller still gets its tenant checks.
+    // Auth: called by another service, so it is authenticated by the hardcoded
+    // passcode in the X-Upload-Passcode header only. The JWT is never read here (see
+    // OperatorPasscode.PATHS), even if an access_token cookie comes along.
     //
     // Rows are grouped by "Product Code": all the lines sharing one code become one
     // product, each line becoming a batch under the package its unit/pack-size

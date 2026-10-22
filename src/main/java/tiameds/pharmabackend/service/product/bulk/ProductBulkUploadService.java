@@ -8,11 +8,10 @@ public interface ProductBulkUploadService {
     /**
      * Imports a bulk-upload CSV into one pharmacy or one warehouse.
      * <p>
-     * The destination is taken from {@code warehouseId} or {@code pharmacyId} when
-     * either is given; otherwise it falls back to the location the caller is already
-     * operating on (the {@code X-Pharmacy-Id} / {@code X-Warehouse-Id} headers), which
-     * needs a logged-in user. A call authenticated with the internal API key has no
-     * user, so it must name the destination explicitly.
+     * The destination is taken only from {@code warehouseId} or {@code pharmacyId}
+     * (warehouse wins if both are given); one of them is required. The caller is
+     * another service holding the operator passcode, not a logged-in user, so no
+     * header or user context is consulted.
      *
      * @param dryRun validate and report without writing anything
      */

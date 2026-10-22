@@ -1,23 +1,15 @@
 package tiameds.pharmabackend.service.product.bulk;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import tiameds.pharmabackend.context.LocationContext;
-import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.product.bulk.BulkUploadResponse;
 import tiameds.pharmabackend.dto.product.bulk.BulkUploadRowResult;
 import tiameds.pharmabackend.entity.PharmacyDetails;
-import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.enums.LocationType;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
-import tiameds.pharmabackend.security.CustomUserDetails;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +32,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
 
-    private final LocationContextResolver locationContextResolver;
+    // Recorded as created_by/changed_by: uploads come from another service with the
+    // operator passcode, so there is no user to attribute them to.
+    private static final String ACTOR = "System";
+
     private final PharmacyDetailsRepository pharmacyRepo;
     private final WarehouseRepository warehouseRepo;
     private final MasterIndexLoader masterIndexLoader;
@@ -102,7 +97,7 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
             }
         }
 
-        String actor = currentActor();
+        String actor = ACTOR;
         for (List<MappedRow> group : groups.values()) {
             if (dryRun) {
                 group.forEach(row -> results.add(validated(row)));
@@ -214,27 +209,16 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
     }
 
     /**
-     * Picks the destination. An explicitly named warehouse or pharmacy wins, so an
-     * operator (or an internal-API-key caller, which has no user and therefore no
-     * header context) can say where the file lands. With neither named, this falls
-     * back to the location the caller is already working in, exactly as onboarding does.
-     * <p>
-     * A named location is still checked against the logged-in user when there is one,
-     * so passing an id cannot be used to write into someone else's tenant. An
-     * API-key call is trusted by definition and is not narrowed further.
+     * Picks the destination from the query params alone. The endpoint is called by
+     * another service with the operator passcode, never as a logged-in user, so there
+     * is no user, header or location context to fall back on — and nothing to narrow
+     * the target by. If both are given, the warehouse wins.
      */
     private BulkUploadTarget resolveTarget(String pharmacyId, String warehouseId) {
-        UserDetails user = currentUserOrNull();
-
         if (isSet(warehouseId)) {
             Warehouse warehouse = warehouseRepo.findById(warehouseId.trim())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Warehouse not found: " + warehouseId));
-            if (user != null
-                    && !locationContextResolver.warehouseInUserOrganization(warehouse.getWarehouseId(), user)) {
-                throw new AccessDeniedException(
-                        "You are not allowed to upload into warehouse " + warehouse.getWarehouseId());
-            }
             return new BulkUploadTarget(LocationType.WAREHOUSE,
                     warehouse.getWarehouseId(), warehouse.getWarehouseName());
         }
@@ -243,62 +227,16 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
             PharmacyDetails pharmacy = pharmacyRepo.findById(pharmacyId.trim())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Pharmacy not found: " + pharmacyId));
-            if (user != null
-                    && !pharmacyRepo.existsUserPharmacy(pharmacy.getPharmacyId(), user.getUserId())) {
-                throw new AccessDeniedException(
-                        "You are not allowed to upload into pharmacy " + pharmacy.getPharmacyId());
-            }
             return new BulkUploadTarget(LocationType.PHARMACY,
                     pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
         }
 
-        if (user == null) {
-            throw new IllegalArgumentException(
-                    "Pass pharmacyId or warehouseId to say where the upload should land");
-        }
-
-        LocationContext loc = locationContextResolver.resolve(user);
-        if (loc.isWarehouse()) {
-            Warehouse warehouse = warehouseRepo.findById(loc.getLocationId())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Warehouse not found: " + loc.getLocationId()));
-            return new BulkUploadTarget(loc.getType(), warehouse.getWarehouseId(),
-                    warehouse.getWarehouseName());
-        }
-        PharmacyDetails pharmacy = pharmacyRepo.findById(loc.getLocationId())
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Pharmacy not found: " + loc.getLocationId()));
-        return new BulkUploadTarget(loc.getType(), pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        throw new IllegalArgumentException(
+                "Pass pharmacyId or warehouseId to say where the upload should land");
     }
 
     private boolean isSet(String value) {
         return value != null && !value.isBlank();
-    }
-
-    /**
-     * The logged-in user, or null when the request was authenticated some other way
-     * (the internal API key) and so has no user behind it.
-     */
-    private UserDetails currentUserOrNull() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof CustomUserDetails cud) {
-            return cud.getUser();
-        }
-        return null;
-    }
-
-    private String currentActor() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // The endpoint is open (passcode-gated), so an upload without a login
-        // arrives with Spring's anonymous token rather than no authentication.
-        if (auth == null || auth instanceof AnonymousAuthenticationToken) {
-            return "System";
-        }
-        if (auth.getPrincipal() instanceof CustomUserDetails cud) {
-            return cud.getUserId();
-        }
-        // API-key callers authenticate as a service principal; record that as the author.
-        return auth.getName() == null ? "System" : auth.getName();
     }
 
     private String messageOf(RuntimeException e) {
