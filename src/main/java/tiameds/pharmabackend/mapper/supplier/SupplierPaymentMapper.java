@@ -15,15 +15,18 @@ public class SupplierPaymentMapper {
 
         SupplierPaymentDto dto = new SupplierPaymentDto();
         dto.setSupplierPaymentId(entity.getSupplierPaymentId());
+        if (entity.getSupplierMaster() != null) {
+            dto.setSupplierId(entity.getSupplierMaster().getSupplierId());
+        }
         if (entity.getPurchase() != null) {
             dto.setPurchaseId(entity.getPurchase().getPurchaseId());
         }
-        dto.setPaymentDate(entity.getPaymentDate());
+        dto.setSupplierPaymentNo(entity.getSupplierPaymentNo());
+        dto.setSupplierPaymentDate(entity.getSupplierPaymentDate());
         dto.setPaymentMode(entity.getPaymentMode());
-        dto.setReferenceNumber(entity.getReferenceNumber());
-        dto.setPaidAmount(entity.getPaidAmount());
-        dto.setOutstandingAmount(entity.getOutstandingAmount());
-        dto.setIsActive(entity.getIsActive());
+        dto.setPaymentAmount(entity.getPaymentAmount());
+        dto.setTransactionNo(entity.getTransactionNo());
+        dto.setRemarks(entity.getRemarks());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());
@@ -32,7 +35,7 @@ public class SupplierPaymentMapper {
         return dto;
     }
 
-    // DTO -> Entity (purchase association is set by the service)
+    // DTO -> Entity (supplier and purchase associations are set by the service)
     public SupplierPayment toEntity(SupplierPaymentDto dto) {
         if (dto == null) {
             return null;
@@ -40,12 +43,12 @@ public class SupplierPaymentMapper {
 
         SupplierPayment entity = new SupplierPayment();
         entity.setSupplierPaymentId(dto.getSupplierPaymentId());
-        entity.setPaymentDate(dto.getPaymentDate());
+        entity.setSupplierPaymentNo(dto.getSupplierPaymentNo());
+        entity.setSupplierPaymentDate(dto.getSupplierPaymentDate());
         entity.setPaymentMode(dto.getPaymentMode());
-        entity.setReferenceNumber(dto.getReferenceNumber());
-        entity.setPaidAmount(dto.getPaidAmount());
-        entity.setOutstandingAmount(dto.getOutstandingAmount());
-        entity.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
+        entity.setPaymentAmount(dto.getPaymentAmount());
+        entity.setTransactionNo(dto.getTransactionNo());
+        entity.setRemarks(dto.getRemarks());
 
         return entity;
     }

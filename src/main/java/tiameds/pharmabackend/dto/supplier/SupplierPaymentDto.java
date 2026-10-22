@@ -8,13 +8,14 @@ import java.time.LocalDate;
 public class SupplierPaymentDto {
 
     private Long supplierPaymentId;
+    private Long supplierId;
     private Long purchaseId;
-    private LocalDate paymentDate;
+    private String supplierPaymentNo;
+    private LocalDate supplierPaymentDate;
     private String paymentMode;
-    private String referenceNumber;
-    private Double paidAmount;
-    private Double outstandingAmount;
-    private Boolean isActive;
+    private Double paymentAmount;
+    private String transactionNo;
+    private String remarks;
     private String createdBy;
     private String createdAt;
     private String modifiedBy;
