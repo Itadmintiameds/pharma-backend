@@ -21,7 +21,7 @@ public class SupplierPaymentController {
 
     // Records a payment against a purchase of the caller's current warehouse or
     // pharmacy and marks that purchase as PAID.
-    @PreAuthorize("@access.has('PURCHASE/PURCHASE/CREATE')")
+    @PreAuthorize("@access.has('SUPPLIER_PAYMENT/SUPPLIER_PAYMENT/CREATE')")
     @PostMapping("/create")
     public ResponseEntity<?> createPayment(
             @RequestBody SupplierPaymentDto paymentDto,
@@ -39,7 +39,7 @@ public class SupplierPaymentController {
     }
 
 
-    @PreAuthorize("@access.has('PURCHASE/PURCHASE/VIEW')")
+    @PreAuthorize("@access.has('SUPPLIER_PAYMENT/SUPPLIER_PAYMENT/VIEW')")
     @GetMapping("/allSupplierPayments")
     public ResponseEntity<?> getAllPayments(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
@@ -57,7 +57,7 @@ public class SupplierPaymentController {
 
     // KPI cards for the supplier payment list: total supplier payable, overdue
     // payable and supplier credit, for the current warehouse or pharmacy.
-    @PreAuthorize("@access.has('PURCHASE/PURCHASE/VIEW')")
+    @PreAuthorize("@access.has('SUPPLIER_PAYMENT/SUPPLIER_PAYMENT/VIEW')")
     @GetMapping("/kpi")
     public ResponseEntity<?> getSupplierPaymentKpis(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
@@ -70,7 +70,7 @@ public class SupplierPaymentController {
     }
 
 
-    @PreAuthorize("@access.has('PURCHASE/PURCHASE/VIEW')")
+    @PreAuthorize("@access.has('SUPPLIER_PAYMENT/SUPPLIER_PAYMENT/VIEW')")
     @GetMapping("/purchase/{purchaseId}")
     public ResponseEntity<?> getPaymentsByPurchase(
             @PathVariable Long purchaseId,
@@ -88,7 +88,7 @@ public class SupplierPaymentController {
     }
 
 
-    @PreAuthorize("@access.has('PURCHASE/PURCHASE/VIEW')")
+    @PreAuthorize("@access.has('SUPPLIER_PAYMENT/SUPPLIER_PAYMENT/VIEW')")
     @GetMapping("/getById/{supplierPaymentId}")
     public ResponseEntity<?> getPaymentById(
             @PathVariable Long supplierPaymentId,
