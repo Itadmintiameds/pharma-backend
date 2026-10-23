@@ -25,7 +25,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     show-sql: false
     properties:
       hibernate:
@@ -34,7 +34,7 @@ spring:
   # Run db/migration scripts on startup. The test DB predates Flyway, so
   # baseline it at version 0 (not the default 1) so V1 still runs.
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true
     baseline-version: 0
 
