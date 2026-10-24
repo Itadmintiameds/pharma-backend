@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tiameds.pharmabackend.entity.purchase.PurchaseReturn;
+import tiameds.pharmabackend.enums.PurchaseReturnStatus;
 
 import java.util.List;
 
@@ -60,4 +61,28 @@ public interface PurchaseReturnRepository extends JpaRepository <PurchaseReturn,
             @Param("prefix") String prefix,
             @Param("warehouseId") String warehouseId,
             Pageable pageable);
+
+    // Returned amount per purchase for the given status, used by the supplier
+    // payment KPIs. Each row is [purchaseId, sum of totalNetAmount].
+    @Query("""
+        SELECT pr.purchase.purchaseId, COALESCE(SUM(pr.totalNetAmount), 0)
+        FROM PurchaseReturn pr
+        WHERE pr.pharmacyId = :pharmacyId
+          AND pr.status = :status
+        GROUP BY pr.purchase.purchaseId
+    """)
+    List<Object[]> sumReturnAmountPerPurchaseByPharmacyId(
+            @Param("pharmacyId") String pharmacyId,
+            @Param("status") PurchaseReturnStatus status);
+
+    @Query("""
+        SELECT pr.purchase.purchaseId, COALESCE(SUM(pr.totalNetAmount), 0)
+        FROM PurchaseReturn pr
+        WHERE pr.warehouseId = :warehouseId
+          AND pr.status = :status
+        GROUP BY pr.purchase.purchaseId
+    """)
+    List<Object[]> sumReturnAmountPerPurchaseByWarehouseId(
+            @Param("warehouseId") String warehouseId,
+            @Param("status") PurchaseReturnStatus status);
 }

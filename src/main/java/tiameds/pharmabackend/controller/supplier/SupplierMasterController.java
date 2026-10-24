@@ -3,6 +3,7 @@ package tiameds.pharmabackend.controller.supplier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
@@ -18,6 +19,7 @@ public class SupplierMasterController {
 
     private final SupplierMasterService supplierMasterService;
 
+    @PreAuthorize("@access.has('SUPPLIER_MASTER/SUPPLIER_MASTER/CREATE')")
     @PostMapping("/create")
     public ResponseEntity<?> createSupplier(
             @RequestBody SupplierMasterDto supplierDto,
@@ -35,6 +37,7 @@ public class SupplierMasterController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PreAuthorize("@access.has('SUPPLIER_MASTER/SUPPLIER_MASTER/VIEW')")
     @GetMapping("/allSupplier")
     public ResponseEntity<?> getAllSuppliers(
             @AuthenticationPrincipal CustomUserDetails currentUser) {
@@ -50,6 +53,7 @@ public class SupplierMasterController {
     }
 
 
+    @PreAuthorize("@access.has('SUPPLIER_MASTER/SUPPLIER_MASTER/VIEW')")
     @GetMapping("/getById/{supplierId}")
     public ResponseEntity<?> getSupplierById(
             @PathVariable Long supplierId,
@@ -67,6 +71,7 @@ public class SupplierMasterController {
         return ResponseEntity.ok(supplier);
     }
 
+    @PreAuthorize("@access.has('SUPPLIER_MASTER/SUPPLIER_MASTER/EDIT')")
     @PutMapping("/update/{supplierId}")
     public ResponseEntity<?> updateSupplier(
             @PathVariable Long supplierId,

@@ -24,27 +24,32 @@ public class SupplierPayment {
     private Long supplierPaymentId;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id", nullable = false)
+    @JsonIgnore
+    private SupplierMaster supplierMaster;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_id", nullable = false)
     @JsonIgnore
     private Purchase purchase;
 
-    @Column(name = "payment_date")
-    private LocalDate paymentDate;
+    @Column(name = "supplier_payment_no")
+    private String supplierPaymentNo;
+
+    @Column(name = "supplier_payment_date")
+    private LocalDate supplierPaymentDate;
 
     @Column(name = "payment_mode")
     private String paymentMode;
 
-    @Column(name = "reference_number")
-    private String referenceNumber;
+    @Column(name = "payment_amount")
+    private Double paymentAmount;
 
-    @Column(name = "paid_amount")
-    private Double paidAmount;
+    @Column(name = "transaction_no")
+    private String transactionNo;
 
-    @Column(name = "outstanding_amount")
-    private Double outstandingAmount;
-
-    @Column(name = "is_active")
-    private Boolean isActive = true;
+    @Column(name = "remarks")
+    private String remarks;
 
     @Column(name = "created_by")
     private String createdBy;
