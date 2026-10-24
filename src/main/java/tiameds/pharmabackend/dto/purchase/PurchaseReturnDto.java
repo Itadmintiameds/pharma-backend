@@ -31,6 +31,10 @@ public class PurchaseReturnDto {
     private PurchaseReturnStatus status;
     private String cancelReason;
     private String editReason;
+
+    // Sent as true on the draft update call to delete the draft; the row is
+    // kept and only flagged.
+    private Boolean isDraftDeleted;
     private BigDecimal totalGrossAmount;
     private BigDecimal totalGstAmount;
     private BigDecimal totalNetAmount;

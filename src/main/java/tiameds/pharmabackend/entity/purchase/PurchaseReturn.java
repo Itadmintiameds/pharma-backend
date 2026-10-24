@@ -56,6 +56,12 @@ public class PurchaseReturn {
     @Column(name = "edit_reason")
     private String editReason;
 
+    // A deleted draft is flagged rather than removed so return numbers stay
+    // continuous. Rows written before this column have a null flag and count
+    // as not deleted.
+    @Column(name = "is_draft_deleted")
+    private Boolean isDraftDeleted = false;
+
     @Column(name = "total_gross_amount")
     private BigDecimal totalGrossAmount;
 

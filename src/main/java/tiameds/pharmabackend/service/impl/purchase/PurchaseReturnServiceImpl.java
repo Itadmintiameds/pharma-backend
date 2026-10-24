@@ -258,6 +258,24 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
                             + purchaseReturn.getStatus() + ".");
         }
 
+        if (Boolean.TRUE.equals(purchaseReturn.getIsDraftDeleted())) {
+            throw new RuntimeException("This draft purchase return has been deleted.");
+        }
+
+        String actor = String.valueOf(persistentUser.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        // Deleting a draft only flags it; the row, its lines and its number are
+        // kept. A draft has moved no stock and is not counted in the purchase's
+        // return status, so there is nothing else to undo.
+        if (Boolean.TRUE.equals(purchaseReturnDto.getIsDraftDeleted())) {
+            purchaseReturn.setIsDraftDeleted(true);
+            purchaseReturn.setModifiedBy(actor);
+            purchaseReturn.setModifiedAt(now);
+
+            return PurchaseReturnMapper.toDto(purchaseReturnRepository.save(purchaseReturn));
+        }
+
         PurchaseReturnStatus requestedStatus = purchaseReturnDto.getStatus() != null
                 ? purchaseReturnDto.getStatus()
                 : PurchaseReturnStatus.DRAFT;
@@ -266,9 +284,6 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
             throw new RuntimeException(
                     "A purchase return cannot be cancelled through this endpoint.");
         }
-
-        String actor = String.valueOf(persistentUser.getUserId());
-        LocalDateTime now = LocalDateTime.now();
 
         purchaseReturn.setTotalGrossAmount(purchaseReturnDto.getTotalGrossAmount());
         purchaseReturn.setTotalGstAmount(purchaseReturnDto.getTotalGstAmount());
@@ -339,6 +354,10 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
 
         if (purchaseReturn.getStatus() == PurchaseReturnStatus.CANCELLED) {
             throw new RuntimeException("A cancelled purchase return cannot be edited.");
+        }
+
+        if (Boolean.TRUE.equals(purchaseReturn.getIsDraftDeleted())) {
+            throw new RuntimeException("A deleted draft purchase return cannot be edited.");
         }
 
         // Only a confirmed return has already taken stock out, so only then does

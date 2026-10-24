@@ -54,7 +54,9 @@ public class PurchaseReturnController {
 
 
     // Edits a draft return. Sending status CONFIRMED here is what takes the
-    // stock out — a draft moves no inventory until this call.
+    // stock out — a draft moves no inventory until this call. Sending
+    // isDraftDeleted: true deletes the draft (it is flagged, not removed) and
+    // ignores the rest of the body.
     @PreAuthorize("@access.has('PURCHASE_RETURN/PURCHASE_RETURN/EDIT')")
     @PutMapping("/{purchaseReturnId}")
     public ResponseEntity<?> updatePurchaseReturn(
