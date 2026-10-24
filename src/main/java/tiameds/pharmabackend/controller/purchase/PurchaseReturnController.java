@@ -75,9 +75,10 @@ public class PurchaseReturnController {
     }
 
 
-    // Revises line quantities on a draft or confirmed return. Only
-    // editReason and, per line, purchaseReturnDetailId / purchaseReturnQuantity /
-    // freeReturnQuantity are read from the body.
+    // Revises lines on a draft or confirmed return. Only editReason, the three
+    // totals and, per line, purchaseReturnDetailId / purchaseReturnQuantity /
+    // freeReturnQuantity / grossAmount / gstAmount / netAmount are read from
+    // the body.
     @PreAuthorize("@access.has('PURCHASE_RETURN/PURCHASE_RETURN/EDIT')")
     @PutMapping("/{purchaseReturnId}/edit")
     public ResponseEntity<?> editPurchaseReturn(

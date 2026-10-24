@@ -33,6 +33,7 @@ import tiameds.pharmabackend.service.purchase.PurchaseReturnService;
 import tiameds.pharmabackend.service.warehouse.stock.InventoryAdjuster;
 import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -402,12 +403,30 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
                 throw new RuntimeException("Free return quantity cannot be negative on line " + detailId);
             }
 
+            BigDecimal newGross = lineDto.getGrossAmount() != null
+                    ? lineDto.getGrossAmount()
+                    : current.getGrossAmount();
+
+            BigDecimal newGst = lineDto.getGstAmount() != null
+                    ? lineDto.getGstAmount()
+                    : current.getGstAmount();
+
+            BigDecimal newNet = lineDto.getNetAmount() != null
+                    ? lineDto.getNetAmount()
+                    : current.getNetAmount();
+
             if (Objects.equals(newQty, current.getPurchaseReturnQuantity())
-                    && Objects.equals(newFreeQty, current.getFreeReturnQuantity())) {
+                    && Objects.equals(newFreeQty, current.getFreeReturnQuantity())
+                    && sameAmount(newGross, current.getGrossAmount())
+                    && sameAmount(newGst, current.getGstAmount())
+                    && sameAmount(newNet, current.getNetAmount())) {
                 continue;
             }
 
             PurchaseReturnDetails revision = newRevision(current, newQty, newFreeQty, actor, now);
+            revision.setGrossAmount(newGross);
+            revision.setGstAmount(newGst);
+            revision.setNetAmount(newNet);
 
             current.setIsActive(false);
             current.setModifiedBy(actor);
@@ -421,12 +440,23 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         }
 
         if (revisions.isEmpty()) {
-            throw new RuntimeException("No quantity changes to save");
+            throw new RuntimeException("No changes to save");
         }
 
         purchaseReturn.getPurchaseReturnDetails().addAll(revisions);
 
-        // The header row is kept as is apart from the reason for this edit.
+        // Totals are taken as sent, like on create; a total left out of the
+        // payload keeps its current value.
+        if (purchaseReturnDto.getTotalGrossAmount() != null) {
+            purchaseReturn.setTotalGrossAmount(purchaseReturnDto.getTotalGrossAmount());
+        }
+        if (purchaseReturnDto.getTotalGstAmount() != null) {
+            purchaseReturn.setTotalGstAmount(purchaseReturnDto.getTotalGstAmount());
+        }
+        if (purchaseReturnDto.getTotalNetAmount() != null) {
+            purchaseReturn.setTotalNetAmount(purchaseReturnDto.getTotalNetAmount());
+        }
+
         purchaseReturn.setEditReason(purchaseReturnDto.getEditReason());
         purchaseReturn.setModifiedBy(actor);
         purchaseReturn.setModifiedAt(now);
@@ -440,7 +470,13 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
     }
 
-    // Copies a line into its next revision, changing only the two quantities.
+    // BigDecimal.equals is scale-sensitive (800 vs 800.00), so compare by value.
+    private static boolean sameAmount(BigDecimal a, BigDecimal b) {
+        return a == null ? b == null : b != null && a.compareTo(b) == 0;
+    }
+
+    // Copies a line into its next revision, changing only the two quantities;
+    // the caller sets the amounts.
     private PurchaseReturnDetails newRevision(
             PurchaseReturnDetails current,
             Long newQty,
