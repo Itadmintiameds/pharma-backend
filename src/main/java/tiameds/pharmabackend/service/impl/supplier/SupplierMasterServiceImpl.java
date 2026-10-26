@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tiameds.pharmabackend.context.LocationContext;
 import tiameds.pharmabackend.context.LocationContextResolver;
+import tiameds.pharmabackend.dto.supplier.SupplierDuplicateCheckResponse;
 import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
@@ -58,6 +59,8 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
             supplier.setPharmacyId(pharmacyId);
             supplier.setWarehouseId(null);
         }
+
+        validateNoDuplicateSupplier(supplierDto, location, null);
 
         supplier.setStatus(SupplierStatus.ACTIVE);
 
@@ -175,6 +178,8 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
                     .orElseThrow(() -> new RuntimeException("Supplier not found"));
         }
 
+        validateNoDuplicateSupplier(supplierDto, location, supplierId);
+
         supplier.setSupplierName(supplierDto.getSupplierName());
         supplier.setDlno(supplierDto.getDlno());
         supplier.setGstinNo(supplierDto.getGstinNo());
@@ -207,5 +212,109 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
                 supplierMasterRepository.save(supplier);
 
         return supplierMasterMapper.toDto(updatedSupplier);
+    }
+
+
+    @Override
+    public SupplierDuplicateCheckResponse checkDuplicateSupplier(
+            SupplierMasterDto supplierDto,
+            UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        if (location.isPharmacy()) {
+
+            boolean valid = pharmacyDetailsRepository.existsUserPharmacy(
+                    location.getLocationId(),
+                    persistentUser.getUserId());
+
+            if (!valid) {
+                throw new RuntimeException("You are not authorized to use this pharmacy.");
+            }
+        }
+
+        return findDuplicateSupplier(supplierDto, location, supplierDto.getSupplierId());
+    }
+
+    // Two suppliers of the same pharmacy or warehouse cannot share a GST, DL,
+    // PAN or FSSAI number.
+    private void validateNoDuplicateSupplier(
+            SupplierMasterDto supplierDto,
+            LocationContext location,
+            Long excludeSupplierId) {
+
+        SupplierDuplicateCheckResponse check =
+                findDuplicateSupplier(supplierDto, location, excludeSupplierId);
+
+        if (check.isDuplicate()) {
+            throw new RuntimeException(String.join("; ", check.getMessages()));
+        }
+    }
+
+    private SupplierDuplicateCheckResponse findDuplicateSupplier(
+            SupplierMasterDto supplierDto,
+            LocationContext location,
+            Long excludeSupplierId) {
+
+        String gstinNo = normalize(supplierDto.getGstinNo());
+        String dlno = normalize(supplierDto.getDlno());
+        String panNo = normalize(supplierDto.getPanNo());
+        String fssaiNo = normalize(supplierDto.getFssaiNo());
+
+        SupplierDuplicateCheckResponse response = new SupplierDuplicateCheckResponse();
+
+        if (gstinNo == null && dlno == null && panNo == null && fssaiNo == null) {
+            return response;
+        }
+
+        // -1 never matches a real id, so nothing is excluded on create.
+        Long excludeId = excludeSupplierId != null ? excludeSupplierId : -1L;
+
+        List<SupplierMaster> matches = location.isWarehouse()
+                ? supplierMasterRepository.findDuplicatesInWarehouse(
+                        location.getLocationId(), excludeId, gstinNo, dlno, panNo, fssaiNo)
+                : supplierMasterRepository.findDuplicatesInPharmacy(
+                        location.getLocationId(), excludeId, gstinNo, dlno, panNo, fssaiNo);
+
+        for (SupplierMaster match : matches) {
+
+            if (gstinNo != null && gstinNo.equals(normalize(match.getGstinNo())) && !response.isGstinNoExists()) {
+                response.setGstinNoExists(true);
+                response.getMessages().add("GST number already exists for supplier " + match.getSupplierName());
+            }
+
+            if (dlno != null && dlno.equals(normalize(match.getDlno())) && !response.isDlnoExists()) {
+                response.setDlnoExists(true);
+                response.getMessages().add("DL number already exists for supplier " + match.getSupplierName());
+            }
+
+            if (panNo != null && panNo.equals(normalize(match.getPanNo())) && !response.isPanNoExists()) {
+                response.setPanNoExists(true);
+                response.getMessages().add("PAN number already exists for supplier " + match.getSupplierName());
+            }
+
+            if (fssaiNo != null && fssaiNo.equals(normalize(match.getFssaiNo())) && !response.isFssaiNoExists()) {
+                response.setFssaiNoExists(true);
+                response.getMessages().add("FSSAI number already exists for supplier " + match.getSupplierName());
+            }
+        }
+
+        response.setDuplicate(!response.getMessages().isEmpty());
+
+        return response;
+    }
+
+    // Trimmed and upper-cased so "29abcde1234f1z5 " and "29ABCDE1234F1Z5" match;
+    // blank values are treated as not provided.
+    private String normalize(String value) {
+
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return value.trim().toUpperCase();
     }
 }

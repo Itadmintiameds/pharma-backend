@@ -1,5 +1,6 @@
 package tiameds.pharmabackend.service.supplier;
 
+import tiameds.pharmabackend.dto.supplier.SupplierDuplicateCheckResponse;
 import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
 import tiameds.pharmabackend.entity.UserDetails;
 
@@ -14,4 +15,6 @@ public interface SupplierMasterService {
     SupplierMasterDto getSupplierById(Long supplierId, UserDetails user);
 
     SupplierMasterDto updateSupplier(Long supplierId, SupplierMasterDto supplierDto, UserDetails user);
+
+    SupplierDuplicateCheckResponse checkDuplicateSupplier(SupplierMasterDto supplierDto, UserDetails user);
 }
