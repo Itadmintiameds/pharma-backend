@@ -34,6 +34,7 @@ import tiameds.pharmabackend.service.warehouse.stock.InventoryAdjuster;
 import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -109,6 +110,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         purchaseReturn.setStatus(status);
 
         resolveReturnDetails(purchaseReturn, purchaseReturnDto);
+        applyPurchaseDiscounts(purchaseReturn);
 
         String actor = String.valueOf(persistentUser.getUserId());
         LocalDateTime now = LocalDateTime.now();
@@ -154,6 +156,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         purchaseReturn.setStatus(status);
 
         resolveReturnDetails(purchaseReturn, purchaseReturnDto);
+        applyPurchaseDiscounts(purchaseReturn);
 
         String actor = String.valueOf(persistentUser.getUserId());
         LocalDateTime now = LocalDateTime.now();
@@ -293,6 +296,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         purchaseReturn.setModifiedAt(now);
 
         replaceReturnDetails(purchaseReturn, purchaseReturnDto, actor, now);
+        applyPurchaseDiscounts(purchaseReturn);
 
         purchaseReturn.setStatus(requestedStatus);
 
@@ -463,6 +467,9 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         }
 
         purchaseReturn.getPurchaseReturnDetails().addAll(revisions);
+
+        // A changed quantity changes the line's share of the purchase discount.
+        applyPurchaseDiscounts(purchaseReturn);
 
         // Totals are taken as sent, like on create; a total left out of the
         // payload keeps its current value.
@@ -683,6 +690,77 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         }
 
         return ReturnStatus.PARTIALLY_RETURNED;
+    }
+
+    /**
+     * Sets each current return line's discountAmount to its share of the
+     * purchase discount, and the header's totalDiscountAmount to their sum.
+     *
+     * <p>The purchase line's discount covers all of its purchaseQuantity, so a
+     * return of n units takes discount × n / purchaseQuantity. Free units were
+     * never paid for and carry no discount. Lines are matched on product and
+     * batch, as in {@link #recalculateReturnStatus}; if a purchase has the same
+     * product/batch on more than one line, their discounts and quantities are
+     * pooled. Superseded revisions keep the discount they were saved with.
+     */
+    private void applyPurchaseDiscounts(PurchaseReturn purchaseReturn) {
+
+        Purchase purchase = purchaseReturn.getPurchase();
+
+        // [0] = discount, [1] = purchase quantity, per product/batch
+        Map<String, BigDecimal[]> discountByLine = new HashMap<>();
+
+        if (purchase != null && purchase.getPurchaseDetails() != null) {
+
+            for (PurchaseDetails detail : purchase.getPurchaseDetails()) {
+
+                String key = lineKey(
+                        detail.getProduct() != null ? detail.getProduct().getProductId() : null,
+                        detail.getBatch() != null ? detail.getBatch().getBatchId() : null);
+
+                BigDecimal[] totals = discountByLine.computeIfAbsent(
+                        key, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+
+                if (detail.getDiscount() != null) {
+                    totals[0] = totals[0].add(detail.getDiscount());
+                }
+
+                if (detail.getPurchaseQuantity() != null) {
+                    totals[1] = totals[1].add(BigDecimal.valueOf(detail.getPurchaseQuantity()));
+                }
+            }
+        }
+
+        BigDecimal totalDiscount = BigDecimal.ZERO;
+
+        for (PurchaseReturnDetails line : purchaseReturn.getPurchaseReturnDetails()) {
+
+            if (!line.isCurrent()) {
+                continue;
+            }
+
+            String key = lineKey(
+                    line.getProduct() != null ? line.getProduct().getProductId() : null,
+                    line.getBatch() != null ? line.getBatch().getBatchId() : null);
+
+            BigDecimal[] purchased = discountByLine.get(key);
+
+            BigDecimal discount = BigDecimal.ZERO;
+
+            if (purchased != null
+                    && purchased[1].signum() > 0
+                    && line.getPurchaseReturnQuantity() != null) {
+
+                discount = purchased[0]
+                        .multiply(BigDecimal.valueOf(line.getPurchaseReturnQuantity()))
+                        .divide(purchased[1], 2, RoundingMode.HALF_UP);
+            }
+
+            line.setDiscountAmount(discount);
+            totalDiscount = totalDiscount.add(discount);
+        }
+
+        purchaseReturn.setTotalDiscountAmount(totalDiscount);
     }
 
     private String lineKey(String productId, String batchId) {

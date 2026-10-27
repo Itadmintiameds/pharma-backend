@@ -61,6 +61,11 @@ public class PurchaseDetails {
     @Column(name = "gross_amount")
     private BigDecimal grossAmount;
 
+    // Discount amount on the whole line (all purchaseQuantity units), as sent
+    // by the frontend. A purchase return takes its share of this per unit.
+    @Column(name = "discount")
+    private BigDecimal discount;
+
     @Column(name = "gst")
     private BigDecimal gst;
 

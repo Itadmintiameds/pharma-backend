@@ -54,6 +54,11 @@ public class PurchaseReturnDetails {
     @Column(name = "gross_amount")
     private BigDecimal grossAmount;
 
+    // Server-derived: this line's share of the matching purchase line's
+    // discount, pro rata on purchaseReturnQuantity (free units carry none).
+    @Column(name = "discount_amount")
+    private BigDecimal discountAmount;
+
     @Column(name = "gst_amount")
     private BigDecimal gstAmount;
 

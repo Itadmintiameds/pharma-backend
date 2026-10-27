@@ -28,6 +28,8 @@ public class PurchaseDetailsDto {
     private String freeUnit;
     private Long freeQuantity;
     private BigDecimal grossAmount;
+    // Discount amount on the whole line, not a percentage.
+    private BigDecimal discount;
     private BigDecimal gst;
     // The product's GST slab at the time of purchase — "5%", "28%", or the
     // non-numeric "Exempted" slab, not a plain rate.

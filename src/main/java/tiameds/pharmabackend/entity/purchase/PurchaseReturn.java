@@ -65,6 +65,10 @@ public class PurchaseReturn {
     @Column(name = "total_gross_amount")
     private BigDecimal totalGrossAmount;
 
+    // Server-derived: sum of the current lines' discountAmount.
+    @Column(name = "total_discount_amount")
+    private BigDecimal totalDiscountAmount;
+
     @Column(name = "total_gst_amount")
     private BigDecimal totalGstAmount;
 

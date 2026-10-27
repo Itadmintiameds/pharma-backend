@@ -36,6 +36,8 @@ public class PurchaseReturnDto {
     // kept and only flagged.
     private Boolean isDraftDeleted;
     private BigDecimal totalGrossAmount;
+    // Read-only; sum of the lines' discountAmount, ignored on input.
+    private BigDecimal totalDiscountAmount;
     private BigDecimal totalGstAmount;
     private BigDecimal totalNetAmount;
     private String createdBy;

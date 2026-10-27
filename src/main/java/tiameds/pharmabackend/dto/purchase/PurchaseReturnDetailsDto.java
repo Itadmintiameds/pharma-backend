@@ -17,6 +17,8 @@ public class PurchaseReturnDetailsDto {
     private Long freeReturnQuantity;
     private String returnReason;
     private BigDecimal grossAmount;
+    // Read-only; derived from the purchase line's discount, ignored on input.
+    private BigDecimal discountAmount;
     private BigDecimal gstAmount;
     private BigDecimal netAmount;
 

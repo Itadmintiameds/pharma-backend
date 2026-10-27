@@ -46,6 +46,7 @@ public class PurchaseReturnMapper {
         dto.setEditReason(entity.getEditReason());
         dto.setIsDraftDeleted(Boolean.TRUE.equals(entity.getIsDraftDeleted()));
         dto.setTotalGrossAmount(entity.getTotalGrossAmount());
+        dto.setTotalDiscountAmount(entity.getTotalDiscountAmount());
         dto.setTotalGstAmount(entity.getTotalGstAmount());
         dto.setTotalNetAmount(entity.getTotalNetAmount());
         dto.setCreatedBy(entity.getCreatedBy());
