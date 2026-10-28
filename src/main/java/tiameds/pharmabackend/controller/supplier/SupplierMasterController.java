@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.supplier.SupplierDuplicateCheckResponse;
 import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.supplier.SupplierMasterService;
@@ -85,6 +86,27 @@ public class SupplierMasterController {
         SupplierMasterDto response =
                 supplierMasterService.updateSupplier(
                         supplierId,
+                        supplierDto,
+                        currentUser.getUser());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // Checks GST / DL / PAN / FSSAI numbers against the other suppliers of the
+    // current warehouse or pharmacy before saving. Send supplierId when editing
+    // so the supplier is not reported as a duplicate of itself.
+    @PreAuthorize("@access.hasAny('SUPPLIER_MASTER/SUPPLIER_MASTER/CREATE', 'SUPPLIER_MASTER/SUPPLIER_MASTER/EDIT')")
+    @PostMapping("/checkDuplicate")
+    public ResponseEntity<?> checkDuplicateSupplier(
+            @RequestBody SupplierMasterDto supplierDto,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        SupplierDuplicateCheckResponse response =
+                supplierMasterService.checkDuplicateSupplier(
                         supplierDto,
                         currentUser.getUser());
 
