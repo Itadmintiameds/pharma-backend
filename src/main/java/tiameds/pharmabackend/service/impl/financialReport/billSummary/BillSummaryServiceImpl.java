@@ -10,9 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.dto.financialReport.billSummary.BillDetailedSalesKpiDto;
 import tiameds.pharmabackend.dto.financialReport.billSummary.BillDetailedSalesRowDto;
 import tiameds.pharmabackend.dto.financialReport.billSummary.BillSummaryKpiDto;
-import tiameds.pharmabackend.dto.financialReport.billSummary.BillSummaryReportResponse;
 import tiameds.pharmabackend.dto.financialReport.billSummary.BillSummaryRowDto;
 import tiameds.pharmabackend.dto.financialReport.common.FinancialReportFilter;
+import tiameds.pharmabackend.dto.financialReport.common.FinancialReportResponse;
 import tiameds.pharmabackend.dto.financialReport.common.ReportPageDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -51,7 +51,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
 
 
     @Override
-    public BillSummaryReportResponse<BillSummaryKpiDto, BillSummaryRowDto> getBillSummary(
+    public FinancialReportResponse<BillSummaryKpiDto, BillSummaryRowDto> getBillSummary(
             FinancialReportFilter filter,
             UserDetails user) {
 
@@ -67,7 +67,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
                 ? List.of()
                 : findBills(pharmacyIds, range, filter, page, size);
 
-        return new BillSummaryReportResponse<>(
+        return new FinancialReportResponse<>(
                 FinancialReportSupport.generatedBy(user),
                 LocalDateTime.now(),
                 buildKpi(pharmacyIds, range, filter),
@@ -76,7 +76,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
 
 
     @Override
-    public BillSummaryReportResponse<BillDetailedSalesKpiDto, BillDetailedSalesRowDto> getBillDetailedSales(
+    public FinancialReportResponse<BillDetailedSalesKpiDto, BillDetailedSalesRowDto> getBillDetailedSales(
             FinancialReportFilter filter,
             UserDetails user) {
 
@@ -92,7 +92,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
                 ? List.of()
                 : findBillLines(pharmacyIds, range, filter, page, size);
 
-        return new BillSummaryReportResponse<>(
+        return new FinancialReportResponse<>(
                 FinancialReportSupport.generatedBy(user),
                 LocalDateTime.now(),
                 buildLineKpi(pharmacyIds, range, filter),
@@ -221,7 +221,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
                 line.get("netAmount").alias("netAmount"));
 
         List<Predicate> predicates = billPredicates(cb, bill, customer, doctor, pharmacyIds, range, filter);
-        predicates.addAll(productPredicates(cb, product, filter));
+        predicates.addAll(support.productPredicates(cb, product, filter));
 
         query.where(predicates.toArray(Predicate[]::new));
 
@@ -255,7 +255,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         Join<BillingDetails, ProductDetails> product = line.join("product", JoinType.LEFT);
 
         List<Predicate> predicates = billPredicates(cb, bill, customer, doctor, pharmacyIds, range, filter);
-        predicates.addAll(productPredicates(cb, product, filter));
+        predicates.addAll(support.productPredicates(cb, product, filter));
 
         query.select(cb.count(line)).where(predicates.toArray(Predicate[]::new));
 
@@ -280,7 +280,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         Join<BillingDetails, ProductDetails> product = line.join("product", JoinType.LEFT);
 
         List<Predicate> predicates = billPredicates(cb, bill, customer, doctor, pharmacyIds, range, filter);
-        predicates.addAll(productPredicates(cb, product, filter));
+        predicates.addAll(support.productPredicates(cb, product, filter));
 
         query.multiselect(
                         sumOrZero(cb, line.get("grossAmount")).alias("grossAmount"),
@@ -439,45 +439,6 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         }
 
         return predicates;
-    }
-
-
-    // Product search, HSN and GST % filters, applied to a line's product.
-    private List<Predicate> productPredicates(
-            CriteriaBuilder cb,
-            From<?, ProductDetails> product,
-            FinancialReportFilter filter) {
-
-        List<Predicate> predicates = new ArrayList<>();
-
-        if (hasText(filter.getProductSearch())) {
-            predicates.add(support.contains(cb, product.get("productName"), filter.getProductSearch()));
-        }
-
-        if (hasText(filter.getHsnSearch())) {
-            predicates.add(support.contains(cb, product.get("hsnNo"), filter.getHsnSearch()));
-        }
-
-        List<String> gstPercentages = trimmed(filter.getGstPercentages());
-
-        if (!gstPercentages.isEmpty()) {
-            predicates.add(cb.trim(product.<String>get("gstPercentage")).in(gstPercentages));
-        }
-
-        return predicates;
-    }
-
-
-    private static List<String> trimmed(List<String> values) {
-
-        if (values == null) {
-            return List.of();
-        }
-
-        return values.stream()
-                .filter(FinancialReportSupport::hasText)
-                .map(String::trim)
-                .toList();
     }
 
 

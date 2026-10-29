@@ -50,11 +50,16 @@ public class FinancialReportFilter {
     // "Referred by" multi-select: doctor ids from /doctor/allDoctor.
     private List<Long> doctorIds;
 
-    // Product name (line-level reports only).
-    private String productSearch;
+    // Patient type multi-select: IP, OP, DAY_CARE.
+    private List<String> patientTypes;
 
-    // HSN code (line-level reports only).
+    // Product name search and product multi-select (line-level reports only).
+    private String productSearch;
+    private List<String> productIds;
+
+    // HSN code search and multi-select (line-level reports only).
     private String hsnSearch;
+    private List<String> hsnCodes;
 
     // GST % multi-select, as stored on the product, e.g. 5, 12, 18
     // (line-level reports only).

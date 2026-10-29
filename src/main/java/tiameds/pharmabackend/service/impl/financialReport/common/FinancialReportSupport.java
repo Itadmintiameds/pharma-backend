@@ -2,6 +2,7 @@ package tiameds.pharmabackend.service.impl.financialReport.common;
 
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.From;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Component;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.financialReport.common.FinancialReportFilter;
 import tiameds.pharmabackend.entity.UserDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
+import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 
@@ -45,13 +48,7 @@ public class FinancialReportSupport {
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<String> requested = filter.getPharmacyIds() == null
-                ? List.of()
-                : filter.getPharmacyIds().stream()
-                        .filter(FinancialReportSupport::hasText)
-                        .map(String::trim)
-                        .distinct()
-                        .toList();
+        List<String> requested = trimmed(filter.getPharmacyIds());
 
         if (requested.isEmpty()) {
             requested = List.of(pharmacyContext.getCurrentPharmacy());
@@ -152,6 +149,79 @@ public class FinancialReportSupport {
                 .replace("_", "\\_");
 
         return cb.like(cb.lower(column), "%" + escaped + "%", '\\');
+    }
+
+
+    // Product search / multi-select, HSN search / multi-select and GST %
+    // multi-select, applied to a line's product.
+    public List<Predicate> productPredicates(
+            CriteriaBuilder cb,
+            From<?, ProductDetails> product,
+            FinancialReportFilter filter) {
+
+        List<Predicate> predicates = new ArrayList<>();
+
+        if (hasText(filter.getProductSearch())) {
+            predicates.add(contains(cb, product.get("productName"), filter.getProductSearch()));
+        }
+
+        List<String> productIds = trimmed(filter.getProductIds());
+
+        if (!productIds.isEmpty()) {
+            predicates.add(product.get("productId").in(productIds));
+        }
+
+        if (hasText(filter.getHsnSearch())) {
+            predicates.add(contains(cb, product.get("hsnNo"), filter.getHsnSearch()));
+        }
+
+        List<String> hsnCodes = trimmed(filter.getHsnCodes());
+
+        if (!hsnCodes.isEmpty()) {
+            predicates.add(cb.trim(product.<String>get("hsnNo")).in(hsnCodes));
+        }
+
+        List<String> gstPercentages = trimmed(filter.getGstPercentages());
+
+        if (!gstPercentages.isEmpty()) {
+            predicates.add(cb.trim(product.<String>get("gstPercentage")).in(gstPercentages));
+        }
+
+        return predicates;
+    }
+
+
+    /**
+     * Patient type multi-select. Accepts the short labels shown on screen
+     * (IP, OP, DAY_CARE) as well as the stored names (IP_PATIENT, OP_PATIENT,
+     * DAYCARE).
+     */
+    public List<CustomerType> resolvePatientTypes(FinancialReportFilter filter) {
+
+        return trimmed(filter.getPatientTypes()).stream()
+                .map(value -> switch (value.toUpperCase().replace(' ', '_').replace("-", "_")) {
+                    case "IP", "IP_PATIENT" -> CustomerType.IP_PATIENT;
+                    case "OP", "OP_PATIENT" -> CustomerType.OP_PATIENT;
+                    case "DAYCARE", "DAY_CARE" -> CustomerType.DAYCARE;
+                    default -> throw new IllegalArgumentException(
+                            "Unknown patient type: " + value + ". Use IP, OP or DAY_CARE.");
+                })
+                .distinct()
+                .toList();
+    }
+
+
+    public static List<String> trimmed(List<String> values) {
+
+        if (values == null) {
+            return List.of();
+        }
+
+        return values.stream()
+                .filter(FinancialReportSupport::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
     }
 
 
