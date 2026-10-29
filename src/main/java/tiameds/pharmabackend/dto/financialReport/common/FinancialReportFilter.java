@@ -65,6 +65,10 @@ public class FinancialReportFilter {
     // (line-level reports only).
     private List<String> gstPercentages;
 
+    // Payment status dropdown on due reports: PENDING, FULLY_PAID or ALL
+    // (default).
+    private String pendingStatus;
+
     // Zero-based page index and page size, both chosen by the client.
     private Integer page;
     private Integer size;

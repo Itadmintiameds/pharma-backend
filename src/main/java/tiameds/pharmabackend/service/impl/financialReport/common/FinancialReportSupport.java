@@ -10,11 +10,15 @@ import org.springframework.stereotype.Component;
 import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.financialReport.common.FinancialReportFilter;
 import tiameds.pharmabackend.entity.UserDetails;
+import tiameds.pharmabackend.entity.billing.Billing;
+import tiameds.pharmabackend.entity.billing.CustomerManagement;
+import tiameds.pharmabackend.entity.billing.DoctorDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -149,6 +153,66 @@ public class FinancialReportSupport {
                 .replace("_", "\\_");
 
         return cb.like(cb.lower(column), "%" + escaped + "%", '\\');
+    }
+
+
+    // Patient search, number searches and referred-by filters, applied to a bill.
+    public List<Predicate> billSearchPredicates(
+            CriteriaBuilder cb,
+            From<?, Billing> bill,
+            From<?, CustomerManagement> customer,
+            From<?, DoctorDetails> doctor,
+            FinancialReportFilter filter) {
+
+        List<Predicate> predicates = new ArrayList<>();
+
+        if (hasText(filter.getPatientSearch())) {
+            predicates.add(cb.or(
+                    contains(cb, customer.get("customerName"), filter.getPatientSearch()),
+                    contains(cb, customer.get("customerPhoneNo"), filter.getPatientSearch())));
+        }
+
+        if (hasText(filter.getNumberSearch())) {
+            predicates.add(cb.or(
+                    contains(cb, customer.get("patientNumber"), filter.getNumberSearch()),
+                    contains(cb, bill.get("opIpNumber"), filter.getNumberSearch()),
+                    contains(cb, bill.get("billNo"), filter.getNumberSearch())));
+        }
+
+        if (hasText(filter.getPatientNo())) {
+            predicates.add(contains(cb, customer.get("patientNumber"), filter.getPatientNo()));
+        }
+
+        // IP and OP numbers share one column; the bill's customer type says which.
+        if (hasText(filter.getIpNo())) {
+            predicates.add(contains(cb, bill.get("opIpNumber"), filter.getIpNo()));
+            predicates.add(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT));
+        }
+
+        if (hasText(filter.getOpNo())) {
+            predicates.add(contains(cb, bill.get("opIpNumber"), filter.getOpNo()));
+            predicates.add(cb.equal(bill.get("customerType"), CustomerType.OP_PATIENT));
+        }
+
+        if (hasText(filter.getBillNo())) {
+            predicates.add(contains(cb, bill.get("billNo"), filter.getBillNo()));
+        }
+
+        if (filter.getDoctorIds() != null && !filter.getDoctorIds().isEmpty()) {
+            predicates.add(doctor.get("doctorId").in(filter.getDoctorIds()));
+        }
+
+        return predicates;
+    }
+
+
+    // Amount a bill is settled against: the rounded net amount, or the net
+    // amount for older bills with no round-off stored.
+    public Expression<BigDecimal> billAmount(CriteriaBuilder cb, From<?, Billing> bill) {
+
+        return cb.coalesce(
+                bill.<BigDecimal>get("totalNetAmountAfterRoundOff"),
+                bill.<BigDecimal>get("totalNetAmount"));
     }
 
 

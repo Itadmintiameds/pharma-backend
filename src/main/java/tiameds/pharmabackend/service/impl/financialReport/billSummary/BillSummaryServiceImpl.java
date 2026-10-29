@@ -25,7 +25,6 @@ import tiameds.pharmabackend.entity.master.PurchaseSmallestUnit;
 import tiameds.pharmabackend.entity.product.BatchDetails;
 import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
-import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.enums.SalesReturnStatus;
 import tiameds.pharmabackend.service.financialReport.billSummary.BillSummaryService;
 import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport;
@@ -37,7 +36,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import static tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport.hasText;
 
 @Service
 @RequiredArgsConstructor
@@ -133,7 +131,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
                 doctor.get("doctorId").alias("doctorId"),
                 doctor.get("doctorName").alias("referredBy"),
                 itemCount.alias("itemCount"),
-                billAmount(cb, bill).alias("totalAmount"));
+                support.billAmount(cb, bill).alias("totalAmount"));
 
         query.where(billPredicates(cb, bill, customer, doctor, pharmacyIds, range, filter)
                 .toArray(Predicate[]::new));
@@ -340,7 +338,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         Join<Billing, CustomerManagement> customer = bill.join("customer", JoinType.LEFT);
         Join<Billing, DoctorDetails> doctor = bill.join("doctor", JoinType.LEFT);
 
-        query.select(cb.coalesce(cb.sum(billAmount(cb, bill)), BigDecimal.ZERO))
+        query.select(cb.coalesce(cb.sum(support.billAmount(cb, bill)), BigDecimal.ZERO))
                 .where(billPredicates(cb, bill, customer, doctor, pharmacyIds, range, filter)
                         .toArray(Predicate[]::new));
 
@@ -365,7 +363,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         predicates.add(salesReturn.get("pharmacyId").in(pharmacyIds));
         predicates.add(cb.equal(salesReturn.get("salesReturnStatus"), SalesReturnStatus.COMPLETED));
         predicates.addAll(support.within(cb, salesReturn.get("salesReturnDate"), range));
-        predicates.addAll(searchPredicates(cb, bill, customer, doctor, filter));
+        predicates.addAll(support.billSearchPredicates(cb, bill, customer, doctor, filter));
 
         query.select(cb.coalesce(cb.sum(salesReturn.<BigDecimal>get("totalNetAmount")), BigDecimal.ZERO))
                 .where(predicates.toArray(Predicate[]::new));
@@ -386,68 +384,9 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         List<Predicate> predicates = new ArrayList<>();
         predicates.add(bill.get("pharmacy").get("pharmacyId").in(pharmacyIds));
         predicates.addAll(support.within(cb, bill.<LocalDateTime>get("createdAt"), range));
-        predicates.addAll(searchPredicates(cb, bill, customer, doctor, filter));
+        predicates.addAll(support.billSearchPredicates(cb, bill, customer, doctor, filter));
 
         return predicates;
-    }
-
-
-    // Patient search, number search and referred-by filters, applied to a bill.
-    private List<Predicate> searchPredicates(
-            CriteriaBuilder cb,
-            From<?, Billing> bill,
-            Join<Billing, CustomerManagement> customer,
-            Join<Billing, DoctorDetails> doctor,
-            FinancialReportFilter filter) {
-
-        List<Predicate> predicates = new ArrayList<>();
-
-        if (hasText(filter.getPatientSearch())) {
-            predicates.add(cb.or(
-                    support.contains(cb, customer.get("customerName"), filter.getPatientSearch()),
-                    support.contains(cb, customer.get("customerPhoneNo"), filter.getPatientSearch())));
-        }
-
-        if (hasText(filter.getNumberSearch())) {
-            predicates.add(cb.or(
-                    support.contains(cb, customer.get("patientNumber"), filter.getNumberSearch()),
-                    support.contains(cb, bill.get("opIpNumber"), filter.getNumberSearch()),
-                    support.contains(cb, bill.get("billNo"), filter.getNumberSearch())));
-        }
-
-        if (hasText(filter.getPatientNo())) {
-            predicates.add(support.contains(cb, customer.get("patientNumber"), filter.getPatientNo()));
-        }
-
-        // IP and OP numbers share one column; the bill's customer type says which.
-        if (hasText(filter.getIpNo())) {
-            predicates.add(support.contains(cb, bill.get("opIpNumber"), filter.getIpNo()));
-            predicates.add(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT));
-        }
-
-        if (hasText(filter.getOpNo())) {
-            predicates.add(support.contains(cb, bill.get("opIpNumber"), filter.getOpNo()));
-            predicates.add(cb.equal(bill.get("customerType"), CustomerType.OP_PATIENT));
-        }
-
-        if (hasText(filter.getBillNo())) {
-            predicates.add(support.contains(cb, bill.get("billNo"), filter.getBillNo()));
-        }
-
-        if (filter.getDoctorIds() != null && !filter.getDoctorIds().isEmpty()) {
-            predicates.add(doctor.get("doctorId").in(filter.getDoctorIds()));
-        }
-
-        return predicates;
-    }
-
-
-    // Amount actually collected; older bills have no round-off figure stored.
-    private Expression<BigDecimal> billAmount(CriteriaBuilder cb, From<?, Billing> bill) {
-
-        return cb.coalesce(
-                bill.<BigDecimal>get("totalNetAmountAfterRoundOff"),
-                bill.<BigDecimal>get("totalNetAmount"));
     }
 
 
