@@ -50,8 +50,11 @@ public class FinancialReportFilter {
     // "Referred by" multi-select: doctor ids from /doctor/allDoctor.
     private List<Long> doctorIds;
 
-    // Patient type multi-select: IP, OP, DAY_CARE.
+    // Patient type multi-select: IP, OP, WALK_IN, DAY_CARE.
     private List<String> patientTypes;
+
+    // Payment mode multi-select: CASH, UPI, CARD, CREDIT.
+    private List<String> paymentModes;
 
     // Product name search and product multi-select (line-level reports only).
     private String productSearch;

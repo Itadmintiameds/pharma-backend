@@ -1,9 +1,12 @@
 package tiameds.pharmabackend.service.impl.financialReport.common;
 
+import jakarta.persistence.criteria.AbstractQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.From;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
@@ -11,10 +14,12 @@ import tiameds.pharmabackend.context.CurrentPharmacyContext;
 import tiameds.pharmabackend.dto.financialReport.common.FinancialReportFilter;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.billing.Billing;
+import tiameds.pharmabackend.entity.billing.BillingPayment;
 import tiameds.pharmabackend.entity.billing.CustomerManagement;
 import tiameds.pharmabackend.entity.billing.DoctorDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.enums.CustomerType;
+import tiameds.pharmabackend.enums.PaymentMode;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 
@@ -257,8 +262,8 @@ public class FinancialReportSupport {
 
     /**
      * Patient type multi-select. Accepts the short labels shown on screen
-     * (IP, OP, DAY_CARE) as well as the stored names (IP_PATIENT, OP_PATIENT,
-     * DAYCARE).
+     * (IP, OP, WALK_IN, DAY_CARE) as well as the stored names (IP_PATIENT,
+     * OP_PATIENT, WALK_IN, DAYCARE).
      */
     public List<CustomerType> resolvePatientTypes(FinancialReportFilter filter) {
 
@@ -266,12 +271,49 @@ public class FinancialReportSupport {
                 .map(value -> switch (value.toUpperCase().replace(' ', '_').replace("-", "_")) {
                     case "IP", "IP_PATIENT" -> CustomerType.IP_PATIENT;
                     case "OP", "OP_PATIENT" -> CustomerType.OP_PATIENT;
+                    case "WALK_IN", "WALKIN" -> CustomerType.WALK_IN;
                     case "DAYCARE", "DAY_CARE" -> CustomerType.DAYCARE;
                     default -> throw new IllegalArgumentException(
-                            "Unknown patient type: " + value + ". Use IP, OP or DAY_CARE.");
+                            "Unknown patient type: " + value + ". Use IP, OP, WALK_IN or DAY_CARE.");
                 })
                 .distinct()
                 .toList();
+    }
+
+
+    // Payment mode multi-select: CASH, UPI, CARD, CREDIT.
+    public List<PaymentMode> resolvePaymentModes(FinancialReportFilter filter) {
+
+        return trimmed(filter.getPaymentModes()).stream()
+                .map(value -> {
+                    try {
+                        return PaymentMode.valueOf(value.toUpperCase());
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException(
+                                "Unknown payment mode: " + value + ". Use CASH, UPI, CARD or CREDIT.");
+                    }
+                })
+                .distinct()
+                .toList();
+    }
+
+
+    // Bills with at least one payment in any of the given modes.
+    public Predicate paidWithAnyOf(
+            CriteriaBuilder cb,
+            AbstractQuery<?> query,
+            From<?, Billing> bill,
+            List<PaymentMode> paymentModes) {
+
+        Subquery<Long> payments = query.subquery(Long.class);
+        Root<BillingPayment> payment = payments.from(BillingPayment.class);
+
+        payments.select(payment.get("paymentId"))
+                .where(
+                        cb.equal(payment.get("billing"), bill),
+                        payment.get("paymentMode").in(paymentModes));
+
+        return cb.exists(payments);
     }
 
 
