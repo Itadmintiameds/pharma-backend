@@ -12,6 +12,8 @@ import tiameds.pharmabackend.dto.financialReport.common.FinancialReportResponse;
 import tiameds.pharmabackend.dto.financialReport.common.ReportPageDto;
 import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.PaymentModeSummaryKpiDto;
 import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.PaymentModeSummaryRowDto;
+import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.ReceiptDetailsKpiDto;
+import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.ReceiptDetailsRowDto;
 import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.SalesSummaryKpiDto;
 import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.SalesSummaryRowDto;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -50,18 +52,17 @@ import java.util.Map;
 @Transactional(readOnly = true)
 public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
 
-    // Row order and labels of the payment mode summary.
+    // Row order and labels of the payment mode summary. Credit is left out:
+    // a credit entry is recorded with nothing received.
     private static final Map<PaymentMode, String> PAYMENT_MODE_LABELS = new EnumMap<>(Map.of(
             PaymentMode.CARD, "Card",
             PaymentMode.CASH, "Cash",
-            PaymentMode.UPI, "UPI",
-            PaymentMode.CREDIT, "Credit"));
+            PaymentMode.UPI, "UPI"));
 
     private static final List<PaymentMode> PAYMENT_MODE_ORDER = List.of(
             PaymentMode.CARD,
             PaymentMode.CASH,
-            PaymentMode.UPI,
-            PaymentMode.CREDIT);
+            PaymentMode.UPI);
 
     private final FinancialReportSupport support;
 
@@ -139,7 +140,43 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
         kpi.setCard(received.getOrDefault(PaymentMode.CARD, BigDecimal.ZERO));
         kpi.setCash(received.getOrDefault(PaymentMode.CASH, BigDecimal.ZERO));
         kpi.setUpi(received.getOrDefault(PaymentMode.UPI, BigDecimal.ZERO));
-        kpi.setCredit(received.getOrDefault(PaymentMode.CREDIT, BigDecimal.ZERO));
+
+        return new FinancialReportResponse<>(
+                FinancialReportSupport.generatedBy(user),
+                LocalDateTime.now(),
+                kpi,
+                new ReportPageDto<>(rows, 0, rows.size(), rows.size(), 1));
+    }
+
+
+    @Override
+    public FinancialReportResponse<ReceiptDetailsKpiDto, ReceiptDetailsRowDto> getReceiptDetails(
+            FinancialReportFilter filter,
+            UserDetails user) {
+
+        Scope scope = resolveScope(filter, user, support.resolveBoundedDateRange(filter));
+
+        Tuple receipts = sumReceiptsByBillAge(scope);
+        BigDecimal current = receipts.get("current", BigDecimal.class);
+        BigDecimal previous = receipts.get("previous", BigDecimal.class);
+        BigDecimal total = current.add(previous);
+
+        ReceiptDetailsKpiDto kpi = new ReceiptDetailsKpiDto();
+        kpi.setTotalReceipts(total);
+        kpi.setCurrentBillReceipts(current);
+        kpi.setPreviousBillReceipts(previous);
+
+        List<ReceiptDetailsRowDto> rows = List.of(
+                new ReceiptDetailsRowDto("CURRENT_BILL_RECEIPTS", "Current Bill Receipts",
+                        "Pharmacy Bill / Payment Records",
+                        "Payments received during the selected period against bills generated during the same period",
+                        current),
+                new ReceiptDetailsRowDto("PREVIOUS_BILL_RECEIPTS", "Previous Bill Receipts",
+                        "Payment Records",
+                        "Payments received during the selected period against bills generated before the period",
+                        previous),
+                new ReceiptDetailsRowDto("TOTAL_RECEIPTS", "Total Receipts", "Calculated",
+                        "Current Bill Receipts + Previous Bill Receipts", total));
 
         return new FinancialReportResponse<>(
                 FinancialReportSupport.generatedBy(user),
@@ -243,12 +280,7 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
         Root<BillingPayment> payment = query.from(BillingPayment.class);
         Join<BillingPayment, Billing> bill = payment.join("billing");
 
-        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, false);
-        predicates.addAll(support.within(cb, payment.get("createdAt"), scope.range()));
-
-        if (!scope.paymentModes().isEmpty()) {
-            predicates.add(payment.get("paymentMode").in(scope.paymentModes()));
-        }
+        List<Predicate> predicates = receivedPayments(cb, query, payment, bill, scope);
 
         query.multiselect(
                         payment.get("paymentMode").alias("mode"),
@@ -267,6 +299,57 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
         }
 
         return received;
+    }
+
+
+    // Payments received in the period, summed by whether the bill was raised
+    // within the period (current) or before it (previous). Bills dated after
+    // the period cannot have been paid within it and are left out.
+    private Tuple sumReceiptsByBillAge(Scope scope) {
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<BillingPayment> payment = query.from(BillingPayment.class);
+        Join<BillingPayment, Billing> bill = payment.join("billing");
+
+        List<Predicate> predicates = receivedPayments(cb, query, payment, bill, scope);
+        predicates.add(cb.lessThan(bill.get("createdAt"), scope.range().endExclusive()));
+
+        Path<BigDecimal> amount = payment.get("receivedAmount");
+        Predicate billedInPeriod = cb.greaterThanOrEqualTo(bill.get("createdAt"), scope.range().start());
+
+        query.multiselect(
+                        cb.coalesce(cb.sum(cb.<BigDecimal>selectCase()
+                                .when(billedInPeriod, amount)
+                                .otherwise(BigDecimal.ZERO)), BigDecimal.ZERO).alias("current"),
+                        cb.coalesce(cb.sum(cb.<BigDecimal>selectCase()
+                                .when(billedInPeriod, BigDecimal.ZERO)
+                                .otherwise(amount)), BigDecimal.ZERO).alias("previous"))
+                .where(predicates.toArray(Predicate[]::new));
+
+        return entityManager.createQuery(query).getSingleResult();
+    }
+
+
+    // Real money received in the period on eligible bills: credit entries are
+    // excluded, and the payment mode filter applies to the payment itself.
+    private List<Predicate> receivedPayments(
+            CriteriaBuilder cb,
+            AbstractQuery<?> query,
+            Root<BillingPayment> payment,
+            From<?, Billing> bill,
+            Scope scope) {
+
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, false);
+        predicates.addAll(support.within(cb, payment.get("createdAt"), scope.range()));
+        predicates.add(cb.notEqual(payment.get("paymentMode"), PaymentMode.CREDIT));
+
+        if (!scope.paymentModes().isEmpty()) {
+            predicates.add(payment.get("paymentMode").in(scope.paymentModes()));
+        }
+
+        return predicates;
     }
 
 
@@ -300,10 +383,15 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
 
 
     private Scope resolveScope(FinancialReportFilter filter, UserDetails user) {
+        return resolveScope(filter, user, support.resolveDateRange(filter));
+    }
+
+
+    private Scope resolveScope(FinancialReportFilter filter, UserDetails user, DateRange range) {
 
         return new Scope(
                 support.resolvePharmacyIds(filter, user),
-                support.resolveDateRange(filter),
+                range,
                 support.resolvePatientTypes(filter),
                 support.resolvePaymentModes(filter),
                 filter);

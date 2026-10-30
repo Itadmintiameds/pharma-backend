@@ -33,7 +33,7 @@ public class PharmacyReceiptsController {
     }
 
 
-    // Amount received per payment mode (card, cash, UPI, credit) plus a total.
+    // Amount received per payment mode (card, cash, UPI) plus a total.
     @GetMapping("/payment-mode-summary")
     public ResponseEntity<?> getPaymentModeSummary(
             @ModelAttribute FinancialReportFilter filter,
@@ -44,5 +44,21 @@ public class PharmacyReceiptsController {
         }
 
         return ResponseEntity.ok(pharmacyReceiptsService.getPaymentModeSummary(filter, currentUser.getUser()));
+    }
+
+
+    // Money received in the period, split by whether its bill was raised in
+    // the period (current) or before it (previous). Needs date, or both
+    // fromDate and toDate.
+    @GetMapping("/receipt-details")
+    public ResponseEntity<?> getReceiptDetails(
+            @ModelAttribute FinancialReportFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(pharmacyReceiptsService.getReceiptDetails(filter, currentUser.getUser()));
     }
 }

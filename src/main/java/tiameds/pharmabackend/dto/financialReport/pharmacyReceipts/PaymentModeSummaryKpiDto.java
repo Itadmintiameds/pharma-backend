@@ -5,7 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 // KPI cards for the payment mode summary. A mode left out by the payment mode
-// filter shows zero.
+// filter shows zero. Credit is not shown: no money is received on credit.
 @Data
 public class PaymentModeSummaryKpiDto {
 
@@ -14,5 +14,4 @@ public class PaymentModeSummaryKpiDto {
     private BigDecimal card;
     private BigDecimal cash;
     private BigDecimal upi;
-    private BigDecimal credit;
 }

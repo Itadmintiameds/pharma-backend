@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class PaymentModeSummaryRowDto {
 
-    // CARD, CASH, UPI, CREDIT or TOTAL.
+    // CARD, CASH, UPI or TOTAL.
     private String code;
 
     // Display label, e.g. Card.

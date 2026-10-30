@@ -99,6 +99,20 @@ public class FinancialReportSupport {
     }
 
 
+    // Like resolveDateRange, but both ends are required: either date, or
+    // fromDate and toDate together.
+    public DateRange resolveBoundedDateRange(FinancialReportFilter filter) {
+
+        if (filter.getDate() == null
+                && (filter.getFromDate() == null || filter.getToDate() == null)) {
+            throw new IllegalArgumentException(
+                    "Send date, or both fromDate and toDate, for this report.");
+        }
+
+        return resolveDateRange(filter);
+    }
+
+
     public int resolvePage(FinancialReportFilter filter) {
 
         Integer page = filter.getPage();
