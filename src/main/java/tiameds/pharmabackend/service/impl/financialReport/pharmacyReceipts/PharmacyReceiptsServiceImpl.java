@@ -1,4 +1,4 @@
-package tiameds.pharmabackend.service.impl.financialReport.salesSummary;
+package tiameds.pharmabackend.service.impl.financialReport.pharmacyReceipts;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -10,8 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.dto.financialReport.common.FinancialReportFilter;
 import tiameds.pharmabackend.dto.financialReport.common.FinancialReportResponse;
 import tiameds.pharmabackend.dto.financialReport.common.ReportPageDto;
-import tiameds.pharmabackend.dto.financialReport.salesSummary.SalesSummaryKpiDto;
-import tiameds.pharmabackend.dto.financialReport.salesSummary.SalesSummaryRowDto;
+import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.PaymentModeSummaryKpiDto;
+import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.PaymentModeSummaryRowDto;
+import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.SalesSummaryKpiDto;
+import tiameds.pharmabackend.dto.financialReport.pharmacyReceipts.SalesSummaryRowDto;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.billing.BillingPayment;
@@ -21,25 +23,45 @@ import tiameds.pharmabackend.entity.billing.SalesReturn;
 import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.enums.PaymentMode;
 import tiameds.pharmabackend.enums.SalesReturnStatus;
-import tiameds.pharmabackend.service.financialReport.salesSummary.SalesSummaryService;
+import tiameds.pharmabackend.service.financialReport.pharmacyReceipts.PharmacyReceiptsService;
 import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport;
 import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport.DateRange;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Sales summary: five cumulative figures across the selected pharmacies and
- * period. Bills count by bill date and returns by return date, like the bill
- * summary. IP pending is what is still owed on the period's IP bills, counting
- * only payments received up to the end of the period.
+ * Pharmacy receipts reports.
+ * <p>
+ * Sales summary: five cumulative figures. Bills count by bill date and
+ * returns by return date, like the bill summary. IP pending is what is still
+ * owed on the period's IP bills, counting only payments received up to the
+ * end of the period.
+ * <p>
+ * Payment mode summary: money received in the period (by payment date),
+ * split by payment mode.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class SalesSummaryServiceImpl implements SalesSummaryService {
+public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
+
+    // Row order and labels of the payment mode summary.
+    private static final Map<PaymentMode, String> PAYMENT_MODE_LABELS = new EnumMap<>(Map.of(
+            PaymentMode.CARD, "Card",
+            PaymentMode.CASH, "Cash",
+            PaymentMode.UPI, "UPI",
+            PaymentMode.CREDIT, "Credit"));
+
+    private static final List<PaymentMode> PAYMENT_MODE_ORDER = List.of(
+            PaymentMode.CARD,
+            PaymentMode.CASH,
+            PaymentMode.UPI,
+            PaymentMode.CREDIT);
 
     private final FinancialReportSupport support;
 
@@ -52,12 +74,7 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
             FinancialReportFilter filter,
             UserDetails user) {
 
-        Scope scope = new Scope(
-                support.resolvePharmacyIds(filter, user),
-                support.resolveDateRange(filter),
-                support.resolvePatientTypes(filter),
-                support.resolvePaymentModes(filter),
-                filter);
+        Scope scope = resolveScope(filter, user);
 
         Tuple sales = sumSales(scope);
         BigDecimal totalSales = sales.get("sales", BigDecimal.class);
@@ -92,6 +109,46 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
     }
 
 
+    @Override
+    public FinancialReportResponse<PaymentModeSummaryKpiDto, PaymentModeSummaryRowDto> getPaymentModeSummary(
+            FinancialReportFilter filter,
+            UserDetails user) {
+
+        Scope scope = resolveScope(filter, user);
+
+        Map<PaymentMode, BigDecimal> received = sumReceivedByMode(scope);
+
+        // Every mode when none is selected, otherwise just the selected ones.
+        List<PaymentMode> shown = PAYMENT_MODE_ORDER.stream()
+                .filter(mode -> scope.paymentModes().isEmpty() || scope.paymentModes().contains(mode))
+                .toList();
+
+        List<PaymentModeSummaryRowDto> rows = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (PaymentMode mode : shown) {
+            BigDecimal amount = received.getOrDefault(mode, BigDecimal.ZERO);
+            rows.add(new PaymentModeSummaryRowDto(mode.name(), PAYMENT_MODE_LABELS.get(mode), amount));
+            total = total.add(amount);
+        }
+
+        rows.add(new PaymentModeSummaryRowDto("TOTAL", "Total", total));
+
+        PaymentModeSummaryKpiDto kpi = new PaymentModeSummaryKpiDto();
+        kpi.setTotalReceived(total);
+        kpi.setCard(received.getOrDefault(PaymentMode.CARD, BigDecimal.ZERO));
+        kpi.setCash(received.getOrDefault(PaymentMode.CASH, BigDecimal.ZERO));
+        kpi.setUpi(received.getOrDefault(PaymentMode.UPI, BigDecimal.ZERO));
+        kpi.setCredit(received.getOrDefault(PaymentMode.CREDIT, BigDecimal.ZERO));
+
+        return new FinancialReportResponse<>(
+                FinancialReportSupport.generatedBy(user),
+                LocalDateTime.now(),
+                kpi,
+                new ReportPageDto<>(rows, 0, rows.size(), rows.size(), 1));
+    }
+
+
     // Bill total and discount over the period's eligible bills.
     private Tuple sumSales(Scope scope) {
 
@@ -100,7 +157,7 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
 
         Root<Billing> bill = query.from(Billing.class);
 
-        List<Predicate> predicates = eligibleBill(cb, query, bill, scope);
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, true);
         predicates.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
 
         query.multiselect(
@@ -122,7 +179,7 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
         Root<SalesReturn> salesReturn = query.from(SalesReturn.class);
         Join<SalesReturn, Billing> bill = salesReturn.join("billing");
 
-        List<Predicate> predicates = eligibleBill(cb, query, bill, scope);
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, true);
         predicates.add(cb.equal(salesReturn.get("salesReturnStatus"), SalesReturnStatus.COMPLETED));
         predicates.addAll(support.within(cb, salesReturn.get("salesReturnDate"), scope.range()));
 
@@ -147,7 +204,7 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
         CriteriaQuery<BigDecimal> billedQuery = cb.createQuery(BigDecimal.class);
         Root<Billing> bill = billedQuery.from(Billing.class);
 
-        List<Predicate> billed = eligibleBill(cb, billedQuery, bill, scope);
+        List<Predicate> billed = eligibleBill(cb, billedQuery, bill, scope, true);
         billed.add(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT));
         billed.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
 
@@ -158,7 +215,7 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
         Root<BillingPayment> payment = receivedQuery.from(BillingPayment.class);
         Join<BillingPayment, Billing> paidBill = payment.join("billing");
 
-        List<Predicate> received = eligibleBill(cb, receivedQuery, paidBill, scope);
+        List<Predicate> received = eligibleBill(cb, receivedQuery, paidBill, scope, true);
         received.add(cb.equal(paidBill.get("customerType"), CustomerType.IP_PATIENT));
         received.addAll(support.within(cb, paidBill.get("createdAt"), scope.range()));
 
@@ -176,12 +233,52 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
     }
 
 
-    // Every filter except the date, which each figure applies to its own column.
+    // Payments received in the period on eligible bills, summed per mode. The
+    // payment mode filter applies to the payment itself here.
+    private Map<PaymentMode, BigDecimal> sumReceivedByMode(Scope scope) {
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<BillingPayment> payment = query.from(BillingPayment.class);
+        Join<BillingPayment, Billing> bill = payment.join("billing");
+
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, false);
+        predicates.addAll(support.within(cb, payment.get("createdAt"), scope.range()));
+
+        if (!scope.paymentModes().isEmpty()) {
+            predicates.add(payment.get("paymentMode").in(scope.paymentModes()));
+        }
+
+        query.multiselect(
+                        payment.get("paymentMode").alias("mode"),
+                        cb.coalesce(cb.sum(payment.<BigDecimal>get("receivedAmount")), BigDecimal.ZERO)
+                                .alias("amount"))
+                .where(predicates.toArray(Predicate[]::new))
+                .groupBy(payment.get("paymentMode"));
+
+        Map<PaymentMode, BigDecimal> received = new EnumMap<>(PaymentMode.class);
+
+        for (Tuple row : entityManager.createQuery(query).getResultList()) {
+            PaymentMode mode = row.get("mode", PaymentMode.class);
+            if (mode != null) {
+                received.put(mode, row.get("amount", BigDecimal.class));
+            }
+        }
+
+        return received;
+    }
+
+
+    // Every filter except the date, which each figure applies to its own
+    // column. With byPaymentMode, a bill matches the payment mode filter when
+    // any of its payments used a selected mode.
     private List<Predicate> eligibleBill(
             CriteriaBuilder cb,
             AbstractQuery<?> query,
             From<?, Billing> bill,
-            Scope scope) {
+            Scope scope,
+            boolean byPaymentMode) {
 
         Join<Billing, CustomerManagement> customer = bill.join("customer", JoinType.LEFT);
         Join<Billing, DoctorDetails> doctor = bill.join("doctor", JoinType.LEFT);
@@ -194,11 +291,22 @@ public class SalesSummaryServiceImpl implements SalesSummaryService {
             predicates.add(bill.get("customerType").in(scope.patientTypes()));
         }
 
-        if (!scope.paymentModes().isEmpty()) {
+        if (byPaymentMode && !scope.paymentModes().isEmpty()) {
             predicates.add(support.paidWithAnyOf(cb, query, bill, scope.paymentModes()));
         }
 
         return predicates;
+    }
+
+
+    private Scope resolveScope(FinancialReportFilter filter, UserDetails user) {
+
+        return new Scope(
+                support.resolvePharmacyIds(filter, user),
+                support.resolveDateRange(filter),
+                support.resolvePatientTypes(filter),
+                support.resolvePaymentModes(filter),
+                filter);
     }
 
 

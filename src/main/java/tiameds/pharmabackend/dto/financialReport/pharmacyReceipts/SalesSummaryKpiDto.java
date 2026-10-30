@@ -1,4 +1,4 @@
-package tiameds.pharmabackend.dto.financialReport.salesSummary;
+package tiameds.pharmabackend.dto.financialReport.pharmacyReceipts;
 
 import lombok.Data;
 
