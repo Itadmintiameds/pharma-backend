@@ -12,14 +12,27 @@ import tiameds.pharmabackend.dto.financialReport.common.FinancialReportResponse;
 import tiameds.pharmabackend.dto.financialReport.common.ReportPageDto;
 import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.BillCountSummaryKpiDto;
 import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.BillCountSummaryRowDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.BillingByUserKpiDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.BillingByUserRowDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.CurrentBillDetailsKpiDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.CurrentBillDetailsRowDto;
 import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.PatientTypeBillingKpiDto;
 import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.PatientTypeBillingKpiDto.PatientTypeTotal;
 import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.PatientTypeBillingRowDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.ReceiptByUserKpiDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.ReceiptByUserRowDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.SalesReturnDetailsKpiDto;
+import tiameds.pharmabackend.dto.financialReport.dayClosingSummary.SalesReturnDetailsRowDto;
+import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.billing.BillingPayment;
+import tiameds.pharmabackend.entity.billing.CustomerManagement;
+import tiameds.pharmabackend.entity.billing.SalesReturn;
 import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.enums.PaymentMode;
+import tiameds.pharmabackend.enums.SalesReturnStatus;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.financialReport.dayClosingSummary.DayClosingSummaryService;
 import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport;
 import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport.DateRange;
@@ -27,7 +40,9 @@ import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReport
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,6 +55,15 @@ import java.util.Map;
  * <p>
  * Billing by patient type: bill count and amount of the day's bills for IP,
  * OP, Walk-In and Day Care, plus a total of those rows.
+ * <p>
+ * Billing by user / receipt by user: the day's bills per user who raised
+ * them, and the day's payments per user who recorded them.
+ * <p>
+ * Current bill details / sales return details: the day's bills and completed
+ * returns, one row each, paged.
+ * <p>
+ * The user filter applies to whoever did the transaction the report is about:
+ * the bill's creator, the payment's creator or the return's creator.
  */
 @Service
 @RequiredArgsConstructor
@@ -62,6 +86,7 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
     private static final PatientTypeTotal EMPTY_TOTAL = new PatientTypeTotal(0, BigDecimal.ZERO);
 
     private final FinancialReportSupport support;
+    private final UserDetailsRepository userDetailsRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -89,11 +114,7 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
                 new BillCountSummaryRowDto("PENDING_IP_BILLS", "Partially Paid / Pending IP Bills",
                         pendingIpBills));
 
-        return new FinancialReportResponse<>(
-                FinancialReportSupport.generatedBy(user),
-                LocalDateTime.now(),
-                kpi,
-                new ReportPageDto<>(rows, 0, rows.size(), rows.size(), 1));
+        return response(user, kpi, singlePage(rows));
     }
 
 
@@ -132,11 +153,217 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
         kpi.setWalkIn(totals.getOrDefault(CustomerType.WALK_IN, EMPTY_TOTAL));
         kpi.setDayCare(totals.getOrDefault(CustomerType.DAYCARE, EMPTY_TOTAL));
 
-        return new FinancialReportResponse<>(
-                FinancialReportSupport.generatedBy(user),
-                LocalDateTime.now(),
-                kpi,
-                new ReportPageDto<>(rows, 0, rows.size(), rows.size(), 1));
+        return response(user, kpi, singlePage(rows));
+    }
+
+
+    @Override
+    public FinancialReportResponse<BillingByUserKpiDto, BillingByUserRowDto> getBillingByUser(
+            FinancialReportFilter filter,
+            UserDetails user) {
+
+        Scope scope = resolveScope(filter, user);
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<Billing> bill = query.from(Billing.class);
+        Join<Billing, PharmacyDetails> pharmacy = bill.join("pharmacy");
+        Path<String> createdBy = bill.get("createdBy");
+
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, true, createdBy);
+        predicates.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
+
+        List<UserTotal> totals = sumPerUser(cb, query, pharmacy, createdBy,
+                cb.count(bill), cb.coalesce(cb.sum(support.billAmount(cb, bill)), BigDecimal.ZERO), predicates);
+
+        List<BillingByUserRowDto> rows = new ArrayList<>();
+        long totalBills = 0;
+        BigDecimal totalSales = BigDecimal.ZERO;
+
+        for (UserTotal total : totals) {
+            rows.add(new BillingByUserRowDto("USER", total.pharmacyId(), total.pharmacyName(),
+                    total.userId(), total.userName(), total.count(), total.amount()));
+            totalBills += total.count();
+            totalSales = totalSales.add(total.amount());
+        }
+
+        rows.add(new BillingByUserRowDto("TOTAL", null, null, null, "Total", totalBills, totalSales));
+
+        BillingByUserKpiDto kpi = new BillingByUserKpiDto();
+        kpi.setTotalBills(totalBills);
+        kpi.setTotalSales(totalSales);
+
+        return response(user, kpi, singlePage(rows));
+    }
+
+
+    @Override
+    public FinancialReportResponse<ReceiptByUserKpiDto, ReceiptByUserRowDto> getReceiptByUser(
+            FinancialReportFilter filter,
+            UserDetails user) {
+
+        Scope scope = resolveScope(filter, user);
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<BillingPayment> payment = query.from(BillingPayment.class);
+        Join<BillingPayment, Billing> bill = payment.join("billing");
+        Join<Billing, PharmacyDetails> pharmacy = bill.join("pharmacy");
+        Path<String> createdBy = payment.get("createdBy");
+
+        // Real money only: credit entries carry nothing received. The payment
+        // mode filter applies to the payment itself.
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, false, createdBy);
+        predicates.addAll(support.within(cb, payment.get("createdAt"), scope.range()));
+        predicates.add(cb.notEqual(payment.get("paymentMode"), PaymentMode.CREDIT));
+
+        if (!scope.paymentModes().isEmpty()) {
+            predicates.add(payment.get("paymentMode").in(scope.paymentModes()));
+        }
+
+        List<UserTotal> totals = sumPerUser(cb, query, pharmacy, createdBy,
+                cb.count(payment),
+                cb.coalesce(cb.sum(payment.<BigDecimal>get("receivedAmount")), BigDecimal.ZERO),
+                predicates);
+
+        List<ReceiptByUserRowDto> rows = new ArrayList<>();
+        long totalReceipts = 0;
+        BigDecimal totalReceived = BigDecimal.ZERO;
+
+        for (UserTotal total : totals) {
+            rows.add(new ReceiptByUserRowDto("USER", total.pharmacyId(), total.pharmacyName(),
+                    total.userId(), total.userName(), total.count(), total.amount()));
+            totalReceipts += total.count();
+            totalReceived = totalReceived.add(total.amount());
+        }
+
+        rows.add(new ReceiptByUserRowDto("TOTAL", null, null, null, "Total", totalReceipts, totalReceived));
+
+        ReceiptByUserKpiDto kpi = new ReceiptByUserKpiDto();
+        kpi.setTotalReceipts(totalReceipts);
+        kpi.setTotalAmountReceived(totalReceived);
+
+        return response(user, kpi, singlePage(rows));
+    }
+
+
+    @Override
+    public FinancialReportResponse<CurrentBillDetailsKpiDto, CurrentBillDetailsRowDto> getCurrentBillDetails(
+            FinancialReportFilter filter,
+            UserDetails user) {
+
+        Scope scope = resolveScope(filter, user);
+        int page = support.resolvePage(filter);
+        int size = support.resolveSize(filter);
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<Billing> bill = query.from(Billing.class);
+        Join<Billing, PharmacyDetails> pharmacy = bill.join("pharmacy");
+        Join<Billing, CustomerManagement> customer = bill.join("customer", JoinType.LEFT);
+
+        query.multiselect(
+                        pharmacy.get("pharmacyId").alias("pharmacyId"),
+                        pharmacy.get("pharmacyName").alias("pharmacyName"),
+                        bill.get("billingId").alias("billingId"),
+                        bill.get("billNo").alias("billNo"),
+                        customer.get("customerName").alias("customerName"),
+                        bill.get("customerType").alias("customerType"),
+                        bill.get("createdAt").alias("billedAt"),
+                        support.billAmount(cb, bill).alias("totalAmount"),
+                        receivedByDayEnd(cb, query, bill, scope).alias("received"))
+                .where(dayBills(cb, query, bill, scope).toArray(Predicate[]::new))
+                .orderBy(
+                        cb.asc(pharmacy.get("pharmacyName")),
+                        cb.asc(bill.get("createdAt")),
+                        cb.asc(bill.get("billingId")));
+
+        List<CurrentBillDetailsRowDto> rows = entityManager.createQuery(query)
+                .setFirstResult(page * size)
+                .setMaxResults(size)
+                .getResultList()
+                .stream()
+                .map(row -> {
+                    CustomerType type = row.get("customerType", CustomerType.class);
+                    BigDecimal amount = orZero(row.get("totalAmount", BigDecimal.class));
+                    BigDecimal received = orZero(row.get("received", BigDecimal.class));
+
+                    return new CurrentBillDetailsRowDto(
+                            row.get("pharmacyId", String.class),
+                            row.get("pharmacyName", String.class),
+                            row.get("billingId", Long.class),
+                            row.get("billNo", String.class),
+                            row.get("customerName", String.class),
+                            patientTypeLabel(type),
+                            row.get("billedAt", LocalDateTime.class),
+                            amount,
+                            received,
+                            type == CustomerType.IP_PATIENT
+                                    ? amount.subtract(received).max(BigDecimal.ZERO)
+                                    : BigDecimal.ZERO);
+                })
+                .toList();
+
+        CurrentBillDetailsKpiDto kpi = currentBillTotals(scope);
+
+        return response(user, kpi, page(rows, page, size, kpi.getTotalBills()));
+    }
+
+
+    @Override
+    public FinancialReportResponse<SalesReturnDetailsKpiDto, SalesReturnDetailsRowDto> getSalesReturnDetails(
+            FinancialReportFilter filter,
+            UserDetails user) {
+
+        Scope scope = resolveScope(filter, user);
+        int page = support.resolvePage(filter);
+        int size = support.resolveSize(filter);
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<SalesReturn> salesReturn = query.from(SalesReturn.class);
+        Join<SalesReturn, Billing> bill = salesReturn.join("billing");
+        Join<Billing, PharmacyDetails> pharmacy = bill.join("pharmacy");
+        Join<Billing, CustomerManagement> customer = bill.join("customer", JoinType.LEFT);
+
+        query.multiselect(
+                        pharmacy.get("pharmacyId").alias("pharmacyId"),
+                        pharmacy.get("pharmacyName").alias("pharmacyName"),
+                        salesReturn.get("salesReturnId").alias("salesReturnId"),
+                        salesReturn.get("salesReturnNo").alias("salesReturnNo"),
+                        bill.get("billNo").alias("billNo"),
+                        customer.get("customerName").alias("customerName"),
+                        salesReturn.get("salesReturnDate").alias("returnedAt"),
+                        salesReturn.get("totalNetAmount").alias("returnAmount"))
+                .where(dayReturns(cb, query, salesReturn, bill, scope).toArray(Predicate[]::new))
+                .orderBy(
+                        cb.asc(pharmacy.get("pharmacyName")),
+                        cb.asc(salesReturn.get("salesReturnDate")),
+                        cb.asc(salesReturn.get("salesReturnId")));
+
+        List<SalesReturnDetailsRowDto> rows = entityManager.createQuery(query)
+                .setFirstResult(page * size)
+                .setMaxResults(size)
+                .getResultList()
+                .stream()
+                .map(row -> new SalesReturnDetailsRowDto(
+                        row.get("pharmacyId", String.class),
+                        row.get("pharmacyName", String.class),
+                        row.get("salesReturnId", Long.class),
+                        row.get("salesReturnNo", String.class),
+                        row.get("billNo", String.class),
+                        row.get("customerName", String.class),
+                        row.get("returnedAt", LocalDateTime.class),
+                        orZero(row.get("returnAmount", BigDecimal.class))))
+                .toList();
+
+        SalesReturnDetailsKpiDto kpi = salesReturnTotals(scope);
+
+        return response(user, kpi, page(rows, page, size, kpi.getTotalReturns()));
     }
 
 
@@ -149,8 +376,7 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
 
         Root<Billing> bill = query.from(Billing.class);
 
-        List<Predicate> predicates = eligibleBill(cb, query, bill, scope);
-        predicates.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
+        List<Predicate> predicates = dayBills(cb, query, bill, scope);
         predicates.add(bill.get("customerType").in(PATIENT_TYPE_ORDER));
 
         query.multiselect(
@@ -172,6 +398,134 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
     }
 
 
+    // Count and amount per pharmacy and user, ordered by pharmacy then user
+    // name. Names are looked up afterwards; a user id with no user record is
+    // shown as is.
+    private List<UserTotal> sumPerUser(
+            CriteriaBuilder cb,
+            CriteriaQuery<Tuple> query,
+            Join<?, PharmacyDetails> pharmacy,
+            Path<String> userColumn,
+            Expression<Long> count,
+            Expression<BigDecimal> amount,
+            List<Predicate> predicates) {
+
+        query.multiselect(
+                        pharmacy.get("pharmacyId").alias("pharmacyId"),
+                        pharmacy.get("pharmacyName").alias("pharmacyName"),
+                        userColumn.alias("userId"),
+                        count.alias("count"),
+                        amount.alias("amount"))
+                .where(predicates.toArray(Predicate[]::new))
+                .groupBy(pharmacy.get("pharmacyId"), pharmacy.get("pharmacyName"), userColumn);
+
+        List<Tuple> results = entityManager.createQuery(query).getResultList();
+
+        List<String> userIds = results.stream()
+                .map(row -> row.get("userId", String.class))
+                .filter(FinancialReportSupport::hasText)
+                .distinct()
+                .toList();
+
+        Map<String, String> names = new HashMap<>();
+
+        for (UserDetails user : userDetailsRepository.findAllById(userIds)) {
+            names.put(user.getUserId(), FinancialReportSupport.generatedBy(user));
+        }
+
+        return results.stream()
+                .map(row -> {
+                    String userId = row.get("userId", String.class);
+                    return new UserTotal(
+                            row.get("pharmacyId", String.class),
+                            row.get("pharmacyName", String.class),
+                            userId,
+                            names.getOrDefault(userId, userId),
+                            row.get("count", Long.class),
+                            orZero(row.get("amount", BigDecimal.class)));
+                })
+                .sorted(Comparator
+                        .comparing(UserTotal::pharmacyName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(UserTotal::userName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .toList();
+    }
+
+
+    // KPIs of the current bill details over all of the day's matching bills:
+    // amount billed, received by the end of the day, and still due on IP.
+    private CurrentBillDetailsKpiDto currentBillTotals(Scope scope) {
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+
+        CriteriaQuery<Tuple> billedQuery = cb.createTupleQuery();
+        Root<Billing> bill = billedQuery.from(Billing.class);
+        Expression<BigDecimal> amount = support.billAmount(cb, bill);
+
+        billedQuery.multiselect(
+                        cb.count(bill).alias("count"),
+                        cb.coalesce(cb.sum(amount), BigDecimal.ZERO).alias("amount"),
+                        cb.coalesce(cb.sum(cb.<BigDecimal>selectCase()
+                                .when(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT), amount)
+                                .otherwise(BigDecimal.ZERO)), BigDecimal.ZERO).alias("ipAmount"))
+                .where(dayBills(cb, billedQuery, bill, scope).toArray(Predicate[]::new));
+
+        CriteriaQuery<Tuple> receivedQuery = cb.createTupleQuery();
+        Root<BillingPayment> payment = receivedQuery.from(BillingPayment.class);
+        Join<BillingPayment, Billing> paidBill = payment.join("billing");
+        Path<BigDecimal> received = payment.get("receivedAmount");
+
+        List<Predicate> paid = dayBills(cb, receivedQuery, paidBill, scope);
+        paid.add(cb.lessThan(payment.get("createdAt"), scope.range().endExclusive()));
+
+        receivedQuery.multiselect(
+                        cb.coalesce(cb.sum(received), BigDecimal.ZERO).alias("received"),
+                        cb.coalesce(cb.sum(cb.<BigDecimal>selectCase()
+                                .when(cb.equal(paidBill.get("customerType"), CustomerType.IP_PATIENT), received)
+                                .otherwise(BigDecimal.ZERO)), BigDecimal.ZERO).alias("ipReceived"))
+                .where(paid.toArray(Predicate[]::new));
+
+        Tuple billed = entityManager.createQuery(billedQuery).getSingleResult();
+        Tuple receipts = entityManager.createQuery(receivedQuery).getSingleResult();
+
+        BigDecimal ipPending = orZero(billed.get("ipAmount", BigDecimal.class))
+                .subtract(orZero(receipts.get("ipReceived", BigDecimal.class)))
+                .max(BigDecimal.ZERO);
+
+        CurrentBillDetailsKpiDto kpi = new CurrentBillDetailsKpiDto();
+        kpi.setTotalBills(billed.get("count", Long.class));
+        kpi.setTotalAmount(orZero(billed.get("amount", BigDecimal.class)));
+        kpi.setTotalAmountReceived(orZero(receipts.get("received", BigDecimal.class)));
+        kpi.setTotalPendingAmount(ipPending);
+
+        return kpi;
+    }
+
+
+    // Count and amount of all of the day's matching returns.
+    private SalesReturnDetailsKpiDto salesReturnTotals(Scope scope) {
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<SalesReturn> salesReturn = query.from(SalesReturn.class);
+        Join<SalesReturn, Billing> bill = salesReturn.join("billing");
+
+        query.multiselect(
+                        cb.count(salesReturn).alias("count"),
+                        cb.coalesce(cb.sum(salesReturn.<BigDecimal>get("totalNetAmount")), BigDecimal.ZERO)
+                                .alias("amount"))
+                .where(dayReturns(cb, query, salesReturn, bill, scope).toArray(Predicate[]::new));
+
+        Tuple totals = entityManager.createQuery(query).getSingleResult();
+
+        SalesReturnDetailsKpiDto kpi = new SalesReturnDetailsKpiDto();
+        kpi.setTotalReturns(totals.get("count", Long.class));
+        kpi.setTotalReturnAmount(orZero(totals.get("amount", BigDecimal.class)));
+
+        return kpi;
+    }
+
+
     // Eligible bills raised on the day, narrowed to the given settlement
     // status as of the end of the day.
     private long countBills(Scope scope, BillStatus status) {
@@ -187,8 +541,7 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
 
         Root<Billing> bill = query.from(Billing.class);
 
-        List<Predicate> predicates = eligibleBill(cb, query, bill, scope);
-        predicates.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
+        List<Predicate> predicates = dayBills(cb, query, bill, scope);
 
         Expression<BigDecimal> amount = support.billAmount(cb, bill);
 
@@ -229,13 +582,48 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
     }
 
 
-    // Pharmacy, patient type, payment mode and user filters. A bill matches
-    // the payment mode filter when any of its payments used a selected mode.
-    private List<Predicate> eligibleBill(
+    // Eligible bills raised on the day; the user filter matches the bill's creator.
+    private List<Predicate> dayBills(
             CriteriaBuilder cb,
             AbstractQuery<?> query,
             From<?, Billing> bill,
             Scope scope) {
+
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, true, bill.get("createdBy"));
+        predicates.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
+
+        return predicates;
+    }
+
+
+    // Completed returns dated on the day, against eligible bills; the user
+    // filter matches the return's creator.
+    private List<Predicate> dayReturns(
+            CriteriaBuilder cb,
+            AbstractQuery<?> query,
+            Root<SalesReturn> salesReturn,
+            From<?, Billing> bill,
+            Scope scope) {
+
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, true, salesReturn.get("createdBy"));
+        predicates.add(cb.equal(salesReturn.get("salesReturnStatus"), SalesReturnStatus.COMPLETED));
+        predicates.addAll(support.within(cb, salesReturn.get("salesReturnDate"), scope.range()));
+
+        return predicates;
+    }
+
+
+    // Pharmacy, patient type, payment mode and user filters; the date is left
+    // to the caller. With byPaymentMode, a bill matches the payment mode filter
+    // when any of its payments used a selected mode. The user filter is
+    // matched against userColumn.
+    private List<Predicate> eligibleBill(
+            CriteriaBuilder cb,
+            AbstractQuery<?> query,
+            From<?, Billing> bill,
+            Scope scope,
+            boolean byPaymentMode,
+            Expression<String> userColumn) {
 
         List<Predicate> predicates = new ArrayList<>();
         predicates.add(bill.get("pharmacy").get("pharmacyId").in(scope.pharmacyIds()));
@@ -244,12 +632,12 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
             predicates.add(bill.get("customerType").in(scope.patientTypes()));
         }
 
-        if (!scope.paymentModes().isEmpty()) {
+        if (byPaymentMode && !scope.paymentModes().isEmpty()) {
             predicates.add(support.paidWithAnyOf(cb, query, bill, scope.paymentModes()));
         }
 
         if (!scope.userIds().isEmpty()) {
-            predicates.add(bill.get("createdBy").in(scope.userIds()));
+            predicates.add(userColumn.in(scope.userIds()));
         }
 
         return predicates;
@@ -267,10 +655,58 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
     }
 
 
+    private static String patientTypeLabel(CustomerType type) {
+
+        if (type == null) {
+            return null;
+        }
+
+        PatientTypeLabel label = PATIENT_TYPE_LABELS.get(type);
+
+        return label == null ? type.name() : label.text();
+    }
+
+
+    private static BigDecimal orZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+
+    private static <K, T> FinancialReportResponse<K, T> response(UserDetails user, K kpi, ReportPageDto<T> page) {
+
+        return new FinancialReportResponse<>(
+                FinancialReportSupport.generatedBy(user),
+                LocalDateTime.now(),
+                kpi,
+                page);
+    }
+
+
+    // Fixed-row reports: every row on one page.
+    private static <T> ReportPageDto<T> singlePage(List<T> rows) {
+        return new ReportPageDto<>(rows, 0, rows.size(), rows.size(), 1);
+    }
+
+
+    private static <T> ReportPageDto<T> page(List<T> rows, int page, int size, long totalElements) {
+        return new ReportPageDto<>(rows, page, size, totalElements, (int) ((totalElements + size - 1) / size));
+    }
+
+
     private enum BillStatus { ANY, FULLY_PAID, PENDING_IP }
 
 
     private record PatientTypeLabel(String code, String text) {
+    }
+
+
+    private record UserTotal(
+            String pharmacyId,
+            String pharmacyName,
+            String userId,
+            String userName,
+            long count,
+            BigDecimal amount) {
     }
 
 

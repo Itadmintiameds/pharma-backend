@@ -46,4 +46,61 @@ public class DayClosingSummaryController {
 
         return ResponseEntity.ok(dayClosingSummaryService.getBillingByPatientType(filter, currentUser.getUser()));
     }
+
+
+    // Bill count and sales per user who raised the bills, plus a total.
+    @GetMapping("/billing-by-user")
+    public ResponseEntity<?> getBillingByUser(
+            @ModelAttribute FinancialReportFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(dayClosingSummaryService.getBillingByUser(filter, currentUser.getUser()));
+    }
+
+
+    // Receipt count and money collected per user who recorded the payments,
+    // plus a total.
+    @GetMapping("/receipt-by-user")
+    public ResponseEntity<?> getReceiptByUser(
+            @ModelAttribute FinancialReportFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(dayClosingSummaryService.getReceiptByUser(filter, currentUser.getUser()));
+    }
+
+
+    // Bills raised on the day with amount received and IP pending (paged).
+    @GetMapping("/current-bill-details")
+    public ResponseEntity<?> getCurrentBillDetails(
+            @ModelAttribute FinancialReportFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(dayClosingSummaryService.getCurrentBillDetails(filter, currentUser.getUser()));
+    }
+
+
+    // Completed sales returns made on the day (paged).
+    @GetMapping("/sales-return-details")
+    public ResponseEntity<?> getSalesReturnDetails(
+            @ModelAttribute FinancialReportFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(dayClosingSummaryService.getSalesReturnDetails(filter, currentUser.getUser()));
+    }
 }
