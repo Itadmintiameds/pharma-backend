@@ -355,7 +355,8 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
 
     // Every filter except the date, which each figure applies to its own
     // column. With byPaymentMode, a bill matches the payment mode filter when
-    // any of its payments used a selected mode.
+    // any of its payments used a selected mode. The user filter matches the
+    // user who raised the bill.
     private List<Predicate> eligibleBill(
             CriteriaBuilder cb,
             AbstractQuery<?> query,
@@ -378,6 +379,10 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
             predicates.add(support.paidWithAnyOf(cb, query, bill, scope.paymentModes()));
         }
 
+        if (!scope.userIds().isEmpty()) {
+            predicates.add(bill.get("createdBy").in(scope.userIds()));
+        }
+
         return predicates;
     }
 
@@ -394,6 +399,7 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
                 range,
                 support.resolvePatientTypes(filter),
                 support.resolvePaymentModes(filter),
+                FinancialReportSupport.trimmed(filter.getUserIds()),
                 filter);
     }
 
@@ -403,6 +409,7 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
             DateRange range,
             List<CustomerType> patientTypes,
             List<PaymentMode> paymentModes,
+            List<String> userIds,
             FinancialReportFilter filter) {
     }
 }

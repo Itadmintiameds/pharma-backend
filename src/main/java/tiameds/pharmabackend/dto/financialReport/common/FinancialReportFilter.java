@@ -56,6 +56,9 @@ public class FinancialReportFilter {
     // Payment mode multi-select: CASH, UPI, CARD, CREDIT.
     private List<String> paymentModes;
 
+    // Billing user multi-select: user ids of whoever created the bill.
+    private List<String> userIds;
+
     // Product name search and product multi-select (line-level reports only).
     private String productSearch;
     private List<String> productIds;

@@ -113,6 +113,16 @@ public class FinancialReportSupport {
     }
 
 
+    // A single business day for the day closing reports: date, or today when
+    // it is not sent. fromDate / toDate are ignored.
+    public DateRange resolveBusinessDay(FinancialReportFilter filter) {
+
+        LocalDate day = filter.getDate() == null ? LocalDate.now() : filter.getDate();
+
+        return DateRange.of(day, day);
+    }
+
+
     public int resolvePage(FinancialReportFilter filter) {
 
         Integer page = filter.getPage();
