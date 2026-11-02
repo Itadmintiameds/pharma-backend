@@ -16,6 +16,7 @@ import tiameds.pharmabackend.dto.FeaturePermissionsDto;
 import tiameds.pharmabackend.dto.UpdateUserRequestDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
+import tiameds.pharmabackend.dto.UserPharmacyNameDto;
 import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.entity.PharmaFeature;
@@ -672,6 +673,37 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .stream()
                 .map(userDetailsMapper::toSummaryDto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserPharmacyNameDto> getUserNames(String currentUserId, List<String> pharmacyIds) {
+
+        Long organizationId = getOrganizationIdOfUser(currentUserId);
+
+        List<String> requested = pharmacyIds == null ? List.of() : pharmacyIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        List<UserDetailsRepository.UserPharmacyRow> rows = requested.isEmpty()
+                ? userDetailsRepository.findUserPharmaciesByOrganizationId(organizationId)
+                : userDetailsRepository.findUserPharmaciesByOrganizationIdAndPharmacyIds(organizationId, requested);
+
+        // Rows come ordered by user, one per pharmacy; fold them into one entry per user.
+        Map<String, UserPharmacyNameDto> users = new LinkedHashMap<>();
+
+        for (UserDetailsRepository.UserPharmacyRow row : rows) {
+            UserPharmacyNameDto user = users.computeIfAbsent(row.getUserId(),
+                    id -> new UserPharmacyNameDto(id, row.getUserName(), new ArrayList<>()));
+
+            if (row.getPharmacyId() != null) {
+                user.getPharmacyIds().add(row.getPharmacyId());
+            }
+        }
+
+        return new ArrayList<>(users.values());
     }
 
     @Override

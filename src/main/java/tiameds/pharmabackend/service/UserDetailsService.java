@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.UpdateUserRequestDto;
 import tiameds.pharmabackend.dto.UserDetailsDto;
 import tiameds.pharmabackend.dto.UserImageDto;
+import tiameds.pharmabackend.dto.UserPharmacyNameDto;
 import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -28,6 +29,12 @@ public interface UserDetailsService {
             CreateUserRequestDto request);
 
     List<UserSummaryDto> getAllUsers(String currentUserId);
+
+    /**
+     * Users of the current user's organization with their pharmacy ids. When
+     * pharmacyIds is not empty, only users of those pharmacies.
+     */
+    List<UserPharmacyNameDto> getUserNames(String currentUserId, List<String> pharmacyIds);
 
     UserDetailsDto getUserById(String currentUserId, String userId);
 
