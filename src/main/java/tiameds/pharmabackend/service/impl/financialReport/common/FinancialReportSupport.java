@@ -41,6 +41,7 @@ public class FinancialReportSupport {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 500;
+    private static final int PRINT_ROW_LIMIT = 2000;
 
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
@@ -125,6 +126,10 @@ public class FinancialReportSupport {
 
     public int resolvePage(FinancialReportFilter filter) {
 
+        if (isUnpaged(filter)) {
+            return 0;
+        }
+
         Integer page = filter.getPage();
 
         if (page != null && page < 0) {
@@ -137,6 +142,14 @@ public class FinancialReportSupport {
 
     public int resolveSize(FinancialReportFilter filter) {
 
+        if (filter.getExportBatchSize() != null) {
+            return filter.getExportBatchSize();
+        }
+
+        if (isUnpaged(filter)) {
+            return PRINT_ROW_LIMIT;
+        }
+
         Integer size = filter.getSize();
 
         if (size == null) {
@@ -148,6 +161,25 @@ public class FinancialReportSupport {
         }
 
         return size;
+    }
+
+
+    // Print / PDF requests (unpaged) are refused above the print limit; the
+    // client should narrow the filters or download Excel instead.
+    public void checkPrintLimit(FinancialReportFilter filter, long totalElements) {
+
+        if (isUnpaged(filter) && totalElements > PRINT_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows to print (" + totalElements + "). The limit is " + PRINT_ROW_LIMIT
+                            + ". Narrow the filters or download Excel.");
+        }
+    }
+
+
+    // Unpaged for printing. The export reads in batches instead, so it is
+    // never treated as unpaged.
+    private static boolean isUnpaged(FinancialReportFilter filter) {
+        return Boolean.TRUE.equals(filter.getUnpaged()) && filter.getExportBatchSize() == null;
     }
 
 

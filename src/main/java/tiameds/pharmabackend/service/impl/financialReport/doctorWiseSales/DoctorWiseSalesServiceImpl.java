@@ -85,6 +85,7 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
         List<DoctorWiseSalesRowDto> sorted = new ArrayList<>(rows.values());
         sorted.forEach(row -> row.setNetSaleValue(row.getSaleValue().subtract(row.getReturnValue())));
         sorted.sort(ROW_ORDER);
+        support.checkPrintLimit(filter, sorted.size());
 
         int from = (int) Math.min((long) page * size, sorted.size());
         int to = Math.min(from + size, sorted.size());

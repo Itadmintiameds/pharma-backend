@@ -1,6 +1,8 @@
 package tiameds.pharmabackend.dto.financialReport.common;
 
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Setter;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
@@ -78,4 +80,18 @@ public class FinancialReportFilter {
     // Zero-based page index and page size, both chosen by the client.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
+
+    // Set only by the CSV / Excel export, which reads the report in batches
+    // of this size. Has no setter, so it cannot be sent as a query parameter.
+    @Setter(AccessLevel.NONE)
+    private Integer exportBatchSize;
+
+
+    public void useExportBatches(int batchSize) {
+        this.exportBatchSize = batchSize;
+    }
 }

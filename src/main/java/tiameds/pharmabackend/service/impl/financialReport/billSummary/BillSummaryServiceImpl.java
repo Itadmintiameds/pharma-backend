@@ -60,6 +60,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         int size = support.resolveSize(filter);
 
         long totalElements = countBills(pharmacyIds, range, filter);
+        support.checkPrintLimit(filter, totalElements);
 
         List<BillSummaryRowDto> rows = totalElements == 0
                 ? List.of()
@@ -85,6 +86,7 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         int size = support.resolveSize(filter);
 
         long totalElements = countBillLines(pharmacyIds, range, filter);
+        support.checkPrintLimit(filter, totalElements);
 
         List<BillDetailedSalesRowDto> rows = totalElements == 0
                 ? List.of()

@@ -258,6 +258,9 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
         int page = support.resolvePage(filter);
         int size = support.resolveSize(filter);
 
+        CurrentBillDetailsKpiDto kpi = currentBillTotals(scope);
+        support.checkPrintLimit(filter, kpi.getTotalBills());
+
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createTupleQuery();
 
@@ -307,8 +310,6 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
                 })
                 .toList();
 
-        CurrentBillDetailsKpiDto kpi = currentBillTotals(scope);
-
         return response(user, kpi, page(rows, page, size, kpi.getTotalBills()));
     }
 
@@ -321,6 +322,9 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
         Scope scope = resolveScope(filter, user);
         int page = support.resolvePage(filter);
         int size = support.resolveSize(filter);
+
+        SalesReturnDetailsKpiDto kpi = salesReturnTotals(scope);
+        support.checkPrintLimit(filter, kpi.getTotalReturns());
 
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = cb.createTupleQuery();
@@ -360,8 +364,6 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
                         row.get("returnedAt", LocalDateTime.class),
                         orZero(row.get("returnAmount", BigDecimal.class))))
                 .toList();
-
-        SalesReturnDetailsKpiDto kpi = salesReturnTotals(scope);
 
         return response(user, kpi, page(rows, page, size, kpi.getTotalReturns()));
     }

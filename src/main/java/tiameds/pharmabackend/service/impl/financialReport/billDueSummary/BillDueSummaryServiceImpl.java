@@ -63,6 +63,7 @@ public class BillDueSummaryServiceImpl implements BillDueSummaryService {
         int size = support.resolveSize(filter);
 
         long totalElements = countBills(pharmacyIds, range, pendingStatus, filter);
+        support.checkPrintLimit(filter, totalElements);
 
         List<BillDueSummaryRowDto> rows = totalElements == 0
                 ? List.of()

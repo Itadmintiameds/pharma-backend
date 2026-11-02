@@ -37,6 +37,9 @@ public class CorsConfig {
                 "X-Warehouse-Id"
         ));
 
+        // Lets the frontend read the file name of report downloads.
+        configuration.setExposedHeaders(List.of("Content-Disposition"));
+
         configuration.setAllowCredentials(true);
 
         configuration.setMaxAge(3600L);
