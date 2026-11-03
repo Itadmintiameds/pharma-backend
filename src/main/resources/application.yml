@@ -5,6 +5,12 @@ spring:
   profiles:
     active: dev
 
+  servlet:
+    multipart:
+      # Defaults are 1MB/10MB, which a few thousand rows of product bulk upload exceeds.
+      max-file-size: 25MB
+      max-request-size: 25MB
+
 server:
   port: 8080
   servlet:

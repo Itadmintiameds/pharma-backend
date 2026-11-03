@@ -22,6 +22,9 @@ public interface PharmacyDetailsRepository extends JpaRepository<PharmacyDetails
     List<PharmacyDetails> findAllByOrganization_OrganizationIdOrderByPharmacyCity(
             Long organizationId);
 
+    List<PharmacyDetails> findAllByOrganization_OrganizationIdInOrderByPharmacyName(
+            List<Long> organizationIds);
+
     @Query("""
     SELECT COUNT(p) > 0
     FROM PharmacyDetails p

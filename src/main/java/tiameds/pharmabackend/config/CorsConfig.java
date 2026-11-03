@@ -34,7 +34,8 @@ public class CorsConfig {
                 "Accept",
                 "X-Requested-With",
                 "X-Pharmacy-Id",
-                "X-Warehouse-Id"
+                "X-Warehouse-Id",
+                "X-Upload-Passcode"
         ));
 
         // Lets the frontend read the file name of report downloads.

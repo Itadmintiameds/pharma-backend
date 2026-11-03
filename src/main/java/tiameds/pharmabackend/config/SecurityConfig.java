@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import tiameds.pharmabackend.security.ApiKeyAuthenticationFilter;
 import tiameds.pharmabackend.security.CurrentPharmacyFilter;
 import tiameds.pharmabackend.security.JwtAuthenticationFilter;
+import tiameds.pharmabackend.security.OperatorPasscode;
 
 @Configuration
 @EnableMethodSecurity
@@ -62,6 +63,12 @@ public class SecurityConfig {
                                 "/pharmacyDocuments"
 //                                "/pharmacy/**",
 //                                "/organization/reject/**"
+                        ).permitAll()
+
+                        // called by another service; each controller checks the
+                        // hardcoded passcode (X-Upload-Passcode) instead of a JWT
+                        .requestMatchers(
+                                OperatorPasscode.PATHS.toArray(String[]::new)
                         ).permitAll()
 
                         .requestMatchers(

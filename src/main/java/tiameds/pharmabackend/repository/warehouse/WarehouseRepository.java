@@ -13,6 +13,8 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, String> {
 
     List<Warehouse> findAllByOrganization_OrganizationIdOrderByWarehouseName(Long organizationId);
 
+    List<Warehouse> findAllByOrganization_OrganizationIdInOrderByWarehouseName(List<Long> organizationIds);
+
     @Query("""
        SELECT w.warehouseId
        FROM Warehouse w
