@@ -1,0 +1,104 @@
+package tiameds.pharmabackend.controller.auditReports;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportFilter;
+import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportResponse;
+import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.service.auditReports.PharmacySalesReturnReportService;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+
+@RestController
+@RequestMapping("/auditReports")
+@RequiredArgsConstructor
+public class PharmacySalesReturnReportController {
+
+    private final PharmacySalesReturnReportService pharmacySalesReturnReportService;
+
+    /**
+     * Pharmacy Sales Return Report: Completed sales returns against earlier
+     * pharmacy bills, with return value, outstanding adjustment and refund.
+     * Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
+     * or a comma list (?pharmacyIds=A,B).
+     */
+    @PreAuthorize("@access.has('REPORTS/PHARMACY_SALES_RETURN_REPORT/VIEW')")
+    @GetMapping("/pharmacy-sales-return")
+    public ResponseEntity<?> getPharmacySalesReturnReport(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+
+            @RequestParam(required = false) List<String> pharmacyIds,
+            @RequestParam(required = false) List<String> customerTypes,
+            @RequestParam(required = false) String salesReturnNo,
+            @RequestParam(required = false) String billNo,
+            @RequestParam(required = false) String customerName,
+            @RequestParam(required = false) String mobileNumber,
+            @RequestParam(required = false) String patientNumber,
+            @RequestParam(required = false) String opNumber,
+            @RequestParam(required = false) String ipNumber,
+            @RequestParam(required = false) List<String> productIds,
+            @RequestParam(required = false) String productName,
+            @RequestParam(required = false) List<Long> productCategoryIds,
+            @RequestParam(required = false) String batchNumber,
+            @RequestParam(required = false) List<String> returnReasons,
+            @RequestParam(required = false) List<BigDecimal> gstPercentages,
+            @RequestParam(required = false) BigDecimal minRefundAmount,
+            @RequestParam(required = false) BigDecimal maxRefundAmount,
+            @RequestParam(required = false) BigDecimal minOutstandingAdjustment,
+            @RequestParam(required = false) BigDecimal maxOutstandingAdjustment,
+
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "returnDate") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir,
+
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        PharmacySalesReturnReportFilter filter = new PharmacySalesReturnReportFilter();
+        filter.setFromDate(fromDate);
+        filter.setToDate(toDate);
+        filter.setPharmacyIds(pharmacyIds);
+        filter.setCustomerTypes(customerTypes);
+        filter.setSalesReturnNo(salesReturnNo);
+        filter.setBillNo(billNo);
+        filter.setCustomerName(customerName);
+        filter.setMobileNumber(mobileNumber);
+        filter.setPatientNumber(patientNumber);
+        filter.setOpNumber(opNumber);
+        filter.setIpNumber(ipNumber);
+        filter.setProductIds(productIds);
+        filter.setProductName(productName);
+        filter.setProductCategoryIds(productCategoryIds);
+        filter.setBatchNumber(batchNumber);
+        filter.setReturnReasons(returnReasons);
+        filter.setGstPercentages(gstPercentages);
+        filter.setMinRefundAmount(minRefundAmount);
+        filter.setMaxRefundAmount(maxRefundAmount);
+        filter.setMinOutstandingAdjustment(minOutstandingAdjustment);
+        filter.setMaxOutstandingAdjustment(maxOutstandingAdjustment);
+        filter.setPage(page);
+        filter.setSize(size);
+        filter.setSortBy(sortBy);
+        filter.setSortDir(sortDir);
+
+        PharmacySalesReturnReportResponse report =
+                pharmacySalesReturnReportService.getPharmacySalesReturnReport(filter, currentUser.getUser());
+
+        return ResponseEntity.ok(report);
+    }
+}
