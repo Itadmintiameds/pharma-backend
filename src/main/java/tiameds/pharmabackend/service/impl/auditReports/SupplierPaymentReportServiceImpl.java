@@ -22,13 +22,19 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.auditReports.SupplierPaymentReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+import tiameds.pharmabackend.service.impl.financialReport.export.ExportFormat;
+import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -38,6 +44,27 @@ public class SupplierPaymentReportServiceImpl implements SupplierPaymentReportSe
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+
+    // Print / PDF (unpaged) is refused above this many rows; the client
+    // should narrow the filters or download Excel instead.
+    private static final int PRINT_ROW_LIMIT = 2000;
+
+    // The CSV / Excel export reads the report in batches of this size, so
+    // memory use stays flat however many rows there are.
+    private static final int EXPORT_BATCH_SIZE = 2000;
+
+    // An .xlsx sheet holds 1,048,576 rows; the title block needs a few.
+    private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+
+    private static final List<String> EXPORT_HEADERS = List.of(
+            "Payment Date", "Supplier Payment No", "Pharmacy / Warehouse", "Supplier",
+            "Purchase Invoice No", "GRN No", "Invoice Amount", "Payment Amount", "Payment Mode",
+            "Reference / Transaction No", "Outstanding Before", "Outstanding After");
+
+    private static final List<String> MODE_SUMMARY_HEADERS = List.of(
+            "Payment Mode", "Transactions", "Total Amount");
 
     // Supplier payments are only made against credit purchases.
     private static final String PAYMENT_TYPE_CREDIT = "CREDIT";
@@ -99,6 +126,187 @@ public class SupplierPaymentReportServiceImpl implements SupplierPaymentReportSe
             SupplierPaymentReportFilter filter,
             UserDetails user) {
 
+        ReportQuery report = prepareReport(filter, user);
+
+        SupplierPaymentReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        long totalRecords = summary.getPaymentCount();
+
+        int size;
+        int page;
+
+        if (Boolean.TRUE.equals(filter.getUnpaged())) {
+            if (totalRecords > PRINT_ROW_LIMIT) {
+                throw new IllegalArgumentException(
+                        "Too many rows to print (" + totalRecords + "). The limit is " + PRINT_ROW_LIMIT
+                                + ". Narrow the filters or download Excel.");
+            }
+            size = (int) Math.max(totalRecords, 1);
+            page = 0;
+        } else {
+            size = filter.getSize() == null || filter.getSize() < 1
+                    ? DEFAULT_PAGE_SIZE
+                    : Math.min(filter.getSize(), MAX_PAGE_SIZE);
+            page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
+        }
+
+        long offset = (long) page * size;
+
+        SupplierPaymentReportPageDto details = new SupplierPaymentReportPageDto();
+        details.setData(totalRecords == 0
+                ? List.of()
+                : fetchPage(report.sql(), report.params(), filter, size, offset));
+        details.setPage(page);
+        details.setSize(size);
+        details.setTotalRecords(totalRecords);
+        details.setTotalPages((int) ((totalRecords + size - 1) / size));
+
+        SupplierPaymentReportResponse response = new SupplierPaymentReportResponse();
+        response.setSummary(summary);
+        response.setPaymentTransactions(details);
+        response.setPaymentModeSummary(fetchModeSummary(report.sql(), report.params()));
+        response.setPaymentModeTotalCount(totalRecords);
+        response.setPaymentModeTotalAmount(summary.getTotalPaymentAmount());
+        response.setFromDate(report.fromDate());
+        response.setToDate(report.toDate());
+        response.setGeneratedBy(report.user().getFullName());
+        response.setGeneratedOn(LocalDateTime.now());
+
+        return response;
+    }
+
+
+    // Runs the KPI totals (which carry the row count) and the mode summary
+    // now, so bad filters, missing access and the Excel row limit fail before
+    // any of the file has been sent.
+    @Override
+    public ReportExport exportSupplierPaymentReport(
+            SupplierPaymentReportFilter filter,
+            String format,
+            UserDetails user) {
+
+        ExportFormat exportFormat = ExportFormat.parse(format);
+        ReportQuery report = prepareReport(filter, user);
+
+        SupplierPaymentReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        long totalRecords = summary.getPaymentCount();
+
+        if (exportFormat == ExportFormat.XLSX && totalRecords > EXCEL_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
+        }
+
+        List<SupplierPaymentModeSummaryDto> modeSummary = fetchModeSummary(report.sql(), report.params());
+        String generatedBy = report.user().getFullName();
+        LocalDateTime generatedOn = LocalDateTime.now();
+        String pharmacies = pharmacyNames(report.pharmacyIds());
+        String warehouses = warehouseNames(report.warehouseIds());
+
+        boolean singleDay = report.fromDate().equals(report.toDate());
+        String period = singleDay
+                ? report.fromDate().format(DISPLAY_DATE)
+                : report.fromDate().format(DISPLAY_DATE) + " to " + report.toDate().format(DISPLAY_DATE);
+        // supplier-payment_2026-10-08, supplier-payment_2026-10-01_to_2026-10-08
+        String fileName = "supplier-payment_"
+                + (singleDay ? report.fromDate() : report.fromDate() + "_to_" + report.toDate())
+                + exportFormat.extension();
+
+        return new ReportExport() {
+
+            @Override
+            public String fileName() {
+                return fileName;
+            }
+
+            @Override
+            public String contentType() {
+                return exportFormat.contentType();
+            }
+
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+
+                try (ReportTableWriter writer = exportFormat.open(out)) {
+
+                    writer.title("Supplier Payment Report");
+                    if (!pharmacies.isEmpty()) {
+                        writer.line("Pharmacy", pharmacies);
+                    }
+                    if (!warehouses.isEmpty()) {
+                        writer.line("Warehouse", warehouses);
+                    }
+                    writer.line("Reporting Period", period);
+                    writer.line("Generated By", generatedBy);
+                    writer.line("Generated On", generatedOn);
+                    writer.blank();
+
+                    writer.line("Total Payment Amount", summary.getTotalPaymentAmount());
+                    writer.line("Payment Transactions", summary.getPaymentCount());
+                    writer.line("Average Payment Amount", summary.getAveragePaymentAmount());
+                    writer.line("Suppliers Paid", summary.getSuppliersPaidCount());
+                    if (summary.getSuppliersPaid() != null && !summary.getSuppliersPaid().isEmpty()) {
+                        writer.line("Suppliers", String.join(", ", summary.getSuppliersPaid()));
+                    }
+                    writer.line("Invoices Paid Against", summary.getInvoicesPaidAgainstCount());
+                    if (summary.getTopInvoiceNumber() != null) {
+                        writer.line("Most Instalments", summary.getTopInvoiceNumber()
+                                + " (" + summary.getTopInvoiceInstalments() + " instalments)");
+                    }
+                    writer.blank();
+
+                    // Payment Mode-wise Summary, with its Total row.
+                    writer.header(MODE_SUMMARY_HEADERS);
+                    for (SupplierPaymentModeSummaryDto mode : modeSummary) {
+                        writer.row(Arrays.asList(
+                                mode.getPaymentMode(), mode.getTransactionCount(), mode.getTotalAmount()));
+                    }
+                    writer.row(Arrays.asList("Total", totalRecords, summary.getTotalPaymentAmount()));
+                    writer.blank();
+
+                    writer.header(EXPORT_HEADERS);
+
+                    for (long offset = 0; offset < totalRecords; offset += EXPORT_BATCH_SIZE) {
+
+                        List<SupplierPaymentReportRowDto> batch =
+                                fetchPage(report.sql(), report.params(), filter, EXPORT_BATCH_SIZE, offset);
+
+                        for (SupplierPaymentReportRowDto row : batch) {
+                            writer.row(Arrays.asList(
+                                    row.getPaymentDate(), row.getPaymentNumber(),
+                                    row.getLocationName(), row.getSupplierName(),
+                                    row.getInvoiceNumber(), row.getGrnNumber(),
+                                    row.getInvoiceAmount(), row.getPaymentAmount(), row.getPaymentMode(),
+                                    row.getTransactionNumber(),
+                                    row.getOutstandingBefore(), row.getOutstandingAfter()));
+                        }
+
+                        if (batch.isEmpty()) {
+                            break;
+                        }
+                    }
+
+                    writer.finish();
+                }
+            }
+        };
+    }
+
+
+    // The report as the filters define it, shared by the screen, print and
+    // export: the user, the resolved period and locations, and the CTE SQL
+    // with its parameters.
+    private record ReportQuery(
+            UserDetails user,
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<String> pharmacyIds,
+            List<String> warehouseIds,
+            String sql,
+            Map<String, Object> params) {
+    }
+
+
+    private ReportQuery prepareReport(SupplierPaymentReportFilter filter, UserDetails user) {
+
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -155,39 +363,39 @@ public class SupplierPaymentReportServiceImpl implements SupplierPaymentReportSe
                     : checkAccess(filter.getPharmacyIds(), accessible, "pharmacy");
         }
 
-        int size = filter.getSize() == null || filter.getSize() < 1
-                ? DEFAULT_PAGE_SIZE
-                : Math.min(filter.getSize(), MAX_PAGE_SIZE);
-        int page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
-        long offset = (long) page * size;
-
         Map<String, Object> params = new HashMap<>();
         String reportSql = buildReportSql(filter, pharmacyIds, warehouseIds, fromDate, toDate, params);
 
-        SupplierPaymentReportSummaryDto summary = fetchSummary(reportSql, params);
-        long totalRecords = summary.getPaymentCount();
+        return new ReportQuery(persistentUser, fromDate, toDate, pharmacyIds, warehouseIds, reportSql, params);
+    }
 
-        SupplierPaymentReportPageDto details = new SupplierPaymentReportPageDto();
-        details.setData(totalRecords == 0
-                ? List.of()
-                : fetchPage(reportSql, params, filter, size, offset));
-        details.setPage(page);
-        details.setSize(size);
-        details.setTotalRecords(totalRecords);
-        details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
-        SupplierPaymentReportResponse response = new SupplierPaymentReportResponse();
-        response.setSummary(summary);
-        response.setPaymentTransactions(details);
-        response.setPaymentModeSummary(fetchModeSummary(reportSql, params));
-        response.setPaymentModeTotalCount(totalRecords);
-        response.setPaymentModeTotalAmount(summary.getTotalPaymentAmount());
-        response.setFromDate(fromDate);
-        response.setToDate(toDate);
-        response.setGeneratedBy(persistentUser.getFullName());
-        response.setGeneratedOn(LocalDateTime.now());
+    // Names in the order the ids were given; an unknown id is shown as is.
+    private String pharmacyNames(List<String> pharmacyIds) {
 
-        return response;
+        Map<String, String> names = new HashMap<>();
+
+        for (PharmacyDetails pharmacy : pharmacyDetailsRepository.findAllById(pharmacyIds)) {
+            names.put(pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        }
+
+        return String.join(", ", pharmacyIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
+    }
+
+
+    private String warehouseNames(List<String> warehouseIds) {
+
+        Map<String, String> names = new HashMap<>();
+
+        for (Warehouse warehouse : warehouseRepository.findAllById(warehouseIds)) {
+            names.put(warehouse.getWarehouseId(), warehouse.getWarehouseName());
+        }
+
+        return String.join(", ", warehouseIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
     }
 
 

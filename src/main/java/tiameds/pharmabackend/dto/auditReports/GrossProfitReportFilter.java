@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -14,7 +15,10 @@ public class GrossProfitReportFilter {
     // Sale / return date period, both inclusive. Today / Specific Day /
     // By Month / By Date Range on the screen all resolve to this pair on the
     // client.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate toDate;
 
     // Empty = every pharmacy the logged-in user can access.
@@ -39,6 +43,10 @@ public class GrossProfitReportFilter {
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // pharmacyName, productName, batchNumber, soldQuantity, returnQuantity,
     // netQuantity, netSalesAmount, netCost, grossProfit, marginPercentage.

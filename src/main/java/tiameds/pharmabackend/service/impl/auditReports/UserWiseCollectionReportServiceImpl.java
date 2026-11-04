@@ -21,13 +21,19 @@ import tiameds.pharmabackend.enums.PaymentMode;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.auditReports.UserWiseCollectionReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+import tiameds.pharmabackend.service.impl.financialReport.export.ExportFormat;
+import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -37,6 +43,39 @@ public class UserWiseCollectionReportServiceImpl implements UserWiseCollectionRe
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+
+    // Print / PDF (unpaged) is refused above this many rows; the client
+    // should narrow the filters or download Excel instead.
+    private static final int PRINT_ROW_LIMIT = 2000;
+
+    // The CSV / Excel export reads the report in batches of this size, so
+    // memory use stays flat however many rows there are.
+    private static final int EXPORT_BATCH_SIZE = 2000;
+
+    // An .xlsx sheet holds 1,048,576 rows; the title block and the user-wise
+    // summary need a few.
+    private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+
+    private static final List<String> USER_SUMMARY_HEADERS = List.of(
+            "User", "No. of Collections", "Cash", "UPI", "Card", "Total Collection");
+
+    private static final List<String> EXPORT_HEADERS = List.of(
+            "Collection Date", "Receipt No", "Bill No", "Pharmacy", "User",
+            "Patient Type", "Payment Mode", "Transaction ID", "Collected Amount");
+
+    // Patient Type and Payment Mode in the export, as the screen words them.
+    private static final Map<String, String> CUSTOMER_TYPE_LABELS = Map.of(
+            "WALK_IN", "Walk-in",
+            "OP_PATIENT", "OP Patient",
+            "IP_PATIENT", "IP Patient",
+            "DAYCARE", "Daycare");
+
+    private static final Map<String, String> PAYMENT_MODE_LABELS = Map.of(
+            "CASH", "Cash",
+            "UPI", "UPI",
+            "CARD", "Card");
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
@@ -84,28 +123,32 @@ public class UserWiseCollectionReportServiceImpl implements UserWiseCollectionRe
             UserWiseCollectionReportFilter filter,
             UserDetails user) {
 
-        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        LocalDate fromDate = filter.getFromDate() != null ? filter.getFromDate() : LocalDate.now();
-        LocalDate toDate = filter.getToDate() != null ? filter.getToDate() : fromDate;
-
-        if (toDate.isBefore(fromDate)) {
-            throw new IllegalArgumentException("toDate cannot be before fromDate.");
-        }
-
-        List<String> pharmacyIds = resolvePharmacyIds(filter.getPharmacyIds(), persistentUser);
-
-        int size = filter.getSize() == null || filter.getSize() < 1
-                ? DEFAULT_PAGE_SIZE
-                : Math.min(filter.getSize(), MAX_PAGE_SIZE);
-        int page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
-        long offset = (long) page * size;
-
-        Map<String, Object> params = new HashMap<>();
-        String reportSql = buildReportSql(filter, pharmacyIds, fromDate, toDate, params);
+        ReportQuery report = prepareReport(filter, user);
+        String reportSql = report.sql();
+        Map<String, Object> params = report.params();
 
         long totalRecords = fetchTotalRecords(reportSql, params);
+
+        int size;
+        int page;
+
+        if (Boolean.TRUE.equals(filter.getUnpaged())) {
+            if (totalRecords > PRINT_ROW_LIMIT) {
+                throw new IllegalArgumentException(
+                        "Too many rows to print (" + totalRecords + "). The limit is " + PRINT_ROW_LIMIT
+                                + ". Narrow the filters or download Excel.");
+            }
+            size = (int) Math.max(totalRecords, 1);
+            page = 0;
+        } else {
+            size = filter.getSize() == null || filter.getSize() < 1
+                    ? DEFAULT_PAGE_SIZE
+                    : Math.min(filter.getSize(), MAX_PAGE_SIZE);
+            page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
+        }
+
+        long offset = (long) page * size;
+
         List<UserWiseCollectionReportRowDto> rows = fetchPage(reportSql, params, filter, size, offset);
 
         UserWiseCollectionReportPageDto details = new UserWiseCollectionReportPageDto();
@@ -122,12 +165,180 @@ public class UserWiseCollectionReportServiceImpl implements UserWiseCollectionRe
         response.setSummary(fetchSummary(reportSql, params));
         response.setUserWiseSummary(fetchUserWiseSummary(reportSql, params, filter));
         response.setCollectionTransactions(details);
-        response.setFromDate(fromDate);
-        response.setToDate(toDate);
-        response.setGeneratedBy(persistentUser.getFullName());
+        response.setFromDate(report.fromDate());
+        response.setToDate(report.toDate());
+        response.setGeneratedBy(report.user().getFullName());
         response.setGeneratedOn(LocalDateTime.now());
 
         return response;
+    }
+
+
+    // Runs the count, the KPI totals and the user-wise summary now, so bad
+    // filters, missing access and the Excel row limit fail before any of the
+    // file has been sent.
+    @Override
+    public ReportExport exportUserWiseCollectionReport(
+            UserWiseCollectionReportFilter filter,
+            String format,
+            UserDetails user) {
+
+        ExportFormat exportFormat = ExportFormat.parse(format);
+        ReportQuery report = prepareReport(filter, user);
+
+        long totalRecords = fetchTotalRecords(report.sql(), report.params());
+        List<UserWiseCollectionUserRowDto> users = fetchUserWiseSummary(report.sql(), report.params(), filter);
+
+        if (exportFormat == ExportFormat.XLSX && totalRecords + users.size() > EXCEL_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
+        }
+
+        UserWiseCollectionReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        String generatedBy = report.user().getFullName();
+        LocalDateTime generatedOn = LocalDateTime.now();
+        String pharmacies = pharmacyNames(report.pharmacyIds());
+
+        boolean singleDay = report.fromDate().equals(report.toDate());
+        String period = singleDay
+                ? report.fromDate().format(DISPLAY_DATE)
+                : report.fromDate().format(DISPLAY_DATE) + " to " + report.toDate().format(DISPLAY_DATE);
+        // user-wise-collection_2026-10-08, user-wise-collection_2026-10-01_to_2026-10-08
+        String fileName = "user-wise-collection_"
+                + (singleDay ? report.fromDate() : report.fromDate() + "_to_" + report.toDate())
+                + exportFormat.extension();
+
+        return new ReportExport() {
+
+            @Override
+            public String fileName() {
+                return fileName;
+            }
+
+            @Override
+            public String contentType() {
+                return exportFormat.contentType();
+            }
+
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+
+                try (ReportTableWriter writer = exportFormat.open(out)) {
+
+                    writer.title("User-wise Collection Report");
+                    writer.line("Pharmacy", pharmacies);
+                    writer.line("Reporting Period", period);
+                    writer.line("Generated By", generatedBy);
+                    writer.line("Generated On", generatedOn);
+                    writer.blank();
+
+                    writer.line("Total Collections", summary.getTotalCollections());
+                    writer.line("Total Collection", summary.getTotalCollection());
+                    writer.line("Cash Collection", summary.getTotalCashCollection());
+                    writer.line("Cash %", summary.getCashPercentage());
+                    writer.line("UPI Collection", summary.getTotalUpiCollection());
+                    writer.line("UPI %", summary.getUpiPercentage());
+                    writer.line("Card Collection", summary.getTotalCardCollection());
+                    writer.line("Card %", summary.getCardPercentage());
+                    writer.blank();
+
+                    // User-wise Collection Summary, with its Total row.
+                    writer.title("User-wise Collection Summary");
+                    writer.header(USER_SUMMARY_HEADERS);
+                    for (UserWiseCollectionUserRowDto u : users) {
+                        writer.row(Arrays.asList(
+                                u.getUserName(), u.getNoOfCollections(),
+                                u.getCash(), u.getUpi(), u.getCard(), u.getTotalCollection()));
+                    }
+                    writer.row(Arrays.asList(
+                            "Total", summary.getTotalCollections(),
+                            summary.getTotalCashCollection(), summary.getTotalUpiCollection(),
+                            summary.getTotalCardCollection(), summary.getTotalCollection()));
+                    writer.blank();
+
+                    writer.title("Collection Transaction Details");
+                    writer.header(EXPORT_HEADERS);
+
+                    for (long offset = 0; offset < totalRecords; offset += EXPORT_BATCH_SIZE) {
+
+                        List<UserWiseCollectionReportRowDto> batch =
+                                fetchPage(report.sql(), report.params(), filter, EXPORT_BATCH_SIZE, offset);
+
+                        for (UserWiseCollectionReportRowDto row : batch) {
+                            writer.row(Arrays.asList(
+                                    row.getCollectionDate(), row.getReceiptNo(), row.getBillNo(),
+                                    row.getPharmacyName(), row.getUserName(),
+                                    label(CUSTOMER_TYPE_LABELS, row.getCustomerType()),
+                                    label(PAYMENT_MODE_LABELS, row.getPaymentMode()),
+                                    row.getTransactionId(), row.getCollectedAmount()));
+                        }
+
+                        if (batch.isEmpty()) {
+                            break;
+                        }
+                    }
+
+                    writer.row(Arrays.asList(
+                            "Total", null, null, null, null, null, null, null, summary.getTotalCollection()));
+
+                    writer.finish();
+                }
+            }
+        };
+    }
+
+
+    // The report as the filters define it, shared by the screen, print and
+    // export: the user, the resolved period and pharmacies, and the CTE SQL
+    // with its parameters.
+    private record ReportQuery(
+            UserDetails user,
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<String> pharmacyIds,
+            String sql,
+            Map<String, Object> params) {
+    }
+
+
+    private ReportQuery prepareReport(UserWiseCollectionReportFilter filter, UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocalDate fromDate = filter.getFromDate() != null ? filter.getFromDate() : LocalDate.now();
+        LocalDate toDate = filter.getToDate() != null ? filter.getToDate() : fromDate;
+
+        if (toDate.isBefore(fromDate)) {
+            throw new IllegalArgumentException("toDate cannot be before fromDate.");
+        }
+
+        List<String> pharmacyIds = resolvePharmacyIds(filter.getPharmacyIds(), persistentUser);
+
+        Map<String, Object> params = new HashMap<>();
+        String reportSql = buildReportSql(filter, pharmacyIds, fromDate, toDate, params);
+
+        return new ReportQuery(persistentUser, fromDate, toDate, pharmacyIds, reportSql, params);
+    }
+
+
+    // Names in the order the ids were given; an unknown id is shown as is.
+    private String pharmacyNames(List<String> pharmacyIds) {
+
+        Map<String, String> names = new HashMap<>();
+
+        for (PharmacyDetails pharmacy : pharmacyDetailsRepository.findAllById(pharmacyIds)) {
+            names.put(pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        }
+
+        return String.join(", ", pharmacyIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
+    }
+
+
+    private static String label(Map<String, String> labels, String code) {
+        return code == null ? null : labels.getOrDefault(code, code);
     }
 
 

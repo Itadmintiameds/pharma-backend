@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -13,6 +14,7 @@ public class StockExpiryReportFilter {
 
     // Expiry status, days to expiry, "this month" and Expiry Within are all
     // worked out relative to this day. Defaults to today.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate asOfDate;
 
     // Locations. Neither sent = every pharmacy and warehouse the user can
@@ -44,12 +46,19 @@ public class StockExpiryReportFilter {
     private Integer expiryWithinDays;
 
     // Expiry Month/Year range on the batch, both months inclusive (yyyy-MM).
+    @DateTimeFormat(pattern = "yyyy-MM")
     private YearMonth expiryFromMonth;
+
+    @DateTimeFormat(pattern = "yyyy-MM")
     private YearMonth expiryToMonth;
 
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // locationName, productName, batchNo, supplierName, expiryDate,
     // monthsToExpiry, quantity, damagedQuantity. Defaults to expiryDate ASC.

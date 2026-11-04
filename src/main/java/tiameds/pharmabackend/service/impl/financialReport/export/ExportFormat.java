@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 // Download formats of the report export.
-enum ExportFormat {
+public enum ExportFormat {
 
     CSV("text/csv; charset=UTF-8", ".csv"),
     XLSX("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx");
@@ -20,7 +20,7 @@ enum ExportFormat {
 
 
     // csv, or xlsx / excel.
-    static ExportFormat parse(String value) {
+    public static ExportFormat parse(String value) {
 
         String format = value == null ? "" : value.trim().toLowerCase();
 
@@ -32,17 +32,17 @@ enum ExportFormat {
     }
 
 
-    ReportTableWriter open(OutputStream out) throws IOException {
+    public ReportTableWriter open(OutputStream out) throws IOException {
         return this == CSV ? new CsvReportWriter(out) : new ExcelReportWriter(out);
     }
 
 
-    String contentType() {
+    public String contentType() {
         return contentType;
     }
 
 
-    String extension() {
+    public String extension() {
         return extension;
     }
 }

@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -12,7 +13,10 @@ public class ProductWiseReportFilter {
 
     // Reporting period, both inclusive. Today / Specific Day / By Month /
     // By Date Range on the screen all resolve to this pair on the client.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate toDate;
 
     // Pharmacy / warehouse scope. Both empty = every pharmacy and warehouse
@@ -37,6 +41,10 @@ public class ProductWiseReportFilter {
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // productName, batchNo, purchaseQuantity, supplierReturnQuantity,
     // netPurchaseQuantity, saleQuantity, salesReturnQuantity, netSaleQuantity,

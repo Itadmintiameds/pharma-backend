@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.List;
 public class CurrentStockSummaryFilter {
 
     // Stock is reported as it stood at the end of this day. Defaults to today.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate asOfDate;
 
     // Locations. Neither sent = every pharmacy and warehouse the user can
@@ -31,7 +33,10 @@ public class CurrentStockSummaryFilter {
     private String batchNo;
 
     // Expiry Date range on the batch, both inclusive.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate expiryFromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate expiryToDate;
 
     // ALL, IN_STOCK, OUT_OF_STOCK, DAMAGED_STOCK_HELD, EXPIRED_STOCK_HELD.
@@ -40,6 +45,10 @@ public class CurrentStockSummaryFilter {
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // locationName, productName, batchNo, expiryDate, closingStock,
     // damagedStock, expiredStock, availableStock. Defaults to availableStock DESC.

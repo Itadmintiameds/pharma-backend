@@ -18,11 +18,17 @@ import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.auditReports.StockAdjustmentReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+import tiameds.pharmabackend.service.impl.financialReport.export.ExportFormat;
+import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -32,6 +38,27 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+
+    // Print / PDF (unpaged) is refused above this many rows; the client
+    // should narrow the filters or download Excel instead.
+    private static final int PRINT_ROW_LIMIT = 2000;
+
+    // The CSV / Excel export reads the report in batches of this size, so
+    // memory use stays flat however many rows there are.
+    private static final int EXPORT_BATCH_SIZE = 2000;
+
+    // An .xlsx sheet holds 1,048,576 rows; the title block needs a few.
+    private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+
+    // The batch expiry, as the screen shows it: "12/2027".
+    private static final DateTimeFormatter EXPIRY_MONTH = DateTimeFormatter.ofPattern("MM/yyyy");
+
+    private static final List<String> EXPORT_HEADERS = List.of(
+            "Adjustment Date", "Pharmacy", "Reference Number", "Product Name", "Batch No", "Expiry",
+            "Adjustment Type", "Adjustment Reason", "Stock Before", "Adjustment In", "Adjustment Out",
+            "Net Adjustment", "Stock After", "Adjusted By");
 
     // Adjustment Type dropdown: code (as stored in adjustment_type) -> label.
     private static final Map<String, String> ADJUSTMENT_TYPES = new LinkedHashMap<>();
@@ -71,6 +98,159 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
             StockAdjustmentReportFilter filter,
             UserDetails user) {
 
+        ReportQuery report = prepareReport(filter, user);
+
+        StockAdjustmentReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        long totalRecords = summary.getTotalAdjustments();
+
+        int size;
+        int page;
+
+        if (Boolean.TRUE.equals(filter.getUnpaged())) {
+            if (totalRecords > PRINT_ROW_LIMIT) {
+                throw new IllegalArgumentException(
+                        "Too many rows to print (" + totalRecords + "). The limit is " + PRINT_ROW_LIMIT
+                                + ". Narrow the filters or download Excel.");
+            }
+            size = (int) Math.max(totalRecords, 1);
+            page = 0;
+        } else {
+            size = filter.getSize() == null || filter.getSize() < 1
+                    ? DEFAULT_PAGE_SIZE
+                    : Math.min(filter.getSize(), MAX_PAGE_SIZE);
+            page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
+        }
+
+        long offset = (long) page * size;
+
+        StockAdjustmentReportPageDto details = new StockAdjustmentReportPageDto();
+        details.setData(totalRecords == 0
+                ? List.of()
+                : fetchPage(report.sql(), report.params(), filter, size, offset));
+        details.setPage(page);
+        details.setSize(size);
+        details.setTotalRecords(totalRecords);
+        details.setTotalPages((int) ((totalRecords + size - 1) / size));
+
+        StockAdjustmentReportResponse response = new StockAdjustmentReportResponse();
+        response.setSummary(summary);
+        response.setAdjustmentTransactions(details);
+        response.setGeneratedBy(report.user().getFullName());
+        response.setGeneratedOn(LocalDateTime.now());
+
+        return response;
+    }
+
+
+    // Runs the KPI totals (which carry the row count) now, so bad filters,
+    // missing access and the Excel row limit fail before any of the file has
+    // been sent.
+    @Override
+    public ReportExport exportStockAdjustmentReport(
+            StockAdjustmentReportFilter filter,
+            String format,
+            UserDetails user) {
+
+        ExportFormat exportFormat = ExportFormat.parse(format);
+        ReportQuery report = prepareReport(filter, user);
+
+        StockAdjustmentReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        long totalRecords = summary.getTotalAdjustments();
+
+        if (exportFormat == ExportFormat.XLSX && totalRecords > EXCEL_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
+        }
+
+        String generatedBy = report.user().getFullName();
+        LocalDateTime generatedOn = LocalDateTime.now();
+        String pharmacies = pharmacyNames(report.pharmacyIds());
+
+        boolean singleDay = report.fromDate().equals(report.toDate());
+        String period = singleDay
+                ? report.fromDate().format(DISPLAY_DATE)
+                : report.fromDate().format(DISPLAY_DATE) + " to " + report.toDate().format(DISPLAY_DATE);
+        // stock-adjustment_2026-10-08, stock-adjustment_2026-10-01_to_2026-10-08
+        String fileName = "stock-adjustment_"
+                + (singleDay ? report.fromDate() : report.fromDate() + "_to_" + report.toDate())
+                + exportFormat.extension();
+
+        return new ReportExport() {
+
+            @Override
+            public String fileName() {
+                return fileName;
+            }
+
+            @Override
+            public String contentType() {
+                return exportFormat.contentType();
+            }
+
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+
+                try (ReportTableWriter writer = exportFormat.open(out)) {
+
+                    writer.title("Stock Adjustment Report");
+                    writer.line("Pharmacy", pharmacies);
+                    writer.line("Period", period);
+                    writer.line("Generated By", generatedBy);
+                    writer.line("Generated On", generatedOn);
+                    writer.blank();
+
+                    writer.line("Stock Increase Quantity", summary.getStockIncreaseQuantity());
+                    writer.line("Stock Increase Adjustments", summary.getStockIncreaseCount());
+                    writer.line("Stock Decrease Quantity", summary.getStockDecreaseQuantity());
+                    writer.line("Stock Decrease Adjustments", summary.getStockDecreaseCount());
+                    writer.line("Net Adjustment Quantity", summary.getNetAdjustmentQuantity());
+                    writer.line("Total Adjustments", summary.getTotalAdjustments());
+                    writer.blank();
+
+                    writer.header(EXPORT_HEADERS);
+
+                    for (long offset = 0; offset < totalRecords; offset += EXPORT_BATCH_SIZE) {
+
+                        List<StockAdjustmentReportRowDto> batch =
+                                fetchPage(report.sql(), report.params(), filter, EXPORT_BATCH_SIZE, offset);
+
+                        for (StockAdjustmentReportRowDto row : batch) {
+                            writer.row(Arrays.asList(
+                                    row.getAdjustmentDate(), row.getPharmacyName(), row.getReferenceNumber(),
+                                    row.getProductName(), row.getBatchNo(),
+                                    row.getExpiryDate() == null ? null : row.getExpiryDate().format(EXPIRY_MONTH),
+                                    row.getAdjustmentTypeLabel(), row.getAdjustmentReason(),
+                                    row.getStockBefore(), row.getAdjustmentIn(), row.getAdjustmentOut(),
+                                    row.getNetAdjustment(), row.getStockAfter(), row.getAdjustedByName()));
+                        }
+
+                        if (batch.isEmpty()) {
+                            break;
+                        }
+                    }
+
+                    writer.finish();
+                }
+            }
+        };
+    }
+
+
+    // The report as the filters define it, shared by the screen, print and
+    // export: the user, the resolved period and pharmacies, and the CTE SQL
+    // with its parameters.
+    private record ReportQuery(
+            UserDetails user,
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<String> pharmacyIds,
+            String sql,
+            Map<String, Object> params) {
+    }
+
+
+    private ReportQuery prepareReport(StockAdjustmentReportFilter filter, UserDetails user) {
+
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -83,34 +263,25 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
 
         List<String> pharmacyIds = resolvePharmacyIds(filter.getPharmacyIds(), persistentUser);
 
-        int size = filter.getSize() == null || filter.getSize() < 1
-                ? DEFAULT_PAGE_SIZE
-                : Math.min(filter.getSize(), MAX_PAGE_SIZE);
-        int page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
-        long offset = (long) page * size;
-
         Map<String, Object> params = new HashMap<>();
         String reportSql = buildReportSql(filter, pharmacyIds, fromDate, toDate, params);
 
-        StockAdjustmentReportSummaryDto summary = fetchSummary(reportSql, params);
-        long totalRecords = summary.getTotalAdjustments();
+        return new ReportQuery(persistentUser, fromDate, toDate, pharmacyIds, reportSql, params);
+    }
 
-        StockAdjustmentReportPageDto details = new StockAdjustmentReportPageDto();
-        details.setData(totalRecords == 0
-                ? List.of()
-                : fetchPage(reportSql, params, filter, size, offset));
-        details.setPage(page);
-        details.setSize(size);
-        details.setTotalRecords(totalRecords);
-        details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
-        StockAdjustmentReportResponse response = new StockAdjustmentReportResponse();
-        response.setSummary(summary);
-        response.setAdjustmentTransactions(details);
-        response.setGeneratedBy(persistentUser.getFullName());
-        response.setGeneratedOn(LocalDateTime.now());
+    // Names in the order the ids were given; an unknown id is shown as is.
+    private String pharmacyNames(List<String> pharmacyIds) {
 
-        return response;
+        Map<String, String> names = new HashMap<>();
+
+        for (PharmacyDetails pharmacy : pharmacyDetailsRepository.findAllById(pharmacyIds)) {
+            names.put(pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        }
+
+        return String.join(", ", pharmacyIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
     }
 
 

@@ -21,10 +21,16 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.auditReports.StockExpiryReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+import tiameds.pharmabackend.service.impl.financialReport.export.ExportFormat;
+import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -34,6 +40,30 @@ public class StockExpiryReportImpl implements StockExpiryReportService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+
+    // Print / PDF (unpaged) is refused above this many rows; the client
+    // should narrow the filters or download Excel instead.
+    private static final int PRINT_ROW_LIMIT = 2000;
+
+    // The CSV / Excel export reads the report in batches of this size, so
+    // memory use stays flat however many rows there are.
+    private static final int EXPORT_BATCH_SIZE = 2000;
+
+    // An .xlsx sheet holds 1,048,576 rows; the title block needs a few.
+    private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+
+    private static final List<String> EXPORT_HEADERS = List.of(
+            "Product Name", "Pharmacy / Warehouse", "Location Type", "Batch No", "Supplier Name",
+            "Expiry Date", "Days to Expiry", "Expiry Status", "Stock Quantity", "Damaged Quantity");
+
+    // Expiry Status column of the export, as the screen's badges word it.
+    private static final Map<String, String> EXPIRY_STATUS_LABELS = Map.of(
+            "EXPIRED", "Expired",
+            "EXPIRING_THIS_MONTH", "Expiring This Month",
+            "EXPIRING_SOON", "Expiring Soon",
+            "VALID", "Valid");
 
     // "Expiring Soon" = expires after this month but within this many months
     // from today.
@@ -67,6 +97,156 @@ public class StockExpiryReportImpl implements StockExpiryReportService {
             StockExpiryReportFilter filter,
             UserDetails user) {
 
+        ReportQuery report = prepareReport(filter, user);
+
+        long totalRecords = fetchTotalRecords(report.sql(), report.params());
+
+        int size;
+        int page;
+
+        if (Boolean.TRUE.equals(filter.getUnpaged())) {
+            if (totalRecords > PRINT_ROW_LIMIT) {
+                throw new IllegalArgumentException(
+                        "Too many rows to print (" + totalRecords + "). The limit is " + PRINT_ROW_LIMIT
+                                + ". Narrow the filters or download Excel.");
+            }
+            size = (int) Math.max(totalRecords, 1);
+            page = 0;
+        } else {
+            size = filter.getSize() == null || filter.getSize() < 1
+                    ? DEFAULT_PAGE_SIZE
+                    : Math.min(filter.getSize(), MAX_PAGE_SIZE);
+            page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
+        }
+
+        long offset = (long) page * size;
+
+        StockExpiryReportPageDto details = new StockExpiryReportPageDto();
+        details.setData(fetchPage(report.sql(), report.params(), filter, size, offset));
+        details.setPage(page);
+        details.setSize(size);
+        details.setTotalRecords(totalRecords);
+        details.setTotalPages((int) ((totalRecords + size - 1) / size));
+
+        StockExpiryReportResponse response = new StockExpiryReportResponse();
+        response.setSummary(fetchSummary(report.sql(), report.params()));
+        response.setExpiryDetails(details);
+        response.setGeneratedBy(report.user().getFullName());
+        response.setGeneratedOn(LocalDateTime.now());
+
+        return response;
+    }
+
+
+    // Runs the count and the KPI totals now, so bad filters, missing access
+    // and the Excel row limit fail before any of the file has been sent.
+    @Override
+    public ReportExport exportStockExpiryReport(
+            StockExpiryReportFilter filter,
+            String format,
+            UserDetails user) {
+
+        ExportFormat exportFormat = ExportFormat.parse(format);
+        ReportQuery report = prepareReport(filter, user);
+
+        long totalRecords = fetchTotalRecords(report.sql(), report.params());
+
+        if (exportFormat == ExportFormat.XLSX && totalRecords > EXCEL_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
+        }
+
+        StockExpiryReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        String generatedBy = report.user().getFullName();
+        LocalDateTime generatedOn = LocalDateTime.now();
+        String pharmacies = pharmacyNames(report.pharmacyIds());
+        String warehouses = warehouseNames(report.warehouseIds());
+        // stock-expiry_2026-10-08
+        String fileName = "stock-expiry_" + report.asOfDate() + exportFormat.extension();
+
+        return new ReportExport() {
+
+            @Override
+            public String fileName() {
+                return fileName;
+            }
+
+            @Override
+            public String contentType() {
+                return exportFormat.contentType();
+            }
+
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+
+                try (ReportTableWriter writer = exportFormat.open(out)) {
+
+                    writer.title("Stock Expiry Report");
+                    if (!pharmacies.isEmpty()) {
+                        writer.line("Pharmacy", pharmacies);
+                    }
+                    if (!warehouses.isEmpty()) {
+                        writer.line("Warehouse", warehouses);
+                    }
+                    writer.line("As-of Date", report.asOfDate().format(DISPLAY_DATE));
+                    writer.line("Generated By", generatedBy);
+                    writer.line("Generated On", generatedOn);
+                    writer.blank();
+
+                    writer.line("Expired Stock", summary.getExpiredStock());
+                    writer.line("Expired Batches", summary.getExpiredBatches());
+                    writer.line("Expiring This Month Quantity", summary.getExpiringThisMonthQuantity());
+                    writer.line("Expiring This Month Batches", summary.getExpiringThisMonthBatches());
+                    writer.line("Expiring Soon Quantity", summary.getExpiringSoonQuantity());
+                    writer.line("Expiring Soon Batches", summary.getExpiringSoonBatches());
+                    writer.line("Total Stock", summary.getTotalStock());
+                    writer.line("Total Stock Batches", summary.getTotalStockBatches());
+                    writer.blank();
+
+                    writer.header(EXPORT_HEADERS);
+
+                    for (long offset = 0; offset < totalRecords; offset += EXPORT_BATCH_SIZE) {
+
+                        List<StockExpiryReportRowDto> batch =
+                                fetchPage(report.sql(), report.params(), filter, EXPORT_BATCH_SIZE, offset);
+
+                        for (StockExpiryReportRowDto row : batch) {
+                            writer.row(Arrays.asList(
+                                    row.getProductName(), row.getLocationName(), row.getLocationType(),
+                                    row.getBatchNo(), row.getSupplierName(), row.getExpiryDate(),
+                                    // Named monthsToExpiry, but it holds days (negative once expired).
+                                    row.getMonthsToExpiry(),
+                                    EXPIRY_STATUS_LABELS.getOrDefault(row.getExpiryStatus(), row.getExpiryStatus()),
+                                    row.getQuantity(), row.getDamagedQuantity()));
+                        }
+
+                        if (batch.isEmpty()) {
+                            break;
+                        }
+                    }
+
+                    writer.finish();
+                }
+            }
+        };
+    }
+
+
+    // The report as the filters define it, shared by the screen, print and
+    // export: the user, the as-of date, the resolved locations, and the CTE
+    // SQL with its parameters.
+    private record ReportQuery(
+            UserDetails user,
+            LocalDate asOfDate,
+            List<String> pharmacyIds,
+            List<String> warehouseIds,
+            String sql,
+            Map<String, Object> params) {
+    }
+
+
+    private ReportQuery prepareReport(StockExpiryReportFilter filter, UserDetails user) {
+
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -93,32 +273,40 @@ public class StockExpiryReportImpl implements StockExpiryReportService {
             throw new AccessDeniedException("You do not have access to any pharmacy or warehouse.");
         }
 
-        int size = filter.getSize() == null || filter.getSize() < 1
-                ? DEFAULT_PAGE_SIZE
-                : Math.min(filter.getSize(), MAX_PAGE_SIZE);
-        int page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
-        long offset = (long) page * size;
-
         Map<String, Object> params = new HashMap<>();
         LocalDate asOfDate = filter.getAsOfDate() != null ? filter.getAsOfDate() : LocalDate.now();
         String reportSql = buildReportSql(filter, pharmacyIds, warehouseIds, asOfDate, params);
 
-        long totalRecords = fetchTotalRecords(reportSql, params);
+        return new ReportQuery(persistentUser, asOfDate, pharmacyIds, warehouseIds, reportSql, params);
+    }
 
-        StockExpiryReportPageDto details = new StockExpiryReportPageDto();
-        details.setData(fetchPage(reportSql, params, filter, size, offset));
-        details.setPage(page);
-        details.setSize(size);
-        details.setTotalRecords(totalRecords);
-        details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
-        StockExpiryReportResponse response = new StockExpiryReportResponse();
-        response.setSummary(fetchSummary(reportSql, params));
-        response.setExpiryDetails(details);
-        response.setGeneratedBy(persistentUser.getFullName());
-        response.setGeneratedOn(LocalDateTime.now());
+    // Names in the order the ids were given; an unknown id is shown as is.
+    private String pharmacyNames(List<String> pharmacyIds) {
 
-        return response;
+        Map<String, String> names = new HashMap<>();
+
+        for (PharmacyDetails pharmacy : pharmacyDetailsRepository.findAllById(pharmacyIds)) {
+            names.put(pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        }
+
+        return String.join(", ", pharmacyIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
+    }
+
+
+    private String warehouseNames(List<String> warehouseIds) {
+
+        Map<String, String> names = new HashMap<>();
+
+        for (Warehouse warehouse : warehouseRepository.findAllById(warehouseIds)) {
+            names.put(warehouse.getWarehouseId(), warehouse.getWarehouseName());
+        }
+
+        return String.join(", ", warehouseIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
     }
 
 

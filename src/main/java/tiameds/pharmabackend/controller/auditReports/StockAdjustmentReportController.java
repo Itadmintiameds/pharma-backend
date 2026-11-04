@@ -1,7 +1,10 @@
 package tiameds.pharmabackend.controller.auditReports;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,7 +14,9 @@ import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportFilter;
 import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportResponse;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.auditReports.StockAdjustmentReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -52,6 +57,7 @@ public class StockAdjustmentReportController {
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(defaultValue = "adjustmentDate") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(required = false) Boolean unpaged,
 
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
@@ -76,11 +82,43 @@ public class StockAdjustmentReportController {
         filter.setSize(size);
         filter.setSortBy(sortBy);
         filter.setSortDir(sortDir);
+        filter.setUnpaged(unpaged);
 
         StockAdjustmentReportResponse report =
                 stockAdjustmentReportService.getStockAdjustmentReport(filter, currentUser.getUser());
 
         return ResponseEntity.ok(report);
+    }
+
+
+    /**
+     * CSV / Excel download of the Stock Adjustment Report:
+     *   /auditReports/stock-adjustment/export?format=xlsx&<the report's filters>
+     * format is csv or xlsx. page and size are ignored: every matching row is
+     * written, in the order sortBy / sortDir give. Written straight to the
+     * response, so the file streams out as it is built.
+     */
+    @PreAuthorize("@access.has('REPORTS/STOCK_ADJUSTMENT_REPORT/VIEW')")
+    @GetMapping("/stock-adjustment/export")
+    public void exportStockAdjustmentReport(
+            @RequestParam String format,
+            @ModelAttribute StockAdjustmentReportFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            HttpServletResponse response) throws IOException {
+
+        if (currentUser == null) {
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            return;
+        }
+
+        ReportExport export =
+                stockAdjustmentReportService.exportStockAdjustmentReport(filter, format, currentUser.getUser());
+
+        response.setContentType(export.contentType());
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename(export.fileName()).build().toString());
+
+        export.writeTo(response.getOutputStream());
     }
 
     /**

@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -13,7 +14,10 @@ public class StockReturnReportFilter {
     // Reporting period on the return date, both days inclusive. The
     // Today / Specific Day / By Month / By Date Range tabs all map onto these.
     // Missing fromDate = today; missing toDate = fromDate.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate toDate;
 
     // Locations. Neither sent = every pharmacy and warehouse the user can
@@ -59,6 +63,10 @@ public class StockReturnReportFilter {
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // returnDate, referenceNumber, returnType, source, destination,
     // productName, batchNo, expiryDate, returnReason, returnedQuantity.

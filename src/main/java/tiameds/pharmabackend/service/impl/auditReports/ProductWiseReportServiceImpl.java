@@ -22,12 +22,18 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.auditReports.ProductWiseReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+import tiameds.pharmabackend.service.impl.financialReport.export.ExportFormat;
+import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -37,6 +43,28 @@ public class ProductWiseReportServiceImpl implements ProductWiseReportService {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+
+    // Print / PDF (unpaged) is refused above this many rows; the client
+    // should narrow the filters or download Excel instead.
+    private static final int PRINT_ROW_LIMIT = 2000;
+
+    // The CSV / Excel export reads the report in batches of this size, so
+    // memory use stays flat however many rows there are.
+    private static final int EXPORT_BATCH_SIZE = 2000;
+
+    // An .xlsx sheet holds 1,048,576 rows; the title block needs a few.
+    private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+
+    // One row per product batch, with both the Quantity Analysis and the
+    // Purchase and Sales Value Analysis columns.
+    private static final List<String> EXPORT_HEADERS = List.of(
+            "Product Name", "Batch No",
+            "Purchase Qty", "Supplier Return Qty", "Net Purchase Qty",
+            "Sales Qty", "Sales Return Qty", "Net Sales Qty",
+            "Purchase Amount", "Supplier Return Amount", "Net Purchase Amount",
+            "Sales Amount", "Sales Return Amount", "Net Sales Amount");
 
     // Whitelist of sortable columns: the client sends the key, never SQL.
     private static final Map<String, String> SORT_COLUMNS = Map.ofEntries(
@@ -69,6 +97,178 @@ public class ProductWiseReportServiceImpl implements ProductWiseReportService {
             ProductWiseReportFilter filter,
             UserDetails user) {
 
+        ReportQuery report = prepareReport(filter, user);
+
+        ProductWiseReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        long totalRecords = summary.getLineItemCount();
+
+        int size;
+        int page;
+
+        if (Boolean.TRUE.equals(filter.getUnpaged())) {
+            if (totalRecords > PRINT_ROW_LIMIT) {
+                throw new IllegalArgumentException(
+                        "Too many rows to print (" + totalRecords + "). The limit is " + PRINT_ROW_LIMIT
+                                + ". Narrow the filters or download Excel.");
+            }
+            size = (int) Math.max(totalRecords, 1);
+            page = 0;
+        } else {
+            size = filter.getSize() == null || filter.getSize() < 1
+                    ? DEFAULT_PAGE_SIZE
+                    : Math.min(filter.getSize(), MAX_PAGE_SIZE);
+            page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
+        }
+
+        long offset = (long) page * size;
+
+        ProductWiseReportPageDto details = new ProductWiseReportPageDto();
+        details.setData(totalRecords == 0
+                ? List.of()
+                : fetchPage(report.sql(), report.params(), filter, size, offset));
+        details.setPage(page);
+        details.setSize(size);
+        details.setTotalRecords(totalRecords);
+        details.setTotalPages((int) ((totalRecords + size - 1) / size));
+
+        ProductWiseReportResponse response = new ProductWiseReportResponse();
+        response.setSummary(summary);
+        response.setProductDetails(details);
+        response.setGeneratedBy(report.user().getFullName());
+        response.setGeneratedOn(LocalDateTime.now());
+
+        return response;
+    }
+
+
+    // Runs the KPI totals (which carry the row count) now, so bad filters,
+    // missing access and the Excel row limit fail before any of the file has
+    // been sent.
+    @Override
+    public ReportExport exportProductWiseReport(
+            ProductWiseReportFilter filter,
+            String format,
+            UserDetails user) {
+
+        ExportFormat exportFormat = ExportFormat.parse(format);
+        ReportQuery report = prepareReport(filter, user);
+
+        ProductWiseReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        long totalRecords = summary.getLineItemCount();
+
+        if (exportFormat == ExportFormat.XLSX && totalRecords > EXCEL_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
+        }
+
+        String generatedBy = report.user().getFullName();
+        LocalDateTime generatedOn = LocalDateTime.now();
+        String pharmacies = pharmacyNames(report.pharmacyIds());
+        String warehouses = warehouseNames(report.warehouseIds());
+
+        boolean singleDay = report.fromDate().equals(report.toDate());
+        String period = singleDay
+                ? report.fromDate().format(DISPLAY_DATE)
+                : report.fromDate().format(DISPLAY_DATE) + " to " + report.toDate().format(DISPLAY_DATE);
+        // product-wise_2026-10-08, product-wise_2026-10-01_to_2026-10-08
+        String fileName = "product-wise_"
+                + (singleDay ? report.fromDate() : report.fromDate() + "_to_" + report.toDate())
+                + exportFormat.extension();
+
+        return new ReportExport() {
+
+            @Override
+            public String fileName() {
+                return fileName;
+            }
+
+            @Override
+            public String contentType() {
+                return exportFormat.contentType();
+            }
+
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+
+                try (ReportTableWriter writer = exportFormat.open(out)) {
+
+                    writer.title("Product-wise Purchase and Sales Analysis Report");
+                    if (!pharmacies.isEmpty()) {
+                        writer.line("Pharmacy", pharmacies);
+                    }
+                    if (!warehouses.isEmpty()) {
+                        writer.line("Warehouse", warehouses);
+                    }
+                    writer.line("Reporting Period", period);
+                    writer.line("Generated By", generatedBy);
+                    writer.line("Generated On", generatedOn);
+                    writer.blank();
+
+                    writer.line("Products", summary.getProductCount());
+                    writer.line("Product Batches", summary.getLineItemCount());
+                    writer.line("Net Purchase Quantity", summary.getTotalNetPurchaseQuantity());
+                    writer.line("Net Sales Quantity", summary.getTotalNetSaleQuantity());
+                    writer.line("Net Purchase Amount", summary.getTotalNetPurchaseAmount());
+                    writer.line("Net Sales Amount", summary.getTotalNetSaleAmount());
+                    writer.blank();
+
+                    writer.header(EXPORT_HEADERS);
+
+                    for (long offset = 0; offset < totalRecords; offset += EXPORT_BATCH_SIZE) {
+
+                        List<ProductWiseReportRowDto> batch =
+                                fetchPage(report.sql(), report.params(), filter, EXPORT_BATCH_SIZE, offset);
+
+                        for (ProductWiseReportRowDto row : batch) {
+                            writer.row(Arrays.asList(
+                                    row.getProductName(), row.getBatchNo(),
+                                    row.getPurchaseQuantity(), row.getSupplierReturnQuantity(),
+                                    row.getNetPurchaseQuantity(),
+                                    row.getSaleQuantity(), row.getSalesReturnQuantity(), row.getNetSaleQuantity(),
+                                    row.getPurchaseAmount(), row.getSupplierReturnAmount(),
+                                    row.getNetPurchaseAmount(),
+                                    row.getSaleAmount(), row.getSalesReturnAmount(), row.getNetSaleAmount()));
+                        }
+
+                        if (batch.isEmpty()) {
+                            break;
+                        }
+                    }
+
+                    writer.row(Arrays.asList(
+                            "Total", null,
+                            summary.getTotalPurchaseQuantity(), summary.getTotalSupplierReturnQuantity(),
+                            summary.getTotalNetPurchaseQuantity(),
+                            summary.getTotalSaleQuantity(), summary.getTotalSalesReturnQuantity(),
+                            summary.getTotalNetSaleQuantity(),
+                            summary.getTotalPurchaseAmount(), summary.getTotalSupplierReturnAmount(),
+                            summary.getTotalNetPurchaseAmount(),
+                            summary.getTotalSaleAmount(), summary.getTotalSalesReturnAmount(),
+                            summary.getTotalNetSaleAmount()));
+
+                    writer.finish();
+                }
+            }
+        };
+    }
+
+
+    // The report as the filters define it, shared by the screen, print and
+    // export: the user, the resolved period and locations, and the CTE SQL
+    // with its parameters.
+    private record ReportQuery(
+            UserDetails user,
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<String> pharmacyIds,
+            List<String> warehouseIds,
+            String sql,
+            Map<String, Object> params) {
+    }
+
+
+    private ReportQuery prepareReport(ProductWiseReportFilter filter, UserDetails user) {
+
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -100,34 +300,39 @@ public class ProductWiseReportServiceImpl implements ProductWiseReportService {
             throw new AccessDeniedException("You do not have access to any pharmacy or warehouse.");
         }
 
-        int size = filter.getSize() == null || filter.getSize() < 1
-                ? DEFAULT_PAGE_SIZE
-                : Math.min(filter.getSize(), MAX_PAGE_SIZE);
-        int page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
-        long offset = (long) page * size;
-
         Map<String, Object> params = new HashMap<>();
         String reportSql = buildReportSql(filter, pharmacyIds, warehouseIds, fromDate, toDate, params);
 
-        ProductWiseReportSummaryDto summary = fetchSummary(reportSql, params);
-        long totalRecords = summary.getLineItemCount();
+        return new ReportQuery(persistentUser, fromDate, toDate, pharmacyIds, warehouseIds, reportSql, params);
+    }
 
-        ProductWiseReportPageDto details = new ProductWiseReportPageDto();
-        details.setData(totalRecords == 0
-                ? List.of()
-                : fetchPage(reportSql, params, filter, size, offset));
-        details.setPage(page);
-        details.setSize(size);
-        details.setTotalRecords(totalRecords);
-        details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
-        ProductWiseReportResponse response = new ProductWiseReportResponse();
-        response.setSummary(summary);
-        response.setProductDetails(details);
-        response.setGeneratedBy(persistentUser.getFullName());
-        response.setGeneratedOn(LocalDateTime.now());
+    // Names in the order the ids were given; an unknown id is shown as is.
+    private String pharmacyNames(List<String> pharmacyIds) {
 
-        return response;
+        Map<String, String> names = new HashMap<>();
+
+        for (PharmacyDetails pharmacy : pharmacyDetailsRepository.findAllById(pharmacyIds)) {
+            names.put(pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        }
+
+        return String.join(", ", pharmacyIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
+    }
+
+
+    private String warehouseNames(List<String> warehouseIds) {
+
+        Map<String, String> names = new HashMap<>();
+
+        for (Warehouse warehouse : warehouseRepository.findAllById(warehouseIds)) {
+            names.put(warehouse.getWarehouseId(), warehouse.getWarehouseName());
+        }
+
+        return String.join(", ", warehouseIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
     }
 
 

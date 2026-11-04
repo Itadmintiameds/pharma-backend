@@ -21,13 +21,19 @@ import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.auditReports.SupplierOutstandingReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+import tiameds.pharmabackend.service.impl.financialReport.export.ExportFormat;
+import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -37,6 +43,24 @@ public class SupplierOutstandingReportServiceImpl implements SupplierOutstanding
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+
+    // Print / PDF (unpaged) is refused above this many rows; the client
+    // should narrow the filters or download Excel instead.
+    private static final int PRINT_ROW_LIMIT = 2000;
+
+    // The CSV / Excel export reads the report in batches of this size, so
+    // memory use stays flat however many rows there are.
+    private static final int EXPORT_BATCH_SIZE = 2000;
+
+    // An .xlsx sheet holds 1,048,576 rows; the title block needs a few.
+    private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+
+    private static final List<String> EXPORT_HEADERS = List.of(
+            "Pharmacy / Warehouse", "Supplier", "Purchase Invoice No", "GRN No",
+            "Invoice Date", "Due Date", "Invoice Amount", "Total Paid", "Purchase Return Adjusted",
+            "Current Outstanding", "Supplier Credit", "Overdue Days", "Outstanding Status");
 
     // Purchases bought on credit; only these carry a payable to the supplier.
     private static final String PAYMENT_TYPE_CREDIT = "CREDIT";
@@ -79,6 +103,177 @@ public class SupplierOutstandingReportServiceImpl implements SupplierOutstanding
     public SupplierOutstandingReportResponse getSupplierOutstandingReport(
             SupplierOutstandingReportFilter filter,
             UserDetails user) {
+
+        ReportQuery report = prepareReport(filter, user);
+
+        long totalRecords = fetchTotalRecords(report.sql(), report.params());
+
+        int size;
+        int page;
+
+        if (Boolean.TRUE.equals(filter.getUnpaged())) {
+            if (totalRecords > PRINT_ROW_LIMIT) {
+                throw new IllegalArgumentException(
+                        "Too many rows to print (" + totalRecords + "). The limit is " + PRINT_ROW_LIMIT
+                                + ". Narrow the filters or download Excel.");
+            }
+            size = (int) Math.max(totalRecords, 1);
+            page = 0;
+        } else {
+            size = filter.getSize() == null || filter.getSize() < 1
+                    ? DEFAULT_PAGE_SIZE
+                    : Math.min(filter.getSize(), MAX_PAGE_SIZE);
+            page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
+        }
+
+        long offset = (long) page * size;
+
+        SupplierOutstandingReportPageDto details = new SupplierOutstandingReportPageDto();
+        details.setData(totalRecords == 0
+                ? List.of()
+                : fetchPage(report.sql(), report.params(), filter, size, offset));
+        details.setPage(page);
+        details.setSize(size);
+        details.setTotalRecords(totalRecords);
+        details.setTotalPages((int) ((totalRecords + size - 1) / size));
+
+        SupplierOutstandingReportResponse response = new SupplierOutstandingReportResponse();
+        response.setSummary(fetchSummary(report.sql(), report.params()));
+        response.setOutstandingInvoices(details);
+        response.setFromDate(report.fromDate());
+        response.setToDate(report.toDate());
+        response.setOutstandingAsOf(report.today());
+        response.setGeneratedBy(report.user().getFullName());
+        response.setGeneratedOn(LocalDateTime.now());
+
+        return response;
+    }
+
+
+    // Runs the count and the KPI totals now, so bad filters, missing access
+    // and the Excel row limit fail before any of the file has been sent.
+    @Override
+    public ReportExport exportSupplierOutstandingReport(
+            SupplierOutstandingReportFilter filter,
+            String format,
+            UserDetails user) {
+
+        ExportFormat exportFormat = ExportFormat.parse(format);
+        ReportQuery report = prepareReport(filter, user);
+
+        long totalRecords = fetchTotalRecords(report.sql(), report.params());
+
+        if (exportFormat == ExportFormat.XLSX && totalRecords > EXCEL_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
+        }
+
+        SupplierOutstandingReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        String generatedBy = report.user().getFullName();
+        LocalDateTime generatedOn = LocalDateTime.now();
+        String pharmacies = pharmacyNames(report.pharmacyIds());
+        String warehouses = warehouseNames(report.warehouseIds());
+
+        // Same reading of the filter as the report itself: none / ALL = every status.
+        List<String> statuses = parseOutstandingStatus(filter.getOutstandingStatus());
+        String statusLabel = statuses == null ? "All" : String.join(", ", statuses);
+
+        boolean singleDay = report.fromDate().equals(report.toDate());
+        String period = singleDay
+                ? report.fromDate().format(DISPLAY_DATE)
+                : report.fromDate().format(DISPLAY_DATE) + " to " + report.toDate().format(DISPLAY_DATE);
+        // supplier-outstanding_2026-10-08, supplier-outstanding_2026-10-01_to_2026-10-08
+        String fileName = "supplier-outstanding_"
+                + (singleDay ? report.fromDate() : report.fromDate() + "_to_" + report.toDate())
+                + exportFormat.extension();
+
+        return new ReportExport() {
+
+            @Override
+            public String fileName() {
+                return fileName;
+            }
+
+            @Override
+            public String contentType() {
+                return exportFormat.contentType();
+            }
+
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+
+                try (ReportTableWriter writer = exportFormat.open(out)) {
+
+                    writer.title("Supplier Outstanding Report");
+                    if (!pharmacies.isEmpty()) {
+                        writer.line("Pharmacy", pharmacies);
+                    }
+                    if (!warehouses.isEmpty()) {
+                        writer.line("Warehouse", warehouses);
+                    }
+                    writer.line("Reporting Period", period);
+                    writer.line("Outstanding As of", report.today().format(DISPLAY_DATE));
+                    writer.line("Outstanding Status", statusLabel);
+                    writer.line("Generated By", generatedBy);
+                    writer.line("Generated On", generatedOn);
+                    writer.blank();
+
+                    writer.line("Total Credit Invoice Amount", summary.getTotalCreditInvoiceAmount());
+                    writer.line("Invoices With Outstanding Balance", summary.getOutstandingInvoiceCount());
+                    writer.line("Total Supplier Payable", summary.getTotalSupplierPayable());
+                    writer.line("Payable Share %", summary.getPayableSharePercentage());
+                    writer.line("Overdue Payable", summary.getOverduePayable());
+                    writer.line("Overdue Invoices", summary.getOverdueInvoiceCount());
+                    writer.line("Supplier Credit", summary.getSupplierCredit());
+                    writer.line("Total Paid", summary.getTotalPaid());
+                    writer.line("Total Purchase Return Adjusted", summary.getTotalPurchaseReturnAdjusted());
+                    writer.blank();
+
+                    writer.header(EXPORT_HEADERS);
+
+                    for (long offset = 0; offset < totalRecords; offset += EXPORT_BATCH_SIZE) {
+
+                        List<SupplierOutstandingReportRowDto> batch =
+                                fetchPage(report.sql(), report.params(), filter, EXPORT_BATCH_SIZE, offset);
+
+                        for (SupplierOutstandingReportRowDto row : batch) {
+                            writer.row(Arrays.asList(
+                                    row.getLocationName(), row.getSupplierName(),
+                                    row.getInvoiceNumber(), row.getGrnNumber(),
+                                    row.getInvoiceDate(), row.getDueDate(),
+                                    row.getInvoiceAmount(), row.getTotalPaid(), row.getPurchaseReturnAdjusted(),
+                                    row.getCurrentOutstanding(), row.getSupplierCredit(),
+                                    row.getOverdueDays(), row.getOutstandingStatus()));
+                        }
+
+                        if (batch.isEmpty()) {
+                            break;
+                        }
+                    }
+
+                    writer.finish();
+                }
+            }
+        };
+    }
+
+
+    // The report as the filters define it, shared by the screen, print and
+    // export: the user, the resolved period and locations, the day the
+    // outstanding is worked out on, and the CTE SQL with its parameters.
+    private record ReportQuery(
+            UserDetails user,
+            LocalDate fromDate,
+            LocalDate toDate,
+            LocalDate today,
+            List<String> pharmacyIds,
+            List<String> warehouseIds,
+            String sql,
+            Map<String, Object> params) {
+    }
+
+
+    private ReportQuery prepareReport(SupplierOutstandingReportFilter filter, UserDetails user) {
 
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -143,36 +338,39 @@ public class SupplierOutstandingReportServiceImpl implements SupplierOutstanding
 
         LocalDate today = LocalDate.now();
 
-        int size = filter.getSize() == null || filter.getSize() < 1
-                ? DEFAULT_PAGE_SIZE
-                : Math.min(filter.getSize(), MAX_PAGE_SIZE);
-        int page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
-        long offset = (long) page * size;
-
         Map<String, Object> params = new HashMap<>();
         String reportSql = buildReportSql(filter, pharmacyIds, warehouseIds, fromDate, toDate, today, params);
 
-        long totalRecords = fetchTotalRecords(reportSql, params);
+        return new ReportQuery(persistentUser, fromDate, toDate, today, pharmacyIds, warehouseIds, reportSql, params);
+    }
 
-        SupplierOutstandingReportPageDto details = new SupplierOutstandingReportPageDto();
-        details.setData(totalRecords == 0
-                ? List.of()
-                : fetchPage(reportSql, params, filter, size, offset));
-        details.setPage(page);
-        details.setSize(size);
-        details.setTotalRecords(totalRecords);
-        details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
-        SupplierOutstandingReportResponse response = new SupplierOutstandingReportResponse();
-        response.setSummary(fetchSummary(reportSql, params));
-        response.setOutstandingInvoices(details);
-        response.setFromDate(fromDate);
-        response.setToDate(toDate);
-        response.setOutstandingAsOf(today);
-        response.setGeneratedBy(persistentUser.getFullName());
-        response.setGeneratedOn(LocalDateTime.now());
+    // Names in the order the ids were given; an unknown id is shown as is.
+    private String pharmacyNames(List<String> pharmacyIds) {
 
-        return response;
+        Map<String, String> names = new HashMap<>();
+
+        for (PharmacyDetails pharmacy : pharmacyDetailsRepository.findAllById(pharmacyIds)) {
+            names.put(pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        }
+
+        return String.join(", ", pharmacyIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
+    }
+
+
+    private String warehouseNames(List<String> warehouseIds) {
+
+        Map<String, String> names = new HashMap<>();
+
+        for (Warehouse warehouse : warehouseRepository.findAllById(warehouseIds)) {
+            names.put(warehouse.getWarehouseId(), warehouse.getWarehouseName());
+        }
+
+        return String.join(", ", warehouseIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
     }
 
 

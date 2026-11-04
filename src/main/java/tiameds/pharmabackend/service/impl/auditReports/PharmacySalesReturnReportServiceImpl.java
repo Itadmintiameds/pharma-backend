@@ -21,13 +21,19 @@ import tiameds.pharmabackend.enums.SalesReturnStatus;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.service.auditReports.PharmacySalesReturnReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+import tiameds.pharmabackend.service.impl.financialReport.export.ExportFormat;
+import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -37,6 +43,38 @@ public class PharmacySalesReturnReportServiceImpl implements PharmacySalesReturn
 
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
+
+    // Print / PDF (unpaged) is refused above this many rows; the client
+    // should narrow the filters or download Excel instead.
+    private static final int PRINT_ROW_LIMIT = 2000;
+
+    // The CSV / Excel export reads the report in batches of this size, so
+    // memory use stays flat however many rows there are.
+    private static final int EXPORT_BATCH_SIZE = 2000;
+
+    // An .xlsx sheet holds 1,048,576 rows; the title block and the
+    // settlement summary need a few.
+    private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+
+    // The batch expiry, as the screen shows it: "12/2027".
+    private static final DateTimeFormatter EXPIRY_MONTH = DateTimeFormatter.ofPattern("MM/yyyy");
+
+    private static final List<String> EXPORT_HEADERS = List.of(
+            "Return Date", "Sales Return No", "Bill No", "Pharmacy", "Patient Type",
+            "Product Name", "Batch No", "Expiry", "Return Quantity", "Return Reason",
+            "Selling Amount", "Discount", "Taxable Amount", "GST Amount", "Return Amount");
+
+    private static final List<String> SETTLEMENT_HEADERS = List.of(
+            "Sales Return No", "Patient Type", "Return Amount", "Outstanding Adjustment", "Refund Amount");
+
+    // Patient Type in the export, as the screen words it.
+    private static final Map<String, String> CUSTOMER_TYPE_LABELS = Map.of(
+            "WALK_IN", "Walk-in",
+            "OP_PATIENT", "OP Patient",
+            "IP_PATIENT", "IP Patient",
+            "DAYCARE", "Daycare");
 
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
@@ -85,6 +123,191 @@ public class PharmacySalesReturnReportServiceImpl implements PharmacySalesReturn
             PharmacySalesReturnReportFilter filter,
             UserDetails user) {
 
+        ReportQuery report = prepareReport(filter, user);
+
+        long totalRecords = fetchTotalRecords(report.sql(), report.params());
+
+        int size;
+        int page;
+
+        if (Boolean.TRUE.equals(filter.getUnpaged())) {
+            if (totalRecords > PRINT_ROW_LIMIT) {
+                throw new IllegalArgumentException(
+                        "Too many rows to print (" + totalRecords + "). The limit is " + PRINT_ROW_LIMIT
+                                + ". Narrow the filters or download Excel.");
+            }
+            size = (int) Math.max(totalRecords, 1);
+            page = 0;
+        } else {
+            size = filter.getSize() == null || filter.getSize() < 1
+                    ? DEFAULT_PAGE_SIZE
+                    : Math.min(filter.getSize(), MAX_PAGE_SIZE);
+            page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
+        }
+
+        long offset = (long) page * size;
+
+        PharmacySalesReturnReportPageDto details = new PharmacySalesReturnReportPageDto();
+        details.setData(fetchPage(report.sql(), report.params(), filter, size, offset));
+        details.setPage(page);
+        details.setSize(size);
+        details.setTotalRecords(totalRecords);
+        details.setTotalPages((int) ((totalRecords + size - 1) / size));
+
+        PharmacySalesReturnReportResponse response = new PharmacySalesReturnReportResponse();
+        response.setSummary(fetchSummary(report.sql(), report.params()));
+        response.setSalesReturnTransactions(details);
+        response.setSettlementSummary(fetchSettlementSummary(report.sql(), report.params()));
+        response.setStatus(SalesReturnStatus.COMPLETED.getLabel());
+        response.setFromDate(report.fromDate());
+        response.setToDate(report.toDate());
+        response.setGeneratedBy(report.user().getFullName());
+        response.setGeneratedOn(LocalDateTime.now());
+
+        return response;
+    }
+
+
+    // Runs the count, the KPI totals and the settlement summary now, so bad
+    // filters, missing access and the Excel row limit fail before any of the
+    // file has been sent.
+    @Override
+    public ReportExport exportPharmacySalesReturnReport(
+            PharmacySalesReturnReportFilter filter,
+            String format,
+            UserDetails user) {
+
+        ExportFormat exportFormat = ExportFormat.parse(format);
+        ReportQuery report = prepareReport(filter, user);
+
+        long totalRecords = fetchTotalRecords(report.sql(), report.params());
+        List<PharmacySalesReturnSettlementRowDto> settlements =
+                fetchSettlementSummary(report.sql(), report.params());
+
+        if (exportFormat == ExportFormat.XLSX && totalRecords + settlements.size() > EXCEL_ROW_LIMIT) {
+            throw new IllegalArgumentException(
+                    "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
+        }
+
+        PharmacySalesReturnReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        String generatedBy = report.user().getFullName();
+        LocalDateTime generatedOn = LocalDateTime.now();
+        String pharmacies = pharmacyNames(report.pharmacyIds());
+
+        boolean singleDay = report.fromDate().equals(report.toDate());
+        String period = singleDay
+                ? report.fromDate().format(DISPLAY_DATE)
+                : report.fromDate().format(DISPLAY_DATE) + " to " + report.toDate().format(DISPLAY_DATE);
+        // pharmacy-sales-return_2026-10-08, pharmacy-sales-return_2026-10-01_to_2026-10-08
+        String fileName = "pharmacy-sales-return_"
+                + (singleDay ? report.fromDate() : report.fromDate() + "_to_" + report.toDate())
+                + exportFormat.extension();
+
+        return new ReportExport() {
+
+            @Override
+            public String fileName() {
+                return fileName;
+            }
+
+            @Override
+            public String contentType() {
+                return exportFormat.contentType();
+            }
+
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+
+                try (ReportTableWriter writer = exportFormat.open(out)) {
+
+                    writer.title("Pharmacy Sales Return Report");
+                    writer.line("Pharmacy", pharmacies);
+                    writer.line("Reporting Period", period);
+                    writer.line("Status", SalesReturnStatus.COMPLETED.getLabel());
+                    writer.line("Generated By", generatedBy);
+                    writer.line("Generated On", generatedOn);
+                    writer.blank();
+
+                    writer.line("Sales Return Transactions", summary.getTotalSalesReturnTransactions());
+                    writer.line("Return Lines", summary.getTotalReturnLines());
+                    writer.line("Return Quantity", summary.getTotalReturnQuantity());
+                    writer.line("Historical Amount", summary.getTotalHistoricalAmount());
+                    writer.line("Discount Reversed", summary.getTotalDiscountReversed());
+                    writer.line("Taxable Amount Reversed", summary.getTotalTaxableAmountReversed());
+                    writer.line("GST Reversed", summary.getTotalGstReversed());
+                    writer.line("Total Return Amount", summary.getTotalReturnAmount());
+                    writer.line("Outstanding Adjustment", summary.getTotalOutstandingAdjustment());
+                    writer.line("Outstanding Adjustment %", summary.getOutstandingAdjustmentPercentage());
+                    writer.line("Refund Amount", summary.getTotalRefundAmount());
+                    writer.line("Refund %", summary.getRefundPercentage());
+                    writer.blank();
+
+                    writer.header(EXPORT_HEADERS);
+
+                    for (long offset = 0; offset < totalRecords; offset += EXPORT_BATCH_SIZE) {
+
+                        List<PharmacySalesReturnReportRowDto> batch =
+                                fetchPage(report.sql(), report.params(), filter, EXPORT_BATCH_SIZE, offset);
+
+                        for (PharmacySalesReturnReportRowDto row : batch) {
+                            writer.row(Arrays.asList(
+                                    row.getReturnDate(), row.getSalesReturnNo(), row.getBillNo(),
+                                    row.getPharmacyName(), customerTypeLabel(row.getCustomerType()),
+                                    row.getProductName(), row.getBatchNumber(),
+                                    row.getExpiryDate() == null ? null : row.getExpiryDate().format(EXPIRY_MONTH),
+                                    row.getReturnQuantity(), row.getReturnReason(),
+                                    row.getSellingAmount(), row.getDiscountAmount(), row.getTaxableAmount(),
+                                    row.getGstAmount(), row.getLineReturnAmount()));
+                        }
+
+                        if (batch.isEmpty()) {
+                            break;
+                        }
+                    }
+
+                    writer.row(Arrays.asList(
+                            "Total", null, null, null, null, null, null, null,
+                            summary.getTotalReturnQuantity(), null,
+                            summary.getTotalHistoricalAmount(), summary.getTotalDiscountReversed(),
+                            summary.getTotalTaxableAmountReversed(), summary.getTotalGstReversed(),
+                            summary.getTotalReturnAmount()));
+                    writer.blank();
+
+                    // Sales Return Settlement Summary: one row per return, with its Total row.
+                    writer.title("Sales Return Settlement Summary");
+                    writer.header(SETTLEMENT_HEADERS);
+                    for (PharmacySalesReturnSettlementRowDto settlement : settlements) {
+                        writer.row(Arrays.asList(
+                                settlement.getSalesReturnNo(), customerTypeLabel(settlement.getCustomerType()),
+                                settlement.getReturnAmount(), settlement.getOutstandingAdjustment(),
+                                settlement.getRefundAmount()));
+                    }
+                    writer.row(Arrays.asList(
+                            "Total", null, summary.getTotalReturnAmount(),
+                            summary.getTotalOutstandingAdjustment(), summary.getTotalRefundAmount()));
+
+                    writer.finish();
+                }
+            }
+        };
+    }
+
+
+    // The report as the filters define it, shared by the screen, print and
+    // export: the user, the resolved period and pharmacies, and the CTE SQL
+    // with its parameters.
+    private record ReportQuery(
+            UserDetails user,
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<String> pharmacyIds,
+            String sql,
+            Map<String, Object> params) {
+    }
+
+
+    private ReportQuery prepareReport(PharmacySalesReturnReportFilter filter, UserDetails user) {
+
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -102,35 +325,30 @@ public class PharmacySalesReturnReportServiceImpl implements PharmacySalesReturn
 
         List<String> pharmacyIds = resolvePharmacyIds(filter.getPharmacyIds(), persistentUser);
 
-        int size = filter.getSize() == null || filter.getSize() < 1
-                ? DEFAULT_PAGE_SIZE
-                : Math.min(filter.getSize(), MAX_PAGE_SIZE);
-        int page = filter.getPage() == null || filter.getPage() < 0 ? 0 : filter.getPage();
-        long offset = (long) page * size;
-
         Map<String, Object> params = new HashMap<>();
         String reportSql = buildReportSql(filter, pharmacyIds, fromDate, toDate, params);
 
-        long totalRecords = fetchTotalRecords(reportSql, params);
+        return new ReportQuery(persistentUser, fromDate, toDate, pharmacyIds, reportSql, params);
+    }
 
-        PharmacySalesReturnReportPageDto details = new PharmacySalesReturnReportPageDto();
-        details.setData(fetchPage(reportSql, params, filter, size, offset));
-        details.setPage(page);
-        details.setSize(size);
-        details.setTotalRecords(totalRecords);
-        details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
-        PharmacySalesReturnReportResponse response = new PharmacySalesReturnReportResponse();
-        response.setSummary(fetchSummary(reportSql, params));
-        response.setSalesReturnTransactions(details);
-        response.setSettlementSummary(fetchSettlementSummary(reportSql, params));
-        response.setStatus(SalesReturnStatus.COMPLETED.getLabel());
-        response.setFromDate(fromDate);
-        response.setToDate(toDate);
-        response.setGeneratedBy(persistentUser.getFullName());
-        response.setGeneratedOn(LocalDateTime.now());
+    // Names in the order the ids were given; an unknown id is shown as is.
+    private String pharmacyNames(List<String> pharmacyIds) {
 
-        return response;
+        Map<String, String> names = new HashMap<>();
+
+        for (PharmacyDetails pharmacy : pharmacyDetailsRepository.findAllById(pharmacyIds)) {
+            names.put(pharmacy.getPharmacyId(), pharmacy.getPharmacyName());
+        }
+
+        return String.join(", ", pharmacyIds.stream()
+                .map(id -> hasText(names.get(id)) ? names.get(id) : id)
+                .toList());
+    }
+
+
+    private static String customerTypeLabel(String type) {
+        return type == null ? null : CUSTOMER_TYPE_LABELS.getOrDefault(type, type);
     }
 
 

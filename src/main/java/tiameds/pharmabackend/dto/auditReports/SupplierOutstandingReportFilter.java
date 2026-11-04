@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,7 +16,10 @@ public class SupplierOutstandingReportFilter {
     // inclusive. The Today / Specific Day / By Month / By Date Range tabs and
     // the Purchase Invoice Date filter all map onto these.
     // Missing fromDate = today; missing toDate = fromDate.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate toDate;
 
     // Locations, decided by the organization: a multi-pharmacy organization
@@ -36,7 +40,10 @@ public class SupplierOutstandingReportFilter {
 
     // Payment Due Date range (invoice date + credit days), both days
     // inclusive. Either end may be left open.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate dueFromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate dueToDate;
 
     // Outstanding Status: ALL, OUTSTANDING_ONLY (Unpaid + Partially Settled),
@@ -54,6 +61,10 @@ public class SupplierOutstandingReportFilter {
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // supplierName, invoiceNumber, grnNumber, invoiceDate, dueDate,
     // invoiceAmount, totalPaid, purchaseReturnAdjusted, currentOutstanding,

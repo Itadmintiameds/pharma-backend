@@ -1,7 +1,10 @@
 package tiameds.pharmabackend.controller.auditReports;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,7 +14,9 @@ import tiameds.pharmabackend.dto.auditReports.UserWiseCollectionReportFilter;
 import tiameds.pharmabackend.dto.auditReports.UserWiseCollectionReportResponse;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.auditReports.UserWiseCollectionReportService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -48,6 +53,7 @@ public class UserWiseCollectionReportController {
             @RequestParam(defaultValue = "desc") String sortDir,
             @RequestParam(defaultValue = "totalCollection") String summarySortBy,
             @RequestParam(defaultValue = "desc") String summarySortDir,
+            @RequestParam(required = false) Boolean unpaged,
 
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
@@ -68,10 +74,43 @@ public class UserWiseCollectionReportController {
         filter.setSortDir(sortDir);
         filter.setSummarySortBy(summarySortBy);
         filter.setSummarySortDir(summarySortDir);
+        filter.setUnpaged(unpaged);
 
         UserWiseCollectionReportResponse report =
                 userWiseCollectionReportService.getUserWiseCollectionReport(filter, currentUser.getUser());
 
         return ResponseEntity.ok(report);
+    }
+
+
+    /**
+     * CSV / Excel download of the User-wise Collection Report:
+     *   /auditReports/user-wise-collection/export?format=xlsx&<the report's filters>
+     * format is csv or xlsx. page and size are ignored: every matching receipt
+     * is written, in the order sortBy / sortDir give, and the user-wise summary
+     * in the order summarySortBy / summarySortDir give. Written straight to the
+     * response, so the file streams out as it is built.
+     */
+    @PreAuthorize("@access.has('REPORTS/USER_WISE_COLLECTION_REPORT/VIEW')")
+    @GetMapping("/user-wise-collection/export")
+    public void exportUserWiseCollectionReport(
+            @RequestParam String format,
+            @ModelAttribute UserWiseCollectionReportFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            HttpServletResponse response) throws IOException {
+
+        if (currentUser == null) {
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            return;
+        }
+
+        ReportExport export = userWiseCollectionReportService.exportUserWiseCollectionReport(
+                filter, format, currentUser.getUser());
+
+        response.setContentType(export.contentType());
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename(export.fileName()).build().toString());
+
+        export.writeTo(response.getOutputStream());
     }
 }

@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,7 +16,10 @@ public class SupplierPaymentReportFilter {
     // supplier payment, both days inclusive. The Today / Specific Day /
     // By Month / By Date Range tabs map onto these.
     // Missing fromDate = today; missing toDate = fromDate.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate toDate;
 
     // Locations, decided by the organization: a multi-pharmacy organization
@@ -45,6 +49,10 @@ public class SupplierPaymentReportFilter {
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // paymentDate, paymentNumber, supplierName, invoiceNumber, grnNumber,
     // invoiceAmount, paymentAmount, paymentMode, outstandingBefore,

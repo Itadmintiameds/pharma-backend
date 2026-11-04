@@ -1,6 +1,7 @@
 package tiameds.pharmabackend.dto.auditReports;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -13,7 +14,10 @@ public class StockAdjustmentReportFilter {
     // Reporting period on the adjustment date, both days inclusive. The
     // Today / Specific Day / By Month / By Date Range tabs all map onto these.
     // Missing fromDate = today; missing toDate = fromDate.
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate fromDate;
+
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate toDate;
 
     // Not sent = every pharmacy the user can access. Warehouse adjustments
@@ -51,6 +55,10 @@ public class StockAdjustmentReportFilter {
     // 0-based page; offset = page * size.
     private Integer page;
     private Integer size;
+
+    // Print / PDF: every matching row on one page, ignoring page and size.
+    // Refused when there are more rows than the print limit.
+    private Boolean unpaged;
 
     // adjustmentDate, pharmacyName, referenceNumber, productName, batchNo,
     // expiryDate, adjustmentType, adjustmentReason, stockBefore, adjustmentIn,

@@ -6,7 +6,7 @@ import java.util.List;
 
 // Writes an exported report: a title block of label / value lines, then the
 // table. Implemented for CSV and Excel.
-interface ReportTableWriter extends Closeable {
+public interface ReportTableWriter extends Closeable {
 
     void title(String title) throws IOException;
 
