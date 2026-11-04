@@ -11,6 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tiameds.pharmabackend.service.impl.JwtService;
 
@@ -25,6 +26,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
 
     private final CookieUtil cookieUtil;
+
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    /**
+     * The passcode-only endpoints never look at the JWT. They are called by another
+     * service, and a browser's access_token cookie would otherwise turn the request
+     * into that user's, with that user's tenant restrictions.
+     */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+
+        String uri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+
+        if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
+            uri = uri.substring(contextPath.length());
+        }
+
+        if (uri.length() > 1 && uri.endsWith("/")) {
+            uri = uri.substring(0, uri.length() - 1);
+        }
+
+        String path = uri;
+
+        return OperatorPasscode.PATHS.stream()
+                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+    }
 
     @Override
     protected void doFilterInternal(
@@ -49,6 +77,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             return;
         }
+
+        // Whether someone upstream (the API key filter) has already authenticated this
+        // request. A bad cookie must not undo that — see the catch blocks below.
+        boolean authenticatedUpstream =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication() != null;
 
         try {
 
@@ -98,13 +133,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         } catch (JwtException ex) {
 
-            SecurityContextHolder.clearContext();
+            discardPartialAuthentication(authenticatedUpstream);
 
         } catch (Exception ex) {
 
-            SecurityContextHolder.clearContext();
+            discardPartialAuthentication(authenticatedUpstream);
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Drops anything this filter may have half-established after a bad token.
+     * <p>
+     * Only what this filter owns: when the request was already authenticated upstream
+     * — an API key, say — a stale or expired {@code access_token} cookie must leave
+     * that alone. Clearing unconditionally made any lingering cookie in a client
+     * silently revoke a perfectly valid API key, surfacing as a bare 401.
+     */
+    private void discardPartialAuthentication(boolean authenticatedUpstream) {
+
+        if (!authenticatedUpstream) {
+
+            SecurityContextHolder.clearContext();
+        }
     }
 }

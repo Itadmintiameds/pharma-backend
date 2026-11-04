@@ -104,6 +104,21 @@ public class UserDetailsController {
                 userDetailsService.getAllUsers(currentUser.getUserId()));
     }
 
+    // User ids and names of the organization, with their pharmacy ids. Pass
+    // pharmacyIds (repeatable) to list only users of those pharmacies.
+    @GetMapping("/names")
+    public ResponseEntity<?> getUserNames(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @RequestParam(required = false) List<String> pharmacyIds) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(
+                userDetailsService.getUserNames(currentUser.getUserId(), pharmacyIds));
+    }
+
     @GetMapping("/me/permissions")
     public ResponseEntity<CurrentUserPermissionsDto> getMyPermissions(
             @AuthenticationPrincipal CustomUserDetails currentUser) {

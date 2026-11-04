@@ -35,6 +35,38 @@ public interface UserDetailsRepository extends JpaRepository<UserDetails, String
             @Param("organizationId") Long organizationId);
 
 
+    // One row per user and pharmacy; pharmacyId is null for a user with none.
+    @Query("""
+            SELECT u.userId AS userId, u.fullName AS userName, p.pharmacyId AS pharmacyId
+            FROM UserDetails u
+            LEFT JOIN u.pharmacies p
+            WHERE u.organization.organizationId = :organizationId
+            ORDER BY u.fullName, u.userId, p.pharmacyId
+            """)
+    List<UserPharmacyRow> findUserPharmaciesByOrganizationId(
+            @Param("organizationId") Long organizationId);
+
+    // Same, limited to users mapped to any of the given pharmacies, and to
+    // those pharmacies.
+    @Query("""
+            SELECT u.userId AS userId, u.fullName AS userName, p.pharmacyId AS pharmacyId
+            FROM UserDetails u
+            JOIN u.pharmacies p
+            WHERE u.organization.organizationId = :organizationId
+              AND p.pharmacyId IN :pharmacyIds
+            ORDER BY u.fullName, u.userId, p.pharmacyId
+            """)
+    List<UserPharmacyRow> findUserPharmaciesByOrganizationIdAndPharmacyIds(
+            @Param("organizationId") Long organizationId,
+            @Param("pharmacyIds") List<String> pharmacyIds);
+
+    interface UserPharmacyRow {
+        String getUserId();
+        String getUserName();
+        String getPharmacyId();
+    }
+
+
     @Query("""
     SELECT COUNT(u) > 0
     FROM UserDetails u

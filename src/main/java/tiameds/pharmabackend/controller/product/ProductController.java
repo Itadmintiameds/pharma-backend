@@ -1,14 +1,21 @@
 package tiameds.pharmabackend.controller.product;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import tiameds.pharmabackend.dto.product.*;
+import tiameds.pharmabackend.dto.product.bulk.BulkUploadResponse;
 import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.security.OperatorPasscode;
 import tiameds.pharmabackend.service.product.ProductService;
+import tiameds.pharmabackend.service.product.bulk.ProductBulkUploadService;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +26,75 @@ public class ProductController {
 
     @Autowired
     private ProductService pharmaProductService;
+
+    @Autowired
+    private ProductBulkUploadService bulkUploadService;
+
+    // Imports a CSV of products, packages, batches and opening stock into one
+    // pharmacy or one warehouse.
+    //
+    // Destination: the pharmacyId or warehouseId query param, one of which is required.
+    // The X-Pharmacy-Id / X-Warehouse-Id headers are not used.
+    //
+    // Auth: called by another service, so it is authenticated by the hardcoded
+    // passcode in the X-Upload-Passcode header only. The JWT is never read here (see
+    // OperatorPasscode.PATHS), even if an access_token cookie comes along.
+    //
+    // Rows are grouped by "Product Code": all the lines sharing one code become one
+    // product, each line becoming a batch under the package its unit/pack-size
+    // describes. The import is per-product transactional and idempotent at batch
+    // level, so a file can be corrected and re-uploaded without duplicating anything.
+    //
+    // Pass dryRun=true to validate a file and see exactly what it would do without
+    // writing. Always returns 200: outcomes are reported per row, not as an HTTP error.
+    @PostMapping(value = "/bulk-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> bulkUploadProducts(
+            @RequestHeader(value = OperatorPasscode.HEADER, required = false) String passcode,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun,
+            @RequestParam(value = "pharmacyId", required = false) String pharmacyId,
+            @RequestParam(value = "warehouseId", required = false) String warehouseId) {
+
+        if (!OperatorPasscode.isValid(passcode)) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("message", "Invalid or missing " + OperatorPasscode.HEADER);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        BulkUploadResponse result = bulkUploadService.upload(file, dryRun, pharmacyId, warehouseId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", summarize(result));
+        response.put("count", result.getTotalRows());
+        response.put("data", result);
+        return ResponseEntity.ok(response);
+    }
+
+    // The empty CSV template — the exact header row /product/bulk-upload expects.
+    @GetMapping("/bulk-upload/template")
+    public ResponseEntity<byte[]> bulkUploadTemplate() {
+        byte[] body = bulkUploadService.templateCsv().getBytes(StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"product-bulk-upload-template.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(body);
+    }
+
+    private String summarize(BulkUploadResponse result) {
+        if (!result.getFileErrors().isEmpty()) {
+            return "File rejected: " + String.join("; ", result.getFileErrors());
+        }
+        if (result.isDryRun()) {
+            return "Dry run: " + result.getTotalRows() + " row(s) checked, "
+                    + result.getRowsFailed() + " would fail. Nothing was saved.";
+        }
+        return result.getProductsCreated() + " product(s) created, "
+                + result.getProductsUpdated() + " updated, "
+                + result.getBatchesCreated() + " batch(es) added, "
+                + result.getRowsSkipped() + " row(s) skipped, "
+                + result.getRowsFailed() + " row(s) failed";
+    }
 
     @PostMapping("/onboard")
     public ResponseEntity<Map<String, Object>> onboardProduct(@RequestBody ProductDetailsDto dto) {
