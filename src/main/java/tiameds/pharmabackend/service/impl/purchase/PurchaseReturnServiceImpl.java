@@ -496,6 +496,122 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         return PurchaseReturnMapper.toDto(savedPurchaseReturn);
     }
 
+    /**
+     * Cancels a confirmed purchase return, undoing everything confirming it did.
+     *
+     * <ul>
+     *   <li>Stock: every current line's units (quantity + free) go back into the
+     *       location the return was raised at, with an IN audit row.</li>
+     *   <li>Purchase return status: re-derived; CANCELLED lines no longer count.</li>
+     *   <li>Supplier payable / credit: not stored anywhere — the KPIs and reports
+     *       sum CONFIRMED returns only, so leaving CONFIRMED is what reverses them.</li>
+     * </ul>
+     *
+     * <p>Only CONFIRMED can be cancelled: a draft moved nothing (it is deleted
+     * instead), and a cancelled return has already been reversed.
+     */
+    @Override
+    public PurchaseReturnDto cancelPurchaseReturn(
+            Long purchaseReturnId,
+            String cancelReason,
+            UserDetails user) {
+
+        if (purchaseReturnId == null) {
+            throw new RuntimeException("Purchase return id is required");
+        }
+
+        if (cancelReason == null || cancelReason.isBlank()) {
+            throw new RuntimeException("Cancel reason is required");
+        }
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocationContext location = locationContextResolver.resolve(persistentUser);
+
+        PurchaseReturn purchaseReturn = purchaseReturnRepository.findById(purchaseReturnId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Purchase return not found: " + purchaseReturnId));
+
+        assertReturnBelongsToLocation(purchaseReturn, location, persistentUser);
+
+        if (purchaseReturn.getStatus() != PurchaseReturnStatus.CONFIRMED) {
+            throw new RuntimeException(
+                    "Only a confirmed purchase return can be cancelled. This one is "
+                            + purchaseReturn.getStatus() + ".");
+        }
+
+        LocationType locationType = purchaseReturn.getWarehouseId() != null
+                ? LocationType.WAREHOUSE
+                : LocationType.PHARMACY;
+
+        String locationId = purchaseReturn.getWarehouseId() != null
+                ? purchaseReturn.getWarehouseId()
+                : purchaseReturn.getPharmacyId();
+
+        String actor = String.valueOf(persistentUser.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        incrementInventoryForCancel(purchaseReturn, locationType, locationId, actor, now);
+
+        purchaseReturn.setStatus(PurchaseReturnStatus.CANCELLED);
+        purchaseReturn.setCancelReason(cancelReason.trim());
+        purchaseReturn.setModifiedBy(actor);
+        purchaseReturn.setModifiedAt(now);
+
+        PurchaseReturn savedPurchaseReturn = purchaseReturnRepository.saveAndFlush(purchaseReturn);
+
+        // Flushed first so the CANCELLED status is visible to the query that
+        // re-derives the purchase's return status.
+        recalculateReturnStatus(savedPurchaseReturn.getPurchase());
+
+        return PurchaseReturnMapper.toDto(savedPurchaseReturn);
+    }
+
+    // Mirror of decrementInventoryForReturn: puts back exactly what confirming
+    // (and any later /edit revisions) took out — the current line's units.
+    private void incrementInventoryForCancel(
+            PurchaseReturn purchaseReturn,
+            LocationType locationType,
+            String locationId,
+            String actor,
+            LocalDateTime now) {
+
+        if (purchaseReturn.getPurchaseReturnDetails() == null) {
+            return;
+        }
+
+        InventoryAdjuster adjuster = adjusters.of(locationType);
+
+        for (PurchaseReturnDetails detail : purchaseReturn.getPurchaseReturnDetails()) {
+
+            if (!detail.isCurrent()) {
+                continue;
+            }
+
+            BatchDetails batch = detail.getBatch();
+            PackagingDetails packaging = batch.getPackagingDetails();
+
+            long stockQty = toStockUnits(packaging, returnedUnits(detail));
+
+            if (stockQty <= 0) {
+                continue;
+            }
+
+            adjuster.increment(new StockAdjustment(
+                    locationId,
+                    detail.getProduct(),
+                    packaging,
+                    batch,
+                    stockQty,
+                    TransactionType.PURCHASE_RETURN,
+                    null,
+                    null,
+                    actor,
+                    now));
+        }
+    }
+
     // BigDecimal.equals is scale-sensitive (800 vs 800.00), so compare by value.
     private static boolean sameAmount(BigDecimal a, BigDecimal b) {
         return a == null ? b == null : b != null && a.compareTo(b) == 0;

@@ -26,4 +26,10 @@ public interface PurchaseReturnService {
             PurchaseReturnDto purchaseReturnDto,
             UserDetails user);
 
+    // Cancels a confirmed return: puts its stock back and sets it CANCELLED.
+    PurchaseReturnDto cancelPurchaseReturn(
+            Long purchaseReturnId,
+            String cancelReason,
+            UserDetails user);
+
 }
