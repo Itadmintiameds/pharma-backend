@@ -209,6 +209,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Billed Date & Time", CurrentBillDetailsRowDto::getBilledAt),
                         col("Total Amount", CurrentBillDetailsRowDto::getTotalAmount),
                         col("Amount Received", CurrentBillDetailsRowDto::getAmountReceived),
+                        col("Returned Amount", CurrentBillDetailsRowDto::getReturnedAmount),
                         col("Pending Amount", CurrentBillDetailsRowDto::getPendingAmount)));
 
         this.<SalesReturnDetailsRowDto>register("sales-return-details", "Sales Return Details", true,

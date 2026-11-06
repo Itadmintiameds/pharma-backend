@@ -50,8 +50,10 @@ import java.util.Map;
  * Day closing summary reports, each covering a single business day.
  * <p>
  * Bill count summary: bills raised on the day, and how many of them were
- * fully paid / still pending (IP) by the end of that day. Payments recorded
- * after the day do not change a past day's figures.
+ * fully paid / still pending (IP) by the end of that day. A bill is settled by
+ * payments plus completed returns, so a returned credit bill is no longer
+ * pending. Payments and returns recorded after the day do not change a past
+ * day's figures.
  * <p>
  * Billing by patient type: bill count and amount of the day's bills for IP,
  * OP, Walk-In and Day Care, plus a total of those rows.
@@ -277,7 +279,8 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
                         bill.get("customerType").alias("customerType"),
                         bill.get("createdAt").alias("billedAt"),
                         support.billAmount(cb, bill).alias("totalAmount"),
-                        receivedByDayEnd(cb, query, bill, scope).alias("received"))
+                        receivedByDayEnd(cb, query, bill, scope).alias("received"),
+                        returnedByDayEnd(cb, query, bill, scope).alias("returned"))
                 .where(dayBills(cb, query, bill, scope).toArray(Predicate[]::new))
                 .orderBy(
                         cb.asc(pharmacy.get("pharmacyName")),
@@ -293,6 +296,7 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
                     CustomerType type = row.get("customerType", CustomerType.class);
                     BigDecimal amount = orZero(row.get("totalAmount", BigDecimal.class));
                     BigDecimal received = orZero(row.get("received", BigDecimal.class));
+                    BigDecimal returned = orZero(row.get("returned", BigDecimal.class));
 
                     return new CurrentBillDetailsRowDto(
                             row.get("pharmacyId", String.class),
@@ -304,8 +308,9 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
                             row.get("billedAt", LocalDateTime.class),
                             amount,
                             received,
+                            returned,
                             type == CustomerType.IP_PATIENT
-                                    ? amount.subtract(received).max(BigDecimal.ZERO)
+                                    ? pending(amount, received, returned)
                                     : BigDecimal.ZERO);
                 })
                 .toList();
@@ -454,52 +459,59 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
 
 
     // KPIs of the current bill details over all of the day's matching bills:
-    // amount billed, received by the end of the day, and still due on IP.
+    // amount billed, received and returned by the end of the day, and still
+    // due on IP. One small row per bill, summed here so each IP bill's pending
+    // is floored at zero on its own.
     private CurrentBillDetailsKpiDto currentBillTotals(Scope scope) {
 
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
 
-        CriteriaQuery<Tuple> billedQuery = cb.createTupleQuery();
-        Root<Billing> bill = billedQuery.from(Billing.class);
-        Expression<BigDecimal> amount = support.billAmount(cb, bill);
+        Root<Billing> bill = query.from(Billing.class);
 
-        billedQuery.multiselect(
-                        cb.count(bill).alias("count"),
-                        cb.coalesce(cb.sum(amount), BigDecimal.ZERO).alias("amount"),
-                        cb.coalesce(cb.sum(cb.<BigDecimal>selectCase()
-                                .when(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT), amount)
-                                .otherwise(BigDecimal.ZERO)), BigDecimal.ZERO).alias("ipAmount"))
-                .where(dayBills(cb, billedQuery, bill, scope).toArray(Predicate[]::new));
+        query.multiselect(
+                        bill.get("customerType").alias("type"),
+                        support.billAmount(cb, bill).alias("amount"),
+                        receivedByDayEnd(cb, query, bill, scope).alias("received"),
+                        returnedByDayEnd(cb, query, bill, scope).alias("returned"))
+                .where(dayBills(cb, query, bill, scope).toArray(Predicate[]::new));
 
-        CriteriaQuery<Tuple> receivedQuery = cb.createTupleQuery();
-        Root<BillingPayment> payment = receivedQuery.from(BillingPayment.class);
-        Join<BillingPayment, Billing> paidBill = payment.join("billing");
-        Path<BigDecimal> received = payment.get("receivedAmount");
+        long count = 0;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal totalReceived = BigDecimal.ZERO;
+        BigDecimal totalReturned = BigDecimal.ZERO;
+        BigDecimal totalPending = BigDecimal.ZERO;
 
-        List<Predicate> paid = dayBills(cb, receivedQuery, paidBill, scope);
-        paid.add(cb.lessThan(payment.get("createdAt"), scope.range().endExclusive()));
+        for (Tuple row : entityManager.createQuery(query).getResultList()) {
+            BigDecimal amount = orZero(row.get("amount", BigDecimal.class));
+            BigDecimal received = orZero(row.get("received", BigDecimal.class));
+            BigDecimal returned = orZero(row.get("returned", BigDecimal.class));
 
-        receivedQuery.multiselect(
-                        cb.coalesce(cb.sum(received), BigDecimal.ZERO).alias("received"),
-                        cb.coalesce(cb.sum(cb.<BigDecimal>selectCase()
-                                .when(cb.equal(paidBill.get("customerType"), CustomerType.IP_PATIENT), received)
-                                .otherwise(BigDecimal.ZERO)), BigDecimal.ZERO).alias("ipReceived"))
-                .where(paid.toArray(Predicate[]::new));
+            count++;
+            totalAmount = totalAmount.add(amount);
+            totalReceived = totalReceived.add(received);
+            totalReturned = totalReturned.add(returned);
 
-        Tuple billed = entityManager.createQuery(billedQuery).getSingleResult();
-        Tuple receipts = entityManager.createQuery(receivedQuery).getSingleResult();
-
-        BigDecimal ipPending = orZero(billed.get("ipAmount", BigDecimal.class))
-                .subtract(orZero(receipts.get("ipReceived", BigDecimal.class)))
-                .max(BigDecimal.ZERO);
+            if (row.get("type", CustomerType.class) == CustomerType.IP_PATIENT) {
+                totalPending = totalPending.add(pending(amount, received, returned));
+            }
+        }
 
         CurrentBillDetailsKpiDto kpi = new CurrentBillDetailsKpiDto();
-        kpi.setTotalBills(billed.get("count", Long.class));
-        kpi.setTotalAmount(orZero(billed.get("amount", BigDecimal.class)));
-        kpi.setTotalAmountReceived(orZero(receipts.get("received", BigDecimal.class)));
-        kpi.setTotalPendingAmount(ipPending);
+        kpi.setTotalBills(count);
+        kpi.setTotalAmount(totalAmount);
+        kpi.setTotalAmountReceived(totalReceived);
+        kpi.setTotalReturnedAmount(totalReturned);
+        kpi.setTotalPendingAmount(totalPending);
 
         return kpi;
+    }
+
+
+    // Still due on a bill after payments and returns, never below zero.
+    private static BigDecimal pending(BigDecimal amount, BigDecimal received, BigDecimal returned) {
+
+        return amount.subtract(received).subtract(returned).max(BigDecimal.ZERO);
     }
 
 
@@ -547,12 +559,16 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
 
         Expression<BigDecimal> amount = support.billAmount(cb, bill);
 
+        // Settled = received + completed returns, both by the end of the day.
         switch (status) {
-            case FULLY_PAID -> predicates.add(
-                    cb.lessThanOrEqualTo(amount, receivedByDayEnd(cb, query, bill, scope)));
+            case FULLY_PAID -> predicates.add(cb.lessThanOrEqualTo(amount, cb.sum(
+                    receivedByDayEnd(cb, query, bill, scope),
+                    returnedByDayEnd(cb, query, bill, scope))));
             case PENDING_IP -> {
                 predicates.add(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT));
-                predicates.add(cb.greaterThan(amount, receivedByDayEnd(cb, query, bill, scope)));
+                predicates.add(cb.greaterThan(amount, cb.sum(
+                        receivedByDayEnd(cb, query, bill, scope),
+                        returnedByDayEnd(cb, query, bill, scope))));
             }
             case ANY -> {
             }
@@ -581,6 +597,17 @@ public class DayClosingSummaryServiceImpl implements DayClosingSummaryService {
                         cb.lessThan(payment.get("createdAt"), scope.range().endExclusive()));
 
         return received;
+    }
+
+
+    // Completed returns against the bill up to the end of the day, zero when none.
+    private Expression<BigDecimal> returnedByDayEnd(
+            CriteriaBuilder cb,
+            AbstractQuery<?> query,
+            From<?, Billing> bill,
+            Scope scope) {
+
+        return support.returnedAmount(cb, query, bill, scope.range().endExclusive());
     }
 
 

@@ -31,6 +31,10 @@ public class CurrentBillDetailsRowDto {
     // Received on the bill up to the end of the business day.
     private BigDecimal amountReceived;
 
-    // totalAmount - amountReceived for IP bills; zero for every other type.
+    // Completed returns against the bill up to the end of the business day.
+    private BigDecimal returnedAmount;
+
+    // totalAmount - amountReceived - returnedAmount (never below zero) for IP
+    // bills; zero for every other type.
     private BigDecimal pendingAmount;
 }
