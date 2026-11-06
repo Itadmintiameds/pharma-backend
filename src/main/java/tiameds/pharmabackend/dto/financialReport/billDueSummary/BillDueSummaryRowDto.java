@@ -31,9 +31,12 @@ public class BillDueSummaryRowDto {
     // Sum of every payment recorded against the bill.
     private BigDecimal amountReceived;
 
-    // totalAmount - amountReceived, never below zero.
+    // Completed sales returns against the bill; a returned sale is no longer owed.
+    private BigDecimal returnedAmount;
+
+    // totalAmount - amountReceived - returnedAmount, never below zero.
     private BigDecimal pendingAmount;
 
-    // PENDING or FULLY_PAID.
+    // PENDING, or FULLY_PAID once received + returned covers the bill.
     private String status;
 }

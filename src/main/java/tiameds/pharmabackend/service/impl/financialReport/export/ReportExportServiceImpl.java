@@ -119,7 +119,9 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Discount", BillDetailedSalesRowDto::getDiscountAmount),
                         col("CGST", BillDetailedSalesRowDto::getCgstAmount),
                         col("SGST", BillDetailedSalesRowDto::getSgstAmount),
-                        col("Net Amount", BillDetailedSalesRowDto::getNetAmount)));
+                        col("Net Amount", BillDetailedSalesRowDto::getNetAmount),
+                        col("Bill Round Off", BillDetailedSalesRowDto::getBillRoundOffAmount),
+                        col("Bill Net After Round Off", BillDetailedSalesRowDto::getBillNetAmountAfterRoundOff)));
 
         this.<DoctorWiseSalesRowDto>register("doctor-wise-sales-report", "Doctor-wise Sales Report", false,
                 doctorWiseSalesService::getDoctorWiseSales,
@@ -146,6 +148,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Referred By", BillDueSummaryRowDto::getReferredBy),
                         col("Total Amount", BillDueSummaryRowDto::getTotalAmount),
                         col("Amount Received", BillDueSummaryRowDto::getAmountReceived),
+                        col("Returned Amount", BillDueSummaryRowDto::getReturnedAmount),
                         col("Pending Amount", BillDueSummaryRowDto::getPendingAmount),
                         col("Status", BillDueSummaryRowDto::getStatus)));
 

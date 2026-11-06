@@ -17,4 +17,10 @@ public class BillDetailedSalesKpiDto {
     private BigDecimal totalGstAmount;
 
     private BigDecimal totalNetAmount;
+
+    // Round-off of the bills the matching lines belong to, each bill once.
+    private BigDecimal totalRoundOffAmount;
+
+    // totalNetAmount + totalRoundOffAmount.
+    private BigDecimal totalNetAmountAfterRoundOff;
 }

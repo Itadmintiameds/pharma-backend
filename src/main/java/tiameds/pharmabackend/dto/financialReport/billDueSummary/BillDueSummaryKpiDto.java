@@ -13,6 +13,10 @@ public class BillDueSummaryKpiDto {
 
     private BigDecimal totalAmountReceived;
 
-    // totalIpBillAmount - totalAmountReceived.
+    // Completed sales returns against these bills.
+    private BigDecimal totalReturnedAmount;
+
+    // Sum of each bill's pending amount (bill - received - returned, never
+    // below zero per bill).
     private BigDecimal totalPendingAmount;
 }

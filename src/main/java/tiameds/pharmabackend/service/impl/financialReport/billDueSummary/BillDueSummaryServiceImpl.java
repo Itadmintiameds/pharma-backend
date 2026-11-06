@@ -34,7 +34,8 @@ import static tiameds.pharmabackend.service.impl.financialReport.common.Financia
  * Bill due summary: IP bills only (other bill types are settled at the
  * counter), with what has been received against each and what is pending.
  * Received is the sum of the bill's payments, the same figure the billing
- * service settles against.
+ * service settles against. Completed sales returns also settle a bill: a
+ * returned sale is no longer owed, so pending = bill - received - returned.
  */
 @Service
 @RequiredArgsConstructor
@@ -102,6 +103,7 @@ public class BillDueSummaryServiceImpl implements BillDueSummaryService {
 
         Expression<BigDecimal> total = totalAmount(cb, bill);
         Expression<BigDecimal> received = receivedAmount(cb, query, bill);
+        Expression<BigDecimal> returned = support.returnedAmount(cb, query, bill, null);
 
         query.multiselect(
                 pharmacy.get("pharmacyId").alias("pharmacyId"),
@@ -117,7 +119,8 @@ public class BillDueSummaryServiceImpl implements BillDueSummaryService {
                 doctor.get("doctorId").alias("doctorId"),
                 doctor.get("doctorName").alias("referredBy"),
                 total.alias("totalAmount"),
-                received.alias("amountReceived"));
+                received.alias("amountReceived"),
+                returned.alias("returnedAmount"));
 
         query.where(billPredicates(cb, query, bill, customer, doctor, pharmacyIds, range, pendingStatus, filter)
                 .toArray(Predicate[]::new));
@@ -160,66 +163,64 @@ public class BillDueSummaryServiceImpl implements BillDueSummaryService {
     }
 
 
+    // Totals over every matching bill. Pending is worked out per bill and then
+    // added up, so a returned (or overpaid) bill counts as zero instead of
+    // cancelling out what another bill still owes. Summed here rather than in
+    // SQL, since an aggregate over per-bill subqueries is not portable.
     private BillDueSummaryKpiDto buildKpi(
             List<String> pharmacyIds,
             DateRange range,
             String pendingStatus,
             FinancialReportFilter filter) {
 
-        BigDecimal totalBilled = sumBilled(pharmacyIds, range, pendingStatus, filter);
-        BigDecimal totalReceived = sumReceived(pharmacyIds, range, pendingStatus, filter);
-
-        BillDueSummaryKpiDto kpi = new BillDueSummaryKpiDto();
-        kpi.setTotalIpBillAmount(totalBilled);
-        kpi.setTotalAmountReceived(totalReceived);
-        kpi.setTotalPendingAmount(totalBilled.subtract(totalReceived).max(BigDecimal.ZERO));
-
-        return kpi;
-    }
-
-
-    private BigDecimal sumBilled(
-            List<String> pharmacyIds,
-            DateRange range,
-            String pendingStatus,
-            FinancialReportFilter filter) {
-
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-        CriteriaQuery<BigDecimal> query = cb.createQuery(BigDecimal.class);
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
 
         Root<Billing> bill = query.from(Billing.class);
         Join<Billing, CustomerManagement> customer = bill.join("customer", JoinType.LEFT);
         Join<Billing, DoctorDetails> doctor = bill.join("doctor", JoinType.LEFT);
 
-        query.select(cb.coalesce(cb.sum(totalAmount(cb, bill)), BigDecimal.ZERO))
+        query.multiselect(
+                        totalAmount(cb, bill).alias("total"),
+                        receivedAmount(cb, query, bill).alias("received"),
+                        support.returnedAmount(cb, query, bill, null).alias("returned"))
                 .where(billPredicates(cb, query, bill, customer, doctor, pharmacyIds, range, pendingStatus, filter)
                         .toArray(Predicate[]::new));
 
-        return entityManager.createQuery(query).getSingleResult();
+        BigDecimal totalBilled = BigDecimal.ZERO;
+        BigDecimal totalReceived = BigDecimal.ZERO;
+        BigDecimal totalReturned = BigDecimal.ZERO;
+        BigDecimal totalPending = BigDecimal.ZERO;
+
+        for (Tuple row : entityManager.createQuery(query).getResultList()) {
+            BigDecimal total = orZero(row.get("total", BigDecimal.class));
+            BigDecimal received = orZero(row.get("received", BigDecimal.class));
+            BigDecimal returned = orZero(row.get("returned", BigDecimal.class));
+
+            totalBilled = totalBilled.add(total);
+            totalReceived = totalReceived.add(received);
+            totalReturned = totalReturned.add(returned);
+            totalPending = totalPending.add(pending(total, received, returned));
+        }
+
+        BillDueSummaryKpiDto kpi = new BillDueSummaryKpiDto();
+        kpi.setTotalIpBillAmount(totalBilled);
+        kpi.setTotalAmountReceived(totalReceived);
+        kpi.setTotalReturnedAmount(totalReturned);
+        kpi.setTotalPendingAmount(totalPending);
+
+        return kpi;
     }
 
 
-    // Summed from the payment rows of the matching bills, since an aggregate
-    // over a per-bill subquery is not portable.
-    private BigDecimal sumReceived(
-            List<String> pharmacyIds,
-            DateRange range,
-            String pendingStatus,
-            FinancialReportFilter filter) {
+    // What is still owed on a bill: neither paid nor returned.
+    private static BigDecimal pending(BigDecimal total, BigDecimal received, BigDecimal returned) {
+        return total.subtract(received).subtract(returned).max(BigDecimal.ZERO);
+    }
 
-        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-        CriteriaQuery<BigDecimal> query = cb.createQuery(BigDecimal.class);
 
-        Root<BillingPayment> payment = query.from(BillingPayment.class);
-        Join<BillingPayment, Billing> bill = payment.join("billing");
-        Join<Billing, CustomerManagement> customer = bill.join("customer", JoinType.LEFT);
-        Join<Billing, DoctorDetails> doctor = bill.join("doctor", JoinType.LEFT);
-
-        query.select(cb.coalesce(cb.sum(payment.<BigDecimal>get("receivedAmount")), BigDecimal.ZERO))
-                .where(billPredicates(cb, query, bill, customer, doctor, pharmacyIds, range, pendingStatus, filter)
-                        .toArray(Predicate[]::new));
-
-        return entityManager.createQuery(query).getSingleResult();
+    private static BigDecimal orZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
 
@@ -242,12 +243,15 @@ public class BillDueSummaryServiceImpl implements BillDueSummaryService {
 
         if (pendingStatus != null) {
 
+            // Settled = paid or returned.
             Expression<BigDecimal> total = totalAmount(cb, bill);
-            Expression<BigDecimal> received = receivedAmount(cb, query, bill);
+            Expression<BigDecimal> settled = cb.sum(
+                    receivedAmount(cb, query, bill),
+                    support.returnedAmount(cb, query, bill, null));
 
             predicates.add(PENDING.equals(pendingStatus)
-                    ? cb.greaterThan(total, received)
-                    : cb.lessThanOrEqualTo(total, received));
+                    ? cb.greaterThan(total, settled)
+                    : cb.lessThanOrEqualTo(total, settled));
         }
 
         return predicates;
@@ -309,13 +313,16 @@ public class BillDueSummaryServiceImpl implements BillDueSummaryService {
         row.setDoctorId(tuple.get("doctorId", Long.class));
         row.setReferredBy(tuple.get("referredBy", String.class));
 
-        BigDecimal total = tuple.get("totalAmount", BigDecimal.class);
-        BigDecimal received = tuple.get("amountReceived", BigDecimal.class);
+        BigDecimal total = orZero(tuple.get("totalAmount", BigDecimal.class));
+        BigDecimal received = orZero(tuple.get("amountReceived", BigDecimal.class));
+        BigDecimal returned = orZero(tuple.get("returnedAmount", BigDecimal.class));
+        BigDecimal pending = pending(total, received, returned);
 
         row.setTotalAmount(total);
         row.setAmountReceived(received);
-        row.setPendingAmount(total.subtract(received).max(BigDecimal.ZERO));
-        row.setStatus(received.compareTo(total) >= 0 ? FULLY_PAID : PENDING);
+        row.setReturnedAmount(returned);
+        row.setPendingAmount(pending);
+        row.setStatus(pending.signum() == 0 ? FULLY_PAID : PENDING);
 
         return row;
     }
