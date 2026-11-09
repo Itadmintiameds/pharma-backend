@@ -1,0 +1,111 @@
+package tiameds.pharmabackend.controller.auditReports;
+
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.auditReports.GrossProfitSalesBookFilter;
+import tiameds.pharmabackend.dto.auditReports.GrossProfitSalesBookResponse;
+import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.service.auditReports.GrossProfitSalesBookService;
+import tiameds.pharmabackend.service.financialReport.export.ReportExport;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+
+@RestController
+@RequestMapping("/auditReports")
+@RequiredArgsConstructor
+public class GrossProfitSalesBookController {
+
+    private final GrossProfitSalesBookService grossProfitSalesBookService;
+
+    /**
+     * Gross Profit (GP) on Consolidated Sales Book: bill amount, cost, gross
+     * profit and G.P. % per date (or per month with groupBy=MONTH), summed
+     * across the selected pharmacies and net of sales returns.
+     * Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
+     * or a comma list (?pharmacyIds=A,B).
+     */
+    @PreAuthorize("@access.has('REPORTS/GROSS_PROFIT_SALES_BOOK/VIEW')")
+    @GetMapping("/gross-profit-sales-book")
+    public ResponseEntity<?> getGrossProfitSalesBook(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+
+            @RequestParam(required = false) List<String> pharmacyIds,
+            @RequestParam(required = false) List<BigDecimal> gstRates,
+            @RequestParam(defaultValue = "DAY") String groupBy,
+
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "25") Integer size,
+            @RequestParam(defaultValue = "date") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(required = false) Boolean unpaged,
+
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        GrossProfitSalesBookFilter filter = new GrossProfitSalesBookFilter();
+        filter.setFromDate(fromDate);
+        filter.setToDate(toDate);
+        filter.setPharmacyIds(pharmacyIds);
+        filter.setGstRates(gstRates);
+        filter.setGroupBy(groupBy);
+        filter.setPage(page);
+        filter.setSize(size);
+        filter.setSortBy(sortBy);
+        filter.setSortDir(sortDir);
+        filter.setUnpaged(unpaged);
+
+        GrossProfitSalesBookResponse report =
+                grossProfitSalesBookService.getGrossProfitSalesBook(filter, currentUser.getUser());
+
+        return ResponseEntity.ok(report);
+    }
+
+
+    /**
+     * CSV / Excel download of the G.P. on Consolidated Sales Book:
+     *   /auditReports/gross-profit-sales-book/export?format=xlsx&<the report's filters>
+     * format is csv or xlsx. page and size are ignored: every matching row is
+     * written. Written straight to the response, so the file streams out as
+     * it is built.
+     */
+    @PreAuthorize("@access.has('REPORTS/GROSS_PROFIT_SALES_BOOK/VIEW')")
+    @GetMapping("/gross-profit-sales-book/export")
+    public void exportGrossProfitSalesBook(
+            @RequestParam String format,
+            @ModelAttribute GrossProfitSalesBookFilter filter,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            HttpServletResponse response) throws IOException {
+
+        if (currentUser == null) {
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            return;
+        }
+
+        ReportExport export =
+                grossProfitSalesBookService.exportGrossProfitSalesBook(filter, format, currentUser.getUser());
+
+        response.setContentType(export.contentType());
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename(export.fileName()).build().toString());
+
+        export.writeTo(response.getOutputStream());
+    }
+}
