@@ -88,7 +88,7 @@ public class ReportExportServiceImpl implements ReportExportService {
     @PostConstruct
     void registerReports() {
 
-        this.<BillSummaryRowDto>register("bill-summary", "Bill Summary", false,
+        this.<BillSummaryRowDto>register("bill-summary", "Pharma Bill Summary", false,
                 billSummaryService::getBillSummary,
                 List.of(
                         col("Pharmacy", BillSummaryRowDto::getPharmacyName),
@@ -102,7 +102,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Items", BillSummaryRowDto::getItemCount),
                         col("Total Amount", BillSummaryRowDto::getTotalAmount)));
 
-        this.<BillDetailedSalesRowDto>register("detailed-sale-report", "Bill Detailed Sales Report", false,
+        this.<BillDetailedSalesRowDto>register("detailed-sale-report", "Pharma Bill Detailed Sales Report", false,
                 billSummaryService::getBillDetailedSales,
                 List.of(
                         col("Pharmacy", BillDetailedSalesRowDto::getPharmacyName),
@@ -127,7 +127,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Bill Round Off", BillDetailedSalesRowDto::getBillRoundOffAmount),
                         col("Bill Net After Round Off", BillDetailedSalesRowDto::getBillNetAmountAfterRoundOff)));
 
-        this.<DoctorWiseSalesRowDto>register("doctor-wise-sales-report", "Doctor-wise Sales Report", false,
+        this.<DoctorWiseSalesRowDto>register("doctor-wise-sales-report", "Doctor-wise / Referred By Pharma Sales Report", false,
                 doctorWiseSalesService::getDoctorWiseSales,
                 List.of(
                         col("Pharmacy", DoctorWiseSalesRowDto::getPharmacyName),
@@ -139,7 +139,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Return Value", DoctorWiseSalesRowDto::getReturnValue),
                         col("Net Sale Value", DoctorWiseSalesRowDto::getNetSaleValue)));
 
-        this.<BillDueSummaryRowDto>register("bill-due-summary", "Bill Due Summary", false,
+        this.<BillDueSummaryRowDto>register("bill-due-summary", "Bill Due Summary – (In-Patient)", false,
                 billDueSummaryService::getBillDueSummary,
                 List.of(
                         col("Pharmacy", BillDueSummaryRowDto::getPharmacyName),
@@ -156,38 +156,41 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Pending Amount", BillDueSummaryRowDto::getPendingAmount),
                         col("Status", BillDueSummaryRowDto::getStatus)));
 
-        this.<SalesSummaryRowDto>register("sales-summary", "Sales Summary", false,
+        this.<SalesSummaryRowDto>register("sales-summary", "Pharmacy Receipts – Sales Summary",
+                "Pharmacy Day Closing – Sales Summary", false,
                 pharmacyReceiptsService::getSalesSummary,
                 List.of(
                         col("Particular", SalesSummaryRowDto::getMetric),
                         col("Amount", SalesSummaryRowDto::getAmount)));
 
-        this.<PaymentModeSummaryRowDto>register("payment-mode-summary", "Payment Mode Summary", false,
+        this.<PaymentModeSummaryRowDto>register("payment-mode-summary", "Pharmacy Receipts – Payment Mode Summary",
+                "Pharmacy Day Closing – Payment Mode Summary", false,
                 pharmacyReceiptsService::getPaymentModeSummary,
                 List.of(
                         col("Payment Mode", PaymentModeSummaryRowDto::getPaymentMode),
                         col("Amount Received", PaymentModeSummaryRowDto::getAmountReceived)));
 
-        this.<ReceiptDetailsRowDto>register("receipt-details", "Receipt Details", false,
+        this.<ReceiptDetailsRowDto>register("receipt-details", "Pharmacy Receipts – Receipt Details",
+                "Pharmacy Day Closing – Receipt Details", false,
                 pharmacyReceiptsService::getReceiptDetails,
                 List.of(
                         col("Particular", ReceiptDetailsRowDto::getParticular),
                         col("Amount", ReceiptDetailsRowDto::getAmount)));
 
-        this.<BillCountSummaryRowDto>register("bill-count-summary", "Bill Count Summary", true,
+        this.<BillCountSummaryRowDto>register("bill-count-summary", "Pharmacy Day Closing – Bill Count Summary", true,
                 dayClosingSummaryService::getBillCountSummary,
                 List.of(
                         col("Particular", BillCountSummaryRowDto::getParticular),
                         col("Count", BillCountSummaryRowDto::getCount)));
 
-        this.<PatientTypeBillingRowDto>register("billing-by-patient-type", "Billing by Patient Type", true,
+        this.<PatientTypeBillingRowDto>register("billing-by-patient-type", "Pharmacy Day Closing – Billing by Patient Type", true,
                 dayClosingSummaryService::getBillingByPatientType,
                 List.of(
                         col("Patient Type", PatientTypeBillingRowDto::getPatientType),
                         col("Bill Count", PatientTypeBillingRowDto::getBillCount),
                         col("Total Amount", PatientTypeBillingRowDto::getTotalAmount)));
 
-        this.<BillingByUserRowDto>register("billing-by-user", "Billing by User", true,
+        this.<BillingByUserRowDto>register("billing-by-user", "Pharmacy Day Closing – Billing by User", true,
                 dayClosingSummaryService::getBillingByUser,
                 List.of(
                         col("Pharmacy", BillingByUserRowDto::getPharmacyName),
@@ -195,7 +198,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Bill Count", BillingByUserRowDto::getBillCount),
                         col("Total Sales", BillingByUserRowDto::getTotalSales)));
 
-        this.<ReceiptByUserRowDto>register("receipt-by-user", "Receipt by User", true,
+        this.<ReceiptByUserRowDto>register("receipt-by-user", "Pharmacy Day Closing – Receipt by User", true,
                 dayClosingSummaryService::getReceiptByUser,
                 List.of(
                         col("Pharmacy", ReceiptByUserRowDto::getPharmacyName),
@@ -203,7 +206,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Receipt Count", ReceiptByUserRowDto::getReceiptCount),
                         col("Amount Received", ReceiptByUserRowDto::getAmountReceived)));
 
-        this.<CurrentBillDetailsRowDto>register("current-bill-details", "Current Bill Details", true,
+        this.<CurrentBillDetailsRowDto>register("current-bill-details", "Pharmacy Day Closing – Current Bill Details", true,
                 dayClosingSummaryService::getCurrentBillDetails,
                 List.of(
                         col("Pharmacy", CurrentBillDetailsRowDto::getPharmacyName),
@@ -216,7 +219,7 @@ public class ReportExportServiceImpl implements ReportExportService {
                         col("Returned Amount", CurrentBillDetailsRowDto::getReturnedAmount),
                         col("Pending Amount", CurrentBillDetailsRowDto::getPendingAmount)));
 
-        this.<SalesReturnDetailsRowDto>register("sales-return-details", "Sales Return Details", true,
+        this.<SalesReturnDetailsRowDto>register("sales-return-details", "Pharmacy Day Closing – Sales Return Details", true,
                 dayClosingSummaryService::getSalesReturnDetails,
                 List.of(
                         col("Pharmacy", SalesReturnDetailsRowDto::getPharmacyName),
@@ -270,7 +273,11 @@ public class ReportExportServiceImpl implements ReportExportService {
 
         String pharmacies = pharmacyNames(support.resolvePharmacyIds(filter, user));
         String period = period(definition, filter);
-        String fileName = report + "_" + fileDate(definition, filter) + format.extension();
+        boolean dayClosing = asDayClosing(definition, filter);
+        String title = dayClosing ? definition.dayClosingTitle() : definition.title();
+        String periodLabel = definition.businessDay() || (dayClosing && filter.getDate() != null) ? "Date" : "Period";
+        String fileName = (dayClosing ? "day-closing-" : "") + report + "_" + fileDate(definition, filter)
+                + format.extension();
 
         return new ReportExport() {
 
@@ -289,14 +296,19 @@ public class ReportExportServiceImpl implements ReportExportService {
 
                 try (ReportTableWriter writer = format.open(out)) {
 
-                    writer.title(definition.title());
+                    writer.title(title);
                     writer.line("Pharmacy", pharmacies);
-                    writer.line(definition.businessDay() ? "Date" : "Period", period);
+                    writer.line(periodLabel, period);
                     writer.line("Generated By", first.getGeneratedBy());
                     writer.line("Generated On", first.getGeneratedOn());
                     writer.blank();
 
                     for (Map.Entry<String, Object> kpi : kpiLines(first.getKpi()).entrySet()) {
+                        // KPIs the day closing screen does not show (IP pending)
+                        // come back null there; leave them out of the file.
+                        if (dayClosing && kpi.getValue() == null) {
+                            continue;
+                        }
                         writer.line(kpi.getKey(), kpi.getValue());
                     }
 
@@ -341,7 +353,27 @@ public class ReportExportServiceImpl implements ReportExportService {
             BiFunction<FinancialReportFilter, UserDetails, FinancialReportResponse<?, T>> fetch,
             List<ExportColumn<T>> columns) {
 
-        definitions.put(report, new ReportExportDefinition<>(title, businessDay, fetch, columns));
+        register(report, title, null, businessDay, fetch, columns);
+    }
+
+
+    private <T> void register(
+            String report,
+            String title,
+            String dayClosingTitle,
+            boolean businessDay,
+            BiFunction<FinancialReportFilter, UserDetails, FinancialReportResponse<?, T>> fetch,
+            List<ExportColumn<T>> columns) {
+
+        definitions.put(report, new ReportExportDefinition<>(title, dayClosingTitle, businessDay, fetch, columns));
+    }
+
+
+    // Downloaded from the day closing screen: a report that is shown on both
+    // screens takes its day closing title and is dated like a day closing
+    // report.
+    private static boolean asDayClosing(ReportExportDefinition<?> definition, FinancialReportFilter filter) {
+        return definition.dayClosingTitle() != null && filter.dayClosingView();
     }
 
 
