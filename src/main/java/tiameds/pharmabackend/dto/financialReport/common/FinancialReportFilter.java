@@ -28,6 +28,10 @@ public class FinancialReportFilter {
     // empty, the report covers the pharmacy in the X-Pharmacy-Id header.
     private List<String> pharmacyIds;
 
+    // Warehouse multi-select (reports that include warehouse purchases).
+    // Each must be one the user is mapped to.
+    private List<String> warehouseIds;
+
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate date;
 
@@ -76,6 +80,15 @@ public class FinancialReportFilter {
     // Payment status dropdown on due reports: PENDING, FULLY_PAID or ALL
     // (default).
     private String pendingStatus;
+
+    // GST report: GSTIN of the selected pharmacies / warehouses to report on.
+    private String gstin;
+
+    // GST report: ALL (default), SALES or PURCHASES.
+    private String transactionType;
+
+    // GST report: ALL (default), LOCAL or CENTRAL.
+    private String gstClassification;
 
     // Zero-based page index and page size, both chosen by the client.
     private Integer page;

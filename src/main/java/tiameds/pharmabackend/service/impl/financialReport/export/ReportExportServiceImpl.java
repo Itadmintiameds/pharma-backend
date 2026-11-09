@@ -27,6 +27,7 @@ import tiameds.pharmabackend.service.financialReport.dayClosingSummary.DayClosin
 import tiameds.pharmabackend.service.financialReport.doctorWiseSales.DoctorWiseSalesService;
 import tiameds.pharmabackend.service.financialReport.export.ReportExport;
 import tiameds.pharmabackend.service.financialReport.export.ReportExportService;
+import tiameds.pharmabackend.service.financialReport.gstReport.GstReportService;
 import tiameds.pharmabackend.service.financialReport.pharmacyReceipts.PharmacyReceiptsService;
 import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport;
 
@@ -69,11 +70,14 @@ public class ReportExportServiceImpl implements ReportExportService {
 
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
 
+    private static final String GST_SALES_PURCHASE_SUMMARY = "gst-sales-purchase-summary";
+
     private final BillSummaryService billSummaryService;
     private final DoctorWiseSalesService doctorWiseSalesService;
     private final BillDueSummaryService billDueSummaryService;
     private final PharmacyReceiptsService pharmacyReceiptsService;
     private final DayClosingSummaryService dayClosingSummaryService;
+    private final GstReportService gstReportService;
     private final FinancialReportSupport support;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
 
@@ -227,11 +231,17 @@ public class ReportExportServiceImpl implements ReportExportService {
     @Override
     public ReportExport prepare(String report, String format, FinancialReportFilter filter, UserDetails user) {
 
+        // Three sections rather than one paged table, so it writes its own file.
+        if (report != null && GST_SALES_PURCHASE_SUMMARY.equals(report.trim())) {
+            return gstReportService.exportSalesPurchaseSummary(format, filter, user);
+        }
+
         ReportExportDefinition<?> definition = definitions.get(report == null ? null : report.trim());
 
         if (definition == null) {
             throw new IllegalArgumentException(
-                    "Unknown report: " + report + ". Use one of " + String.join(", ", definitions.keySet()) + ".");
+                    "Unknown report: " + report + ". Use one of " + String.join(", ", definitions.keySet())
+                            + ", " + GST_SALES_PURCHASE_SUMMARY + ".");
         }
 
         return prepare(report.trim(), definition, ExportFormat.parse(format), filter, user);
