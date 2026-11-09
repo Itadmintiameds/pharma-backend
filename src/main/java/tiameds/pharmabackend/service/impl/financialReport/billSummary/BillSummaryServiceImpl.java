@@ -218,7 +218,9 @@ public class BillSummaryServiceImpl implements BillSummaryService {
                 line.get("grossAmount").alias("grossAmount"),
                 line.get("discountAmount").alias("discountAmount"),
                 line.get("gstAmount").alias("gstAmount"),
-                line.get("netAmount").alias("netAmount"));
+                line.get("netAmount").alias("netAmount"),
+                bill.get("roundOffAmount").alias("billRoundOffAmount"),
+                support.billAmount(cb, bill).alias("billNetAmountAfterRoundOff"));
 
         List<Predicate> predicates = billPredicates(cb, bill, customer, doctor, pharmacyIds, range, filter);
         predicates.addAll(support.productPredicates(cb, product, filter));
@@ -291,13 +293,49 @@ public class BillSummaryServiceImpl implements BillSummaryService {
 
         Tuple totals = entityManager.createQuery(query).getSingleResult();
 
+        BigDecimal netAmount = totals.get("netAmount", BigDecimal.class);
+        BigDecimal roundOff = sumBillRoundOff(pharmacyIds, range, filter);
+
         BillDetailedSalesKpiDto kpi = new BillDetailedSalesKpiDto();
         kpi.setTotalGrossAmount(totals.get("grossAmount", BigDecimal.class));
         kpi.setTotalDiscountAmount(totals.get("discountAmount", BigDecimal.class));
         kpi.setTotalGstAmount(totals.get("gstAmount", BigDecimal.class));
-        kpi.setTotalNetAmount(totals.get("netAmount", BigDecimal.class));
+        kpi.setTotalNetAmount(netAmount);
+        kpi.setTotalRoundOffAmount(roundOff);
+        kpi.setTotalNetAmountAfterRoundOff(netAmount.add(roundOff));
 
         return kpi;
+    }
+
+
+    // Round-off of every bill with at least one matching line, counted once
+    // per bill (round-off is stored on the bill, not the line).
+    private BigDecimal sumBillRoundOff(List<String> pharmacyIds, DateRange range, FinancialReportFilter filter) {
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<BigDecimal> query = cb.createQuery(BigDecimal.class);
+
+        Root<Billing> bill = query.from(Billing.class);
+        Join<Billing, CustomerManagement> customer = bill.join("customer", JoinType.LEFT);
+        Join<Billing, DoctorDetails> doctor = bill.join("doctor", JoinType.LEFT);
+
+        Subquery<Long> matchingLines = query.subquery(Long.class);
+        Root<BillingDetails> line = matchingLines.from(BillingDetails.class);
+        Join<BillingDetails, ProductDetails> product = line.join("product", JoinType.LEFT);
+
+        List<Predicate> linePredicates = new ArrayList<>(support.productPredicates(cb, product, filter));
+        linePredicates.add(cb.equal(line.get("billing"), bill));
+
+        matchingLines.select(line.get("billingDetailsId"))
+                .where(linePredicates.toArray(Predicate[]::new));
+
+        List<Predicate> predicates = billPredicates(cb, bill, customer, doctor, pharmacyIds, range, filter);
+        predicates.add(cb.exists(matchingLines));
+
+        query.select(sumOrZero(cb, bill.get("roundOffAmount")))
+                .where(predicates.toArray(Predicate[]::new));
+
+        return entityManager.createQuery(query).getSingleResult();
     }
 
 
@@ -443,6 +481,8 @@ public class BillSummaryServiceImpl implements BillSummaryService {
         row.setGrossAmount(tuple.get("grossAmount", BigDecimal.class));
         row.setDiscountAmount(tuple.get("discountAmount", BigDecimal.class));
         row.setNetAmount(tuple.get("netAmount", BigDecimal.class));
+        row.setBillRoundOffAmount(tuple.get("billRoundOffAmount", BigDecimal.class));
+        row.setBillNetAmountAfterRoundOff(tuple.get("billNetAmountAfterRoundOff", BigDecimal.class));
 
         // CGST takes the half rounded to paise and SGST the remainder, so the
         // two always add back up to the line's GST amount.

@@ -17,9 +17,11 @@ import tiameds.pharmabackend.entity.billing.Billing;
 import tiameds.pharmabackend.entity.billing.BillingPayment;
 import tiameds.pharmabackend.entity.billing.CustomerManagement;
 import tiameds.pharmabackend.entity.billing.DoctorDetails;
+import tiameds.pharmabackend.entity.billing.SalesReturn;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.enums.CustomerType;
 import tiameds.pharmabackend.enums.PaymentMode;
+import tiameds.pharmabackend.enums.SalesReturnStatus;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 
@@ -351,6 +353,32 @@ public class FinancialReportSupport {
                 })
                 .distinct()
                 .toList();
+    }
+
+
+    // Completed sales returns against the bill, zero when there are none.
+    // With before set, only returns dated before it count (as of a date).
+    public Expression<BigDecimal> returnedAmount(
+            CriteriaBuilder cb,
+            AbstractQuery<?> query,
+            From<?, Billing> bill,
+            LocalDateTime before) {
+
+        Subquery<BigDecimal> returned = query.subquery(BigDecimal.class);
+        Root<SalesReturn> salesReturn = returned.from(SalesReturn.class);
+
+        List<Predicate> predicates = new ArrayList<>();
+        predicates.add(cb.equal(salesReturn.get("billing"), bill));
+        predicates.add(cb.equal(salesReturn.get("salesReturnStatus"), SalesReturnStatus.COMPLETED));
+
+        if (before != null) {
+            predicates.add(cb.lessThan(salesReturn.get("salesReturnDate"), before));
+        }
+
+        returned.select(cb.coalesce(cb.sum(salesReturn.<BigDecimal>get("totalNetAmount")), BigDecimal.ZERO))
+                .where(predicates.toArray(Predicate[]::new));
+
+        return returned;
     }
 
 

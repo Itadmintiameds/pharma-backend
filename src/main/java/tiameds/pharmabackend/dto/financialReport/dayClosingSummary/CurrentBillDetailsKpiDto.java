@@ -16,6 +16,10 @@ public class CurrentBillDetailsKpiDto {
     // Received on these bills up to the end of the day.
     private BigDecimal totalAmountReceived;
 
-    // Still due on the IP bills at the end of the day.
+    // Completed returns against these bills up to the end of the day.
+    private BigDecimal totalReturnedAmount;
+
+    // Still due on the IP bills at the end of the day, after returns; summed
+    // per bill so one bill's overpayment never offsets another's due.
     private BigDecimal totalPendingAmount;
 }

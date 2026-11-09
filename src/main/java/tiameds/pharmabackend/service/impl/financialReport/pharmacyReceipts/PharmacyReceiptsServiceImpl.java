@@ -99,8 +99,10 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
                         "Sum of eligible finalized Sales Return amounts", totalReturns),
                 new SalesSummaryRowDto("NET_SALES", "Net Sales", "Calculated",
                         "Total Sales - Total Sales Return", netSales),
-                new SalesSummaryRowDto("IP_PENDING_AMOUNT", "IP Pending Amount", "IP Bill / Payment Records",
-                        "Outstanding amount against eligible IP bills, as of reporting end date", ipPending));
+                new SalesSummaryRowDto("IP_PENDING_AMOUNT", "IP Pending Amount",
+                        "IP Bill / Payment Records / Sales Return",
+                        "Outstanding amount against eligible IP bills (bill - received - returned), "
+                                + "as of reporting end date", ipPending));
 
         return new FinancialReportResponse<>(
                 FinancialReportSupport.generatedBy(user),
@@ -227,9 +229,11 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
     }
 
 
-    // Billed on the period's eligible IP bills minus what had been received on
-    // them by the end of the period. Zero when the patient type filter leaves
-    // out IP.
+    // What is still owed on the period's eligible IP bills as of the end of
+    // the period: each bill minus what had been received on it and what had
+    // been returned from it by then, never below zero per bill (a returned
+    // or overpaid bill counts as zero rather than offsetting another bill).
+    // Zero when the patient type filter leaves out IP.
     private BigDecimal ipPendingAmount(Scope scope) {
 
         if (!scope.patientTypes().isEmpty() && !scope.patientTypes().contains(CustomerType.IP_PATIENT)) {
@@ -237,36 +241,62 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
         }
 
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
 
-        CriteriaQuery<BigDecimal> billedQuery = cb.createQuery(BigDecimal.class);
-        Root<Billing> bill = billedQuery.from(Billing.class);
+        Root<Billing> bill = query.from(Billing.class);
+        LocalDateTime asOf = scope.range().endExclusive();
 
-        List<Predicate> billed = eligibleBill(cb, billedQuery, bill, scope, true);
-        billed.add(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT));
-        billed.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
+        List<Predicate> predicates = eligibleBill(cb, query, bill, scope, true);
+        predicates.add(cb.equal(bill.get("customerType"), CustomerType.IP_PATIENT));
+        predicates.addAll(support.within(cb, bill.get("createdAt"), scope.range()));
 
-        billedQuery.select(cb.coalesce(cb.sum(support.billAmount(cb, bill)), BigDecimal.ZERO))
-                .where(billed.toArray(Predicate[]::new));
+        query.multiselect(
+                        support.billAmount(cb, bill).alias("total"),
+                        receivedBy(cb, query, bill, asOf).alias("received"),
+                        support.returnedAmount(cb, query, bill, asOf).alias("returned"))
+                .where(predicates.toArray(Predicate[]::new));
 
-        CriteriaQuery<BigDecimal> receivedQuery = cb.createQuery(BigDecimal.class);
-        Root<BillingPayment> payment = receivedQuery.from(BillingPayment.class);
-        Join<BillingPayment, Billing> paidBill = payment.join("billing");
+        BigDecimal pending = BigDecimal.ZERO;
 
-        List<Predicate> received = eligibleBill(cb, receivedQuery, paidBill, scope, true);
-        received.add(cb.equal(paidBill.get("customerType"), CustomerType.IP_PATIENT));
-        received.addAll(support.within(cb, paidBill.get("createdAt"), scope.range()));
-
-        if (scope.range().endExclusive() != null) {
-            received.add(cb.lessThan(payment.get("createdAt"), scope.range().endExclusive()));
+        // Summed here rather than in SQL, since an aggregate over per-bill
+        // subqueries is not portable.
+        for (Tuple row : entityManager.createQuery(query).getResultList()) {
+            BigDecimal owed = orZero(row.get("total", BigDecimal.class))
+                    .subtract(orZero(row.get("received", BigDecimal.class)))
+                    .subtract(orZero(row.get("returned", BigDecimal.class)));
+            pending = pending.add(owed.max(BigDecimal.ZERO));
         }
 
-        receivedQuery.select(cb.coalesce(cb.sum(payment.<BigDecimal>get("receivedAmount")), BigDecimal.ZERO))
-                .where(received.toArray(Predicate[]::new));
+        return pending;
+    }
 
-        BigDecimal totalBilled = entityManager.createQuery(billedQuery).getSingleResult();
-        BigDecimal totalReceived = entityManager.createQuery(receivedQuery).getSingleResult();
 
-        return totalBilled.subtract(totalReceived).max(BigDecimal.ZERO);
+    // Received on the bill before asOf (everything when asOf is null).
+    private Expression<BigDecimal> receivedBy(
+            CriteriaBuilder cb,
+            AbstractQuery<?> query,
+            From<?, Billing> bill,
+            LocalDateTime asOf) {
+
+        Subquery<BigDecimal> received = query.subquery(BigDecimal.class);
+        Root<BillingPayment> payment = received.from(BillingPayment.class);
+
+        List<Predicate> predicates = new ArrayList<>();
+        predicates.add(cb.equal(payment.get("billing"), bill));
+
+        if (asOf != null) {
+            predicates.add(cb.lessThan(payment.get("createdAt"), asOf));
+        }
+
+        received.select(cb.coalesce(cb.sum(payment.<BigDecimal>get("receivedAmount")), BigDecimal.ZERO))
+                .where(predicates.toArray(Predicate[]::new));
+
+        return received;
+    }
+
+
+    private static BigDecimal orZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
 

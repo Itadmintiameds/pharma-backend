@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import tiameds.pharmabackend.dto.purchase.PurchaseReturnCancelRequest;
 import tiameds.pharmabackend.dto.purchase.PurchaseReturnDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
 import tiameds.pharmabackend.service.purchase.PurchaseReturnService;
@@ -95,6 +96,28 @@ public class PurchaseReturnController {
         PurchaseReturnDto response = purchaseReturnService.editPurchaseReturn(
                 purchaseReturnId,
                 purchaseReturnDto,
+                currentUser.getUser());
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    // Cancels a confirmed return: its stock goes back into inventory and it stops
+    // counting against the supplier's payable. Body: { "cancelReason": "..." }.
+    @PreAuthorize("@access.has('PURCHASE_RETURN/PURCHASE_RETURN/EDIT')")
+    @PutMapping("/{purchaseReturnId}/cancel")
+    public ResponseEntity<?> cancelPurchaseReturn(
+            @PathVariable Long purchaseReturnId,
+            @RequestBody PurchaseReturnCancelRequest request,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        PurchaseReturnDto response = purchaseReturnService.cancelPurchaseReturn(
+                purchaseReturnId,
+                request != null ? request.getCancelReason() : null,
                 currentUser.getUser());
 
         return ResponseEntity.ok(response);

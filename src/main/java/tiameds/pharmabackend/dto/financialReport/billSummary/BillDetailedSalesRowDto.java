@@ -51,4 +51,9 @@ public class BillDetailedSalesRowDto {
     private BigDecimal sgstAmount;
 
     private BigDecimal netAmount;
+
+    // Bill-level figures, repeated on every line of the same bill: the
+    // bill's round-off and its net total after round-off.
+    private BigDecimal billRoundOffAmount;
+    private BigDecimal billNetAmountAfterRoundOff;
 }
