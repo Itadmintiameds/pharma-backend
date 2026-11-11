@@ -90,6 +90,12 @@ public class FinancialReportFilter {
     // GST report: ALL (default), LOCAL or CENTRAL.
     private String gstClassification;
 
+    // Which screen the report is for: SUMMARY (default) or DAY_CLOSING.
+    // Sales summary, payment mode summary and receipt details are shown on
+    // both; DAY_CLOSING leaves out IP pending and titles the download as a
+    // day closing report.
+    private String view;
+
     // Zero-based page index and page size, both chosen by the client.
     private Integer page;
     private Integer size;
@@ -106,5 +112,11 @@ public class FinancialReportFilter {
 
     public void useExportBatches(int batchSize) {
         this.exportBatchSize = batchSize;
+    }
+
+
+    // Not a getter, so it is never bound or serialized as a property.
+    public boolean dayClosingView() {
+        return view != null && "DAY_CLOSING".equalsIgnoreCase(view.trim());
     }
 }

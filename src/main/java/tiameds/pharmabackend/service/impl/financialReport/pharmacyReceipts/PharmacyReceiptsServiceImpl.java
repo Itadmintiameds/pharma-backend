@@ -82,7 +82,9 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
         BigDecimal totalDiscount = sales.get("discount", BigDecimal.class);
         BigDecimal totalReturns = sumReturns(scope);
         BigDecimal netSales = totalSales.subtract(totalReturns);
-        BigDecimal ipPending = ipPendingAmount(scope);
+        // The day closing screen has no IP pending card or row.
+        boolean dayClosing = filter.dayClosingView();
+        BigDecimal ipPending = dayClosing ? null : ipPendingAmount(scope);
 
         SalesSummaryKpiDto kpi = new SalesSummaryKpiDto();
         kpi.setTotalSales(totalSales);
@@ -90,7 +92,7 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
         kpi.setNetSales(netSales);
         kpi.setIpPendingAmount(ipPending);
 
-        List<SalesSummaryRowDto> rows = List.of(
+        List<SalesSummaryRowDto> rows = new ArrayList<>(List.of(
                 new SalesSummaryRowDto("TOTAL_SALES", "Total Sales", "Pharmacy Bill",
                         "Sum of eligible finalized bill Total Amount", totalSales),
                 new SalesSummaryRowDto("TOTAL_DISCOUNT", "Total Discount", "Pharmacy Bill",
@@ -98,11 +100,14 @@ public class PharmacyReceiptsServiceImpl implements PharmacyReceiptsService {
                 new SalesSummaryRowDto("TOTAL_SALES_RETURN", "Total Sales Return", "Sales Return",
                         "Sum of eligible finalized Sales Return amounts", totalReturns),
                 new SalesSummaryRowDto("NET_SALES", "Net Sales", "Calculated",
-                        "Total Sales - Total Sales Return", netSales),
-                new SalesSummaryRowDto("IP_PENDING_AMOUNT", "IP Pending Amount",
-                        "IP Bill / Payment Records / Sales Return",
-                        "Outstanding amount against eligible IP bills (bill - received - returned), "
-                                + "as of reporting end date", ipPending));
+                        "Total Sales - Total Sales Return", netSales)));
+
+        if (!dayClosing) {
+            rows.add(new SalesSummaryRowDto("IP_PENDING_AMOUNT", "IP Pending Amount",
+                    "IP Bill / Payment Records / Sales Return",
+                    "Outstanding amount against eligible IP bills (bill - received - returned), "
+                            + "as of reporting end date", ipPending));
+        }
 
         return new FinancialReportResponse<>(
                 FinancialReportSupport.generatedBy(user),
