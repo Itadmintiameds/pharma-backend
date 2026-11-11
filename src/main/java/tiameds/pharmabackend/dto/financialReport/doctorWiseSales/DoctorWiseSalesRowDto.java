@@ -21,6 +21,8 @@ public class DoctorWiseSalesRowDto {
     private Long saleQuantity;
     private Long returnQuantity;
 
+    // Both include round-off: the row's share (by amount) of its bills' /
+    // returns' round-off, which is stored on the bill / return, not the line.
     private BigDecimal saleValue;
     private BigDecimal returnValue;
 

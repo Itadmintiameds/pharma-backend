@@ -27,6 +27,7 @@ import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReport
 import tiameds.pharmabackend.service.impl.financialReport.common.FinancialReportSupport.DateRange;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -70,20 +71,36 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
 
         Map<RowKey, DoctorWiseSalesRowDto> rows = new HashMap<>();
 
+        // Sale and return values include round-off, like the amounts actually
+        // collected and refunded. Round-off is stored on the bill / return, so
+        // each row takes its share by amount.
         for (Tuple sale : findSales(pharmacyIds, range, patientTypes, filter)) {
             DoctorWiseSalesRowDto row = rowFor(rows, sale);
             row.setSaleQuantity(row.getSaleQuantity() + sale.get("quantity", Long.class));
-            row.setSaleValue(row.getSaleValue().add(sale.get("amount", BigDecimal.class)));
+            row.setSaleValue(row.getSaleValue()
+                    .add(sale.get("amount", BigDecimal.class))
+                    .add(sale.get("roundOff", BigDecimal.class)));
         }
 
-        for (Tuple saleReturn : findReturns(pharmacyIds, range, patientTypes, filter)) {
+        List<Tuple> returns = findReturns(pharmacyIds, range, patientTypes, filter);
+        Map<Long, BigDecimal> returnLineTotals = returnLineTotals(returns);
+
+        for (Tuple saleReturn : returns) {
             DoctorWiseSalesRowDto row = rowFor(rows, saleReturn);
+            BigDecimal amount = saleReturn.get("amount", BigDecimal.class);
+
             row.setReturnQuantity(row.getReturnQuantity() + saleReturn.get("quantity", Long.class));
-            row.setReturnValue(row.getReturnValue().add(saleReturn.get("amount", BigDecimal.class)));
+            row.setReturnValue(row.getReturnValue()
+                    .add(amount)
+                    .add(returnRoundOffShare(saleReturn, amount, returnLineTotals)));
         }
 
         List<DoctorWiseSalesRowDto> sorted = new ArrayList<>(rows.values());
-        sorted.forEach(row -> row.setNetSaleValue(row.getSaleValue().subtract(row.getReturnValue())));
+        sorted.forEach(row -> {
+            row.setSaleValue(row.getSaleValue().setScale(2, RoundingMode.HALF_UP));
+            row.setReturnValue(row.getReturnValue().setScale(2, RoundingMode.HALF_UP));
+            row.setNetSaleValue(row.getSaleValue().subtract(row.getReturnValue()));
+        });
         sorted.sort(ROW_ORDER);
         support.checkPrintLimit(filter, sorted.size());
 
@@ -134,7 +151,8 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
                         product.get("productId").alias("productId"),
                         product.get("productName").alias("productName"),
                         cb.coalesce(cb.sum(line.<Long>get("billQuantity")), 0L).alias("quantity"),
-                        cb.coalesce(cb.sum(line.<BigDecimal>get("netAmount")), BigDecimal.ZERO).alias("amount"))
+                        cb.coalesce(cb.sum(line.<BigDecimal>get("netAmount")), BigDecimal.ZERO).alias("amount"),
+                        cb.coalesce(cb.sum(roundOffShare(cb, bill, line)), BigDecimal.ZERO).alias("roundOff"))
                 .where(predicates.toArray(Predicate[]::new))
                 .groupBy(
                         pharmacy.get("pharmacyId"),
@@ -145,6 +163,24 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
                         product.get("productName"));
 
         return entityManager.createQuery(query).getResultList();
+    }
+
+
+    // Round-off is stored once per bill. Each line takes its share by amount:
+    // bill round-off * line net / bill net (the bill net is the sum of its
+    // lines), so the lines of a bill add up to the bill's round-off.
+    private static Expression<BigDecimal> roundOffShare(
+            CriteriaBuilder cb,
+            Path<Billing> bill,
+            Path<BillingDetails> line) {
+
+        Expression<BigDecimal> billNet = cb.nullif(bill.<BigDecimal>get("totalNetAmount"), BigDecimal.ZERO);
+
+        return cb.quot(
+                        cb.prod(cb.coalesce(bill.<BigDecimal>get("roundOffAmount"), BigDecimal.ZERO),
+                                line.<BigDecimal>get("netAmount")),
+                        billNet)
+                .as(BigDecimal.class);
     }
 
 
@@ -180,7 +216,9 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
                         product.get("productId").alias("productId"),
                         product.get("productName").alias("productName"),
                         cb.coalesce(cb.sum(returnLine.<Long>get("salesReturnQuantity")), 0L).alias("quantity"),
-                        cb.coalesce(cb.sum(returnLine.<BigDecimal>get("netAmount")), BigDecimal.ZERO).alias("amount"))
+                        cb.coalesce(cb.sum(returnLine.<BigDecimal>get("netAmount")), BigDecimal.ZERO).alias("amount"),
+                        salesReturn.get("salesReturnId").alias("salesReturnId"),
+                        salesReturn.get("totalNetAmount").alias("returnTotal"))
                 .where(predicates.toArray(Predicate[]::new))
                 .groupBy(
                         pharmacy.get("pharmacyId"),
@@ -188,9 +226,66 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
                         doctor.get("doctorId"),
                         doctor.get("doctorName"),
                         product.get("productId"),
-                        product.get("productName"));
+                        product.get("productName"),
+                        salesReturn.get("salesReturnId"),
+                        salesReturn.get("totalNetAmount"));
 
         return entityManager.createQuery(query).getResultList();
+    }
+
+
+    // Sum of all line amounts of each return, whatever the product filters,
+    // to work out how much of the return's total is round-off.
+    private Map<Long, BigDecimal> returnLineTotals(List<Tuple> returns) {
+
+        Set<Long> returnIds = new HashSet<>();
+        returns.forEach(r -> returnIds.add(r.get("salesReturnId", Long.class)));
+
+        Map<Long, BigDecimal> totals = new HashMap<>();
+
+        if (returnIds.isEmpty()) {
+            return totals;
+        }
+
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> query = cb.createTupleQuery();
+
+        Root<SalesReturnDetails> returnLine = query.from(SalesReturnDetails.class);
+        Join<SalesReturnDetails, SalesReturn> salesReturn = returnLine.join("salesReturn");
+
+        query.multiselect(
+                        salesReturn.get("salesReturnId").alias("salesReturnId"),
+                        cb.coalesce(cb.sum(returnLine.<BigDecimal>get("netAmount")), BigDecimal.ZERO).alias("lines"))
+                .where(salesReturn.get("salesReturnId").in(returnIds))
+                .groupBy(salesReturn.get("salesReturnId"));
+
+        for (Tuple tuple : entityManager.createQuery(query).getResultList()) {
+            totals.put(tuple.get("salesReturnId", Long.class), tuple.get("lines", BigDecimal.class));
+        }
+
+        return totals;
+    }
+
+
+    // A return's total can include round-off that its lines do not (the
+    // refund is rounded like the bill was): round-off = return total - sum of
+    // its lines, split across the return's rows by amount. Zero for returns
+    // whose total equals their lines.
+    private static BigDecimal returnRoundOffShare(
+            Tuple saleReturn,
+            BigDecimal rowAmount,
+            Map<Long, BigDecimal> returnLineTotals) {
+
+        BigDecimal returnTotal = saleReturn.get("returnTotal", BigDecimal.class);
+        BigDecimal lines = returnLineTotals.get(saleReturn.get("salesReturnId", Long.class));
+
+        if (returnTotal == null || lines == null || lines.signum() == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        return returnTotal.subtract(lines)
+                .multiply(rowAmount)
+                .divide(lines, 10, RoundingMode.HALF_UP);
     }
 
 
@@ -220,14 +315,17 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
     }
 
 
-    private DoctorWiseSalesRowDto rowFor(Map<RowKey, DoctorWiseSalesRowDto> rows, Tuple tuple) {
-
-        RowKey key = new RowKey(
+    private static RowKey keyOf(Tuple tuple) {
+        return new RowKey(
                 tuple.get("pharmacyId", String.class),
                 tuple.get("doctorId", Long.class),
                 tuple.get("productId", String.class));
+    }
 
-        return rows.computeIfAbsent(key, k -> {
+
+    private DoctorWiseSalesRowDto rowFor(Map<RowKey, DoctorWiseSalesRowDto> rows, Tuple tuple) {
+
+        return rows.computeIfAbsent(keyOf(tuple), k -> {
             DoctorWiseSalesRowDto row = new DoctorWiseSalesRowDto();
             row.setPharmacyId(k.pharmacyId());
             row.setPharmacyName(tuple.get("pharmacyName", String.class));
