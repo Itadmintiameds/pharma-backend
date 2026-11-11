@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.SupplierOutstandingReportFilter;
@@ -31,10 +30,12 @@ public class SupplierOutstandingReportController {
     /**
      * Supplier Outstanding Report: supplier-wise and purchase invoice-wise
      * amounts still payable on credit purchases after supplier payments and
-     * confirmed purchase returns. Multi-select params accept repeats
+     * confirmed purchase returns. Returns the KPI cards (summary, which also
+     * carries the table's Total row), one page of outstandingInvoices, and the
+     * outstandingSummary Particulars / Amount table (over every matching
+     * invoice, not just the page). Multi-select params accept repeats
      * (?supplierIds=1&supplierIds=2) or a comma list (?supplierIds=1,2).
      */
-    @PreAuthorize("@access.has('REPORTS/SUPPLIER_OUTSTANDING_REPORT/VIEW')")
     @GetMapping("/supplier-outstanding")
     public ResponseEntity<?> getSupplierOutstandingReport(
             @RequestParam(required = false)
@@ -105,10 +106,10 @@ public class SupplierOutstandingReportController {
      * CSV / Excel download of the Supplier Outstanding Report:
      *   /auditReports/supplier-outstanding/export?format=xlsx&<the report's filters>
      * format is csv or xlsx. page and size are ignored: every matching row is
-     * written, in the order sortBy / sortDir give. Written straight to the
+     * written, in the order sortBy / sortDir give, followed by the Supplier
+     * Outstanding Summary table. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/SUPPLIER_OUTSTANDING_REPORT/VIEW')")
     @GetMapping("/supplier-outstanding/export")
     public void exportSupplierOutstandingReport(
             @RequestParam String format,

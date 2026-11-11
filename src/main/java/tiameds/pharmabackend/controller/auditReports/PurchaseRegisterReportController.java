@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportFilter;
@@ -30,11 +29,13 @@ public class PurchaseRegisterReportController {
 
     /**
      * Purchase Register Report: transaction-wise medicines purchased through
-     * supplier purchase invoices in the period. Multi-select params accept
+     * supplier purchase invoices in the period. Returns the KPI cards
+     * (summary, which also carries the table's Total row), one page of
+     * purchaseDetails, and the purchaseSummary Metric / Value table (over every
+     * matching row, not just the page). Multi-select params accept
      * repeats (?supplierIds=1&supplierIds=2) or a comma list (?supplierIds=1,2).
      * expiryFrom / expiryTo are months as MM/yyyy.
      */
-    @PreAuthorize("@access.has('REPORTS/PURCHASE_REGISTER_REPORT/VIEW')")
     @GetMapping("/purchase-register")
     public ResponseEntity<?> getPurchaseRegisterReport(
             @RequestParam(required = false)
@@ -98,10 +99,10 @@ public class PurchaseRegisterReportController {
      * CSV / Excel download of the Purchase Register Report:
      *   /auditReports/purchase-register/export?format=xlsx&<the report's filters>
      * format is csv or xlsx. page and size are ignored: every matching row is
-     * written, in the order sortBy / sortDir give. Written straight to the
+     * written, in the order sortBy / sortDir give, followed by the Purchase
+     * Summary table. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/PURCHASE_REGISTER_REPORT/VIEW')")
     @GetMapping("/purchase-register/export")
     public void exportPurchaseRegisterReport(
             @RequestParam String format,

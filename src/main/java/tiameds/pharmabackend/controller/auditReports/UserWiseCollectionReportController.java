@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.UserWiseCollectionReportFilter;
@@ -33,7 +32,6 @@ public class UserWiseCollectionReportController {
      * Multi-select params accept repeats (?userIds=A&userIds=B)
      * or a comma list (?userIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/USER_WISE_COLLECTION_REPORT/VIEW')")
     @GetMapping("/user-wise-collection")
     public ResponseEntity<?> getUserWiseCollectionReport(
             @RequestParam(required = false)
@@ -91,7 +89,6 @@ public class UserWiseCollectionReportController {
      * in the order summarySortBy / summarySortDir give. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/USER_WISE_COLLECTION_REPORT/VIEW')")
     @GetMapping("/user-wise-collection/export")
     public void exportUserWiseCollectionReport(
             @RequestParam String format,

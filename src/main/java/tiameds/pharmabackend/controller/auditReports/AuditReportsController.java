@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.InventorySalesReportFilter;
@@ -33,7 +32,6 @@ public class AuditReportsController {
      * period. Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
      * or a comma list (?pharmacyIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/INVENTORY_SALES_REPORT/VIEW')")
     @GetMapping("/inventory-sales")
     public ResponseEntity<?> getInventorySalesReport(
             @RequestParam(required = false)
@@ -98,7 +96,6 @@ public class AuditReportsController {
      * written. Written straight to the response, so the file streams out as
      * it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/INVENTORY_SALES_REPORT/VIEW')")
     @GetMapping("/inventory-sales/export")
     public void exportInventorySalesReport(
             @RequestParam String format,

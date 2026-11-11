@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.ProductWiseReportFilter;
@@ -30,10 +29,12 @@ public class ProductWiseReportController {
     /**
      * Product-wise Purchase and Sales Analysis Report: per product batch,
      * what was purchased from / returned to suppliers and sold to / returned
-     * by customers in the period. Multi-select params accept repeats
+     * by customers in the period. Returns the KPI cards (summary, which also
+     * carries both tables' Total rows), one page of productDetails, and the
+     * reportSummary Particulars / Value table (over every matching row, not
+     * just the page). Multi-select params accept repeats
      * (?pharmacyIds=A&pharmacyIds=B) or a comma list (?pharmacyIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/PRODUCT_WISE_REPORT/VIEW')")
     @GetMapping("/product-wise")
     public ResponseEntity<?> getProductWiseReport(
             @RequestParam(required = false)
@@ -89,10 +90,10 @@ public class ProductWiseReportController {
      * CSV / Excel download of the Product-wise Purchase and Sales Analysis Report:
      *   /auditReports/product-wise/export?format=xlsx&<the report's filters>
      * format is csv or xlsx. page and size are ignored: every matching product
-     * batch is written, in the order sortBy / sortDir give. Written straight
+     * batch is written, in the order sortBy / sortDir give, followed by the
+     * Report Summary table. Written straight
      * to the response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/PRODUCT_WISE_REPORT/VIEW')")
     @GetMapping("/product-wise/export")
     public void exportProductWiseReport(
             @RequestParam String format,

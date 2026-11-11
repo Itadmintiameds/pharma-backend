@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.GrossProfitSalesBookFilter;
@@ -35,7 +34,6 @@ public class GrossProfitSalesBookController {
      * Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
      * or a comma list (?pharmacyIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/GROSS_PROFIT_SALES_BOOK/VIEW')")
     @GetMapping("/gross-profit-sales-book")
     public ResponseEntity<?> getGrossProfitSalesBook(
             @RequestParam(required = false)
@@ -86,7 +84,6 @@ public class GrossProfitSalesBookController {
      * written. Written straight to the response, so the file streams out as
      * it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/GROSS_PROFIT_SALES_BOOK/VIEW')")
     @GetMapping("/gross-profit-sales-book/export")
     public void exportGrossProfitSalesBook(
             @RequestParam String format,

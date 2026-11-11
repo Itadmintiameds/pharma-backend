@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 @Data
 @JsonPropertyOrder({
-        "summary", "outstandingInvoices",
+        "summary", "outstandingInvoices", "outstandingSummary",
         "fromDate", "toDate", "outstandingAsOf",
         "generatedBy", "generatedOn"})
 public class SupplierOutstandingReportResponse {
@@ -17,6 +17,10 @@ public class SupplierOutstandingReportResponse {
     private SupplierOutstandingReportSummaryDto summary;
 
     private SupplierOutstandingReportPageDto outstandingInvoices;
+
+    // Supplier Outstanding Summary: Particulars / Amount table below the
+    // invoices; Total Supplier Payable is the highlighted row.
+    private SupplierOutstandingReportOutstandingSummaryDto outstandingSummary;
 
     // Report header: "Reporting Period: 01-Oct-2026 to 12-Oct-2026",
     // "Outstanding As of: 12-Oct-2026".

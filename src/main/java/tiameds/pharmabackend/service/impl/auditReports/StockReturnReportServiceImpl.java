@@ -8,6 +8,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.LocationContextResolver;
+import tiameds.pharmabackend.dto.auditReports.StockReturnReportBreakdownDto;
+import tiameds.pharmabackend.dto.auditReports.StockReturnReportBreakdownRowDto;
 import tiameds.pharmabackend.dto.auditReports.StockReturnReportFilter;
 import tiameds.pharmabackend.dto.auditReports.StockReturnReportPageDto;
 import tiameds.pharmabackend.dto.auditReports.StockReturnReportResponse;
@@ -28,6 +30,8 @@ import tiameds.pharmabackend.service.impl.financialReport.export.ReportTableWrit
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
@@ -122,6 +126,8 @@ public class StockReturnReportServiceImpl implements StockReturnReportService {
 
         StockReturnReportSummaryDto summary = fetchSummary(report.sql(), report.params());
         long totalRecords = fetchTotalRecords(report.sql(), report.params());
+        StockReturnReportBreakdownDto returnSummary = fetchReturnTypeSummary(report.sql(), report.params(), summary);
+        StockReturnReportBreakdownDto returnReasonSummary = buildReturnReasonSummary(summary);
 
         int size;
         int page;
@@ -153,6 +159,8 @@ public class StockReturnReportServiceImpl implements StockReturnReportService {
         StockReturnReportResponse response = new StockReturnReportResponse();
         response.setSummary(summary);
         response.setReturnTransactions(details);
+        response.setReturnSummary(returnSummary);
+        response.setReturnReasonSummary(returnReasonSummary);
         response.setGeneratedBy(report.user().getFullName());
         response.setGeneratedOn(LocalDateTime.now());
 
@@ -179,6 +187,8 @@ public class StockReturnReportServiceImpl implements StockReturnReportService {
         }
 
         StockReturnReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        StockReturnReportBreakdownDto returnSummary = fetchReturnTypeSummary(report.sql(), report.params(), summary);
+        StockReturnReportBreakdownDto returnReasonSummary = buildReturnReasonSummary(summary);
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
         String pharmacies = pharmacyNames(report.pharmacyIds());
@@ -223,8 +233,11 @@ public class StockReturnReportServiceImpl implements StockReturnReportService {
                     writer.blank();
 
                     writer.line("Total Returned Quantity", summary.getTotalReturnedQuantity());
+                    writer.line("Total Returns", summary.getTotalReturns());
                     writer.line("Damage Quantity", summary.getDamageQuantity());
+                    writer.line("Damage % of Returned Quantity", summary.getDamagePercentage());
                     writer.line("Expiry Quantity", summary.getExpiryQuantity());
+                    writer.line("Expiry % of Returned Quantity", summary.getExpiryPercentage());
                     writer.blank();
 
                     writer.header(EXPORT_HEADERS);
@@ -248,6 +261,14 @@ public class StockReturnReportServiceImpl implements StockReturnReportService {
                             break;
                         }
                     }
+
+                    writer.blank();
+                    writeBreakdown(writer, "Return Summary", "Return Type",
+                            "Total Return Movement Quantity", returnSummary);
+
+                    writer.blank();
+                    writeBreakdown(writer, "Return Reason Summary", "Return Reason",
+                            "Total", returnReasonSummary);
 
                     writer.finish();
                 }
@@ -697,19 +718,104 @@ public class StockReturnReportServiceImpl implements StockReturnReportService {
 
     private StockReturnReportSummaryDto fetchSummary(String reportSql, Map<String, Object> params) {
 
+        // A return is one document: src_order keeps a warehouse return and a
+        // purchase return with the same number apart.
         Object[] row = (Object[]) nativeQuery(reportSql + """
                 SELECT COALESCE(SUM(returned_quantity), 0),
                        COALESCE(SUM(returned_quantity) FILTER (WHERE reason_category = 'DAMAGE'), 0),
-                       COALESCE(SUM(returned_quantity) FILTER (WHERE reason_category = 'EXPIRY'), 0)
+                       COALESCE(SUM(returned_quantity) FILTER (WHERE reason_category = 'EXPIRY'), 0),
+                       COUNT(DISTINCT CAST(src_order AS VARCHAR) || ':' || COALESCE(reference_number, ''))
                 FROM report
                 """, params).getSingleResult();
 
+        long total = toLong(row[0]);
+        long damage = toLong(row[1]);
+        long expiry = toLong(row[2]);
+
         StockReturnReportSummaryDto summary = new StockReturnReportSummaryDto();
-        summary.setTotalReturnedQuantity(toLong(row[0]));
-        summary.setDamageQuantity(toLong(row[1]));
-        summary.setExpiryQuantity(toLong(row[2]));
+        summary.setTotalReturnedQuantity(total);
+        summary.setTotalReturns(toLong(row[3]));
+        summary.setDamageQuantity(damage);
+        summary.setDamagePercentage(percentage(damage, total));
+        summary.setExpiryQuantity(expiry);
+        summary.setExpiryPercentage(percentage(expiry, total));
 
         return summary;
+    }
+
+
+    // Return Summary: every return type, in dropdown order, with 0 for the
+    // ones that have no rows.
+    @SuppressWarnings("unchecked")
+    private StockReturnReportBreakdownDto fetchReturnTypeSummary(
+            String reportSql,
+            Map<String, Object> params,
+            StockReturnReportSummaryDto summary) {
+
+        List<Object[]> results = nativeQuery(reportSql + """
+                SELECT return_type, COALESCE(SUM(returned_quantity), 0)
+                FROM report
+                GROUP BY return_type
+                """, params).getResultList();
+
+        Map<String, Long> quantities = new HashMap<>();
+        for (Object[] r : results) {
+            quantities.put((String) r[0], toLong(r[1]));
+        }
+
+        List<StockReturnReportBreakdownRowDto> rows = new ArrayList<>();
+        RETURN_TYPES.forEach((code, label) ->
+                rows.add(new StockReturnReportBreakdownRowDto(code, label, quantities.getOrDefault(code, 0L))));
+
+        return new StockReturnReportBreakdownDto(rows, summary.getTotalReturnedQuantity());
+    }
+
+
+    // Return Reason Summary: Damage and Expiry always; Other only when some
+    // rows fall outside both, so the rows still add up to the Total.
+    private StockReturnReportBreakdownDto buildReturnReasonSummary(StockReturnReportSummaryDto summary) {
+
+        long total = summary.getTotalReturnedQuantity();
+        long other = total - summary.getDamageQuantity() - summary.getExpiryQuantity();
+
+        List<StockReturnReportBreakdownRowDto> rows = new ArrayList<>();
+        rows.add(new StockReturnReportBreakdownRowDto(
+                "DAMAGE", RETURN_REASON_LABELS.get("DAMAGE"), summary.getDamageQuantity()));
+        rows.add(new StockReturnReportBreakdownRowDto(
+                "EXPIRY", RETURN_REASON_LABELS.get("EXPIRY"), summary.getExpiryQuantity()));
+        if (other > 0) {
+            rows.add(new StockReturnReportBreakdownRowDto("OTHER", RETURN_REASON_LABELS.get("OTHER"), other));
+        }
+
+        return new StockReturnReportBreakdownDto(rows, total);
+    }
+
+
+    private static void writeBreakdown(
+            ReportTableWriter writer,
+            String title,
+            String firstColumn,
+            String totalLabel,
+            StockReturnReportBreakdownDto breakdown) throws IOException {
+
+        writer.line(title, null);
+        writer.header(List.of(firstColumn, "Returned Quantity"));
+        for (StockReturnReportBreakdownRowDto row : breakdown.getRows()) {
+            writer.row(Arrays.asList(row.getLabel(), row.getReturnedQuantity()));
+        }
+        writer.row(Arrays.asList(totalLabel, breakdown.getTotalReturnedQuantity()));
+    }
+
+
+    // Share of the total, to 2 decimals (54.55); 0 when there is nothing.
+    private static BigDecimal percentage(long part, long total) {
+
+        if (total == 0) {
+            return BigDecimal.ZERO.setScale(2);
+        }
+        return BigDecimal.valueOf(part)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
     }
 
 

@@ -11,6 +11,8 @@ import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.auditReports.SupplierPaymentModeSummaryDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportFilter;
 import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportPageDto;
+import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportPaymentSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportPaymentSummaryRowDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportResponse;
 import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportRowDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportSummaryDto;
@@ -163,6 +165,7 @@ public class SupplierPaymentReportServiceImpl implements SupplierPaymentReportSe
         SupplierPaymentReportResponse response = new SupplierPaymentReportResponse();
         response.setSummary(summary);
         response.setPaymentTransactions(details);
+        response.setPaymentSummary(buildPaymentSummary(summary));
         response.setPaymentModeSummary(fetchModeSummary(report.sql(), report.params()));
         response.setPaymentModeTotalCount(totalRecords);
         response.setPaymentModeTotalAmount(summary.getTotalPaymentAmount());
@@ -195,6 +198,7 @@ public class SupplierPaymentReportServiceImpl implements SupplierPaymentReportSe
                     "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
         }
 
+        SupplierPaymentReportPaymentSummaryDto paymentSummary = buildPaymentSummary(summary);
         List<SupplierPaymentModeSummaryDto> modeSummary = fetchModeSummary(report.sql(), report.params());
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
@@ -253,7 +257,16 @@ public class SupplierPaymentReportServiceImpl implements SupplierPaymentReportSe
                     }
                     writer.blank();
 
+                    writer.line("Supplier Payment Summary", null);
+                    writer.header(List.of("Particulars", "Value"));
+                    for (SupplierPaymentReportPaymentSummaryRowDto row : paymentSummary.getRows()) {
+                        writer.row(Arrays.asList(row.getLabel(), row.getValue()));
+                    }
+                    writer.row(Arrays.asList("Total Payment Amount", paymentSummary.getTotalPaymentAmount()));
+                    writer.blank();
+
                     // Payment Mode-wise Summary, with its Total row.
+                    writer.line("Payment Mode-wise Summary", null);
                     writer.header(MODE_SUMMARY_HEADERS);
                     for (SupplierPaymentModeSummaryDto mode : modeSummary) {
                         writer.row(Arrays.asList(
@@ -695,6 +708,21 @@ public class SupplierPaymentReportServiceImpl implements SupplierPaymentReportSe
 
     // Every mode in table order, 0 where it had no payments.
     @SuppressWarnings("unchecked")
+    // Supplier Payment Summary table, in the design's order. Same numbers as
+    // the KPI cards, so no extra query.
+    private SupplierPaymentReportPaymentSummaryDto buildPaymentSummary(SupplierPaymentReportSummaryDto summary) {
+
+        return new SupplierPaymentReportPaymentSummaryDto(List.of(
+                new SupplierPaymentReportPaymentSummaryRowDto("TOTAL_PAYMENT_TRANSACTIONS",
+                        "Total Payment Transactions", summary.getPaymentCount()),
+                new SupplierPaymentReportPaymentSummaryRowDto("TOTAL_SUPPLIERS_PAID",
+                        "Total Suppliers Paid", summary.getSuppliersPaidCount()),
+                new SupplierPaymentReportPaymentSummaryRowDto("TOTAL_PURCHASE_INVOICES_PAID_AGAINST",
+                        "Total Purchase Invoices Paid Against", summary.getInvoicesPaidAgainstCount())),
+                summary.getTotalPaymentAmount());
+    }
+
+
     private List<SupplierPaymentModeSummaryDto> fetchModeSummary(String reportSql, Map<String, Object> params) {
 
         List<Object[]> results = nativeQuery(reportSql + """

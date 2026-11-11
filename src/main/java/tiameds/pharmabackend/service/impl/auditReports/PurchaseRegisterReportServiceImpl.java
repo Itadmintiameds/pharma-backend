@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportFilter;
 import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportPageDto;
+import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportPurchaseSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportPurchaseSummaryRowDto;
 import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportResponse;
 import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportRowDto;
 import tiameds.pharmabackend.dto.auditReports.PurchaseRegisterReportSummaryDto;
@@ -146,6 +148,7 @@ public class PurchaseRegisterReportServiceImpl implements PurchaseRegisterReport
         PurchaseRegisterReportResponse response = new PurchaseRegisterReportResponse();
         response.setSummary(summary);
         response.setPurchaseDetails(details);
+        response.setPurchaseSummary(buildPurchaseSummary(summary));
         response.setGeneratedBy(report.user().getFullName());
         response.setGeneratedOn(LocalDateTime.now());
 
@@ -172,6 +175,8 @@ public class PurchaseRegisterReportServiceImpl implements PurchaseRegisterReport
             throw new IllegalArgumentException(
                     "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
         }
+
+        PurchaseRegisterReportPurchaseSummaryDto purchaseSummary = buildPurchaseSummary(summary);
 
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
@@ -224,6 +229,8 @@ public class PurchaseRegisterReportServiceImpl implements PurchaseRegisterReport
                     writer.line("GST Share %", summary.getGstSharePercentage());
                     writer.line("Purchased Quantity", summary.getPurchasedQuantity());
                     writer.line("Free Quantity", summary.getFreeQuantity());
+                    writer.line("Gross Purchase Amount", summary.getGrossAmount());
+                    writer.line("Discount Amount", summary.getDiscountAmount());
                     writer.blank();
 
                     writer.header(EXPORT_HEADERS);
@@ -247,6 +254,14 @@ public class PurchaseRegisterReportServiceImpl implements PurchaseRegisterReport
                             break;
                         }
                     }
+
+                    writer.blank();
+                    writer.line("Purchase Summary", null);
+                    writer.header(List.of("Metric", "Value"));
+                    for (PurchaseRegisterReportPurchaseSummaryRowDto row : purchaseSummary.getRows()) {
+                        writer.row(Arrays.asList(row.getLabel(), row.getValue()));
+                    }
+                    writer.row(Arrays.asList("Total Purchase Amount", purchaseSummary.getTotalPurchaseAmount()));
 
                     writer.finish();
                 }
@@ -549,7 +564,9 @@ public class PurchaseRegisterReportServiceImpl implements PurchaseRegisterReport
                        COALESCE(SUM(taxable_amount), 0),
                        COALESCE(SUM(gst_amount), 0),
                        COALESCE(SUM(purchased_quantity), 0),
-                       COALESCE(SUM(free_quantity), 0)
+                       COALESCE(SUM(free_quantity), 0),
+                       COALESCE(SUM(gross_amount), 0),
+                       COALESCE(SUM(discount), 0)
                 FROM report
                 """, params).getSingleResult();
 
@@ -567,8 +584,37 @@ public class PurchaseRegisterReportServiceImpl implements PurchaseRegisterReport
                 : gstAmount.multiply(BigDecimal.valueOf(100)).divide(totalAmount, 2, RoundingMode.HALF_UP));
         summary.setPurchasedQuantity(toLong(row[5]));
         summary.setFreeQuantity(toLong(row[6]));
+        summary.setGrossAmount(toAmount(row[7]));
+        summary.setDiscountAmount(toAmount(row[8]));
 
         return summary;
+    }
+
+
+    // Purchase Summary table, in the design's order. Same numbers as the KPI
+    // cards and the Total row, so no extra query.
+    private PurchaseRegisterReportPurchaseSummaryDto buildPurchaseSummary(PurchaseRegisterReportSummaryDto summary) {
+
+        String count = PurchaseRegisterReportPurchaseSummaryRowDto.COUNT;
+        String amount = PurchaseRegisterReportPurchaseSummaryRowDto.AMOUNT;
+
+        List<PurchaseRegisterReportPurchaseSummaryRowDto> rows = List.of(
+                new PurchaseRegisterReportPurchaseSummaryRowDto("PURCHASE_INVOICES", "Purchase Invoices",
+                        count, BigDecimal.valueOf(summary.getPurchaseInvoiceCount())),
+                new PurchaseRegisterReportPurchaseSummaryRowDto("PURCHASED_QUANTITY", "Purchased Quantity",
+                        count, BigDecimal.valueOf(summary.getPurchasedQuantity())),
+                new PurchaseRegisterReportPurchaseSummaryRowDto("FREE_QUANTITY", "Free Quantity",
+                        count, BigDecimal.valueOf(summary.getFreeQuantity())),
+                new PurchaseRegisterReportPurchaseSummaryRowDto("GROSS_PURCHASE_AMOUNT", "Gross Purchase Amount",
+                        amount, summary.getGrossAmount()),
+                new PurchaseRegisterReportPurchaseSummaryRowDto("DISCOUNT_AMOUNT", "Discount Amount",
+                        amount, summary.getDiscountAmount()),
+                new PurchaseRegisterReportPurchaseSummaryRowDto("TAXABLE_PURCHASE_AMOUNT", "Taxable Purchase Amount",
+                        amount, summary.getTaxableAmount()),
+                new PurchaseRegisterReportPurchaseSummaryRowDto("GST_AMOUNT", "GST Amount",
+                        amount, summary.getGstAmount()));
+
+        return new PurchaseRegisterReportPurchaseSummaryDto(rows, summary.getTotalPurchaseAmount());
     }
 
 

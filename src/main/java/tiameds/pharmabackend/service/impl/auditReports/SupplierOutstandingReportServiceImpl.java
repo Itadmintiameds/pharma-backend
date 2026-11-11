@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.auditReports.SupplierOutstandingReportFilter;
+import tiameds.pharmabackend.dto.auditReports.SupplierOutstandingReportOutstandingSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.SupplierOutstandingReportOutstandingSummaryRowDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierOutstandingReportPageDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierOutstandingReportResponse;
 import tiameds.pharmabackend.dto.auditReports.SupplierOutstandingReportRowDto;
@@ -138,8 +140,10 @@ public class SupplierOutstandingReportServiceImpl implements SupplierOutstanding
         details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
         SupplierOutstandingReportResponse response = new SupplierOutstandingReportResponse();
-        response.setSummary(fetchSummary(report.sql(), report.params()));
+        SupplierOutstandingReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        response.setSummary(summary);
         response.setOutstandingInvoices(details);
+        response.setOutstandingSummary(buildOutstandingSummary(summary));
         response.setFromDate(report.fromDate());
         response.setToDate(report.toDate());
         response.setOutstandingAsOf(report.today());
@@ -169,6 +173,7 @@ public class SupplierOutstandingReportServiceImpl implements SupplierOutstanding
         }
 
         SupplierOutstandingReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        SupplierOutstandingReportOutstandingSummaryDto outstandingSummary = buildOutstandingSummary(summary);
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
         String pharmacies = pharmacyNames(report.pharmacyIds());
@@ -249,6 +254,13 @@ public class SupplierOutstandingReportServiceImpl implements SupplierOutstanding
                         if (batch.isEmpty()) {
                             break;
                         }
+                    }
+
+                    writer.blank();
+                    writer.line("Supplier Outstanding Summary", null);
+                    writer.header(List.of("Particulars", "Amount"));
+                    for (SupplierOutstandingReportOutstandingSummaryRowDto row : outstandingSummary.getRows()) {
+                        writer.row(Arrays.asList(row.getLabel(), row.getAmount()));
                     }
 
                     writer.finish();
@@ -660,6 +672,27 @@ public class SupplierOutstandingReportServiceImpl implements SupplierOutstanding
         summary.setTotalPurchaseReturnAdjusted(toAmount(row[7]));
 
         return summary;
+    }
+
+
+    // Supplier Outstanding Summary table, in the design's order. Same numbers
+    // as the KPI cards and the Total row, so no extra query.
+    private SupplierOutstandingReportOutstandingSummaryDto buildOutstandingSummary(
+            SupplierOutstandingReportSummaryDto summary) {
+
+        return new SupplierOutstandingReportOutstandingSummaryDto(List.of(
+                new SupplierOutstandingReportOutstandingSummaryRowDto("TOTAL_CREDIT_PURCHASE_INVOICE_AMOUNT",
+                        "Total Credit Purchase Invoice Amount", summary.getTotalCreditInvoiceAmount(), false),
+                new SupplierOutstandingReportOutstandingSummaryRowDto("TOTAL_SUPPLIER_PAYMENTS",
+                        "Total Supplier Payments", summary.getTotalPaid(), false),
+                new SupplierOutstandingReportOutstandingSummaryRowDto("TOTAL_PURCHASE_RETURN_ADJUSTED",
+                        "Total Purchase Return Adjusted", summary.getTotalPurchaseReturnAdjusted(), false),
+                new SupplierOutstandingReportOutstandingSummaryRowDto("TOTAL_SUPPLIER_PAYABLE",
+                        "Total Supplier Payable", summary.getTotalSupplierPayable(), true),
+                new SupplierOutstandingReportOutstandingSummaryRowDto("OVERDUE_PAYABLE",
+                        "Overdue Payable", summary.getOverduePayable(), false),
+                new SupplierOutstandingReportOutstandingSummaryRowDto("SUPPLIER_CREDIT",
+                        "Supplier Credit / Amount Due from Supplier", summary.getSupplierCredit(), false)));
     }
 
 

@@ -13,6 +13,7 @@ import tiameds.pharmabackend.dto.auditReports.ProductWiseReportPageDto;
 import tiameds.pharmabackend.dto.auditReports.ProductWiseReportResponse;
 import tiameds.pharmabackend.dto.auditReports.ProductWiseReportRowDto;
 import tiameds.pharmabackend.dto.auditReports.ProductWiseReportSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.ProductWiseReportSummaryRowDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.warehouse.Warehouse;
@@ -134,6 +135,7 @@ public class ProductWiseReportServiceImpl implements ProductWiseReportService {
         ProductWiseReportResponse response = new ProductWiseReportResponse();
         response.setSummary(summary);
         response.setProductDetails(details);
+        response.setReportSummary(buildReportSummary(summary));
         response.setGeneratedBy(report.user().getFullName());
         response.setGeneratedOn(LocalDateTime.now());
 
@@ -161,6 +163,7 @@ public class ProductWiseReportServiceImpl implements ProductWiseReportService {
                     "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
         }
 
+        List<ProductWiseReportSummaryRowDto> reportSummary = buildReportSummary(summary);
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
         String pharmacies = pharmacyNames(report.pharmacyIds());
@@ -245,6 +248,17 @@ public class ProductWiseReportServiceImpl implements ProductWiseReportService {
                             summary.getTotalNetPurchaseAmount(),
                             summary.getTotalSaleAmount(), summary.getTotalSalesReturnAmount(),
                             summary.getTotalNetSaleAmount()));
+                    writer.blank();
+
+                    writer.title("Report Summary");
+                    writer.header(List.of("Particulars", "Value"));
+                    for (ProductWiseReportSummaryRowDto row : reportSummary) {
+                        writer.row(Arrays.asList(row.getLabel(), row.getValue()));
+                    }
+                    writer.blank();
+                    writer.line("Important", "The difference between Net Purchase Amount and Net Sales Amount"
+                            + " is not Gross Profit or Loss. Purchases and sales relate to different"
+                            + " quantities and potentially different opening stock.");
 
                     writer.finish();
                 }
@@ -634,6 +648,33 @@ public class ProductWiseReportServiceImpl implements ProductWiseReportService {
         summary.setTotalNetSaleAmount(toAmount(row[13]));
 
         return summary;
+    }
+
+
+    // Report Summary table, in the design's order. Same numbers as the KPI
+    // cards and the Total rows, so no extra query.
+    private static List<ProductWiseReportSummaryRowDto> buildReportSummary(ProductWiseReportSummaryDto summary) {
+
+        String count = ProductWiseReportSummaryRowDto.COUNT;
+        String amount = ProductWiseReportSummaryRowDto.AMOUNT;
+
+        return List.of(
+                new ProductWiseReportSummaryRowDto("TOTAL_PURCHASE_QTY", "Total Purchase Qty",
+                        count, BigDecimal.valueOf(summary.getTotalPurchaseQuantity())),
+                new ProductWiseReportSummaryRowDto("TOTAL_SUPPLIER_RETURN_QTY", "Total Supplier Return Qty",
+                        count, BigDecimal.valueOf(summary.getTotalSupplierReturnQuantity())),
+                new ProductWiseReportSummaryRowDto("NET_PURCHASE_QTY", "Net Purchase Qty",
+                        count, BigDecimal.valueOf(summary.getTotalNetPurchaseQuantity())),
+                new ProductWiseReportSummaryRowDto("TOTAL_SALES_QTY", "Total Sales Qty",
+                        count, BigDecimal.valueOf(summary.getTotalSaleQuantity())),
+                new ProductWiseReportSummaryRowDto("TOTAL_SALES_RETURN_QTY", "Total Sales Return Qty",
+                        count, BigDecimal.valueOf(summary.getTotalSalesReturnQuantity())),
+                new ProductWiseReportSummaryRowDto("NET_SALES_QTY", "Net Sales Qty",
+                        count, BigDecimal.valueOf(summary.getTotalNetSaleQuantity())),
+                new ProductWiseReportSummaryRowDto("NET_PURCHASE_AMOUNT", "Net Purchase Amount",
+                        amount, summary.getTotalNetPurchaseAmount()),
+                new ProductWiseReportSummaryRowDto("NET_SALES_AMOUNT", "Net Sales Amount",
+                        amount, summary.getTotalNetSaleAmount()));
     }
 
 

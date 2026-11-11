@@ -11,6 +11,8 @@ import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportFilter;
 import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportPageDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportResponse;
+import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportReturnSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportReturnSummaryRowDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportRowDto;
 import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportSummaryDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
@@ -157,6 +159,7 @@ public class SupplierPurchaseReturnReportServiceImpl implements SupplierPurchase
         SupplierPurchaseReturnReportResponse response = new SupplierPurchaseReturnReportResponse();
         response.setSummary(summary);
         response.setPurchaseReturnDetails(details);
+        response.setPurchaseReturnSummary(buildReturnSummary(summary, filter.getStatuses()));
         response.setGeneratedBy(report.user().getFullName());
         response.setGeneratedOn(LocalDateTime.now());
 
@@ -183,6 +186,8 @@ public class SupplierPurchaseReturnReportServiceImpl implements SupplierPurchase
         }
 
         SupplierPurchaseReturnReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        SupplierPurchaseReturnReportReturnSummaryDto returnSummary =
+                buildReturnSummary(summary, filter.getStatuses());
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
         String pharmacies = pharmacyNames(report.pharmacyIds());
@@ -236,6 +241,9 @@ public class SupplierPurchaseReturnReportServiceImpl implements SupplierPurchase
                     writer.line("GST Share %", summary.getGstSharePercentage());
                     writer.line("Total Physical Return Quantity", summary.getTotalPhysicalReturnQuantity());
                     writer.line("Free Return Quantity", summary.getFreeReturnQuantity());
+                    writer.line("Return Purchase Quantity", summary.getReturnQuantity());
+                    writer.line("Gross Return Amount", summary.getGrossAmount());
+                    writer.line("Discount Amount", summary.getDiscountAmount());
                     writer.blank();
 
                     writer.header(EXPORT_HEADERS);
@@ -262,6 +270,15 @@ public class SupplierPurchaseReturnReportServiceImpl implements SupplierPurchase
                             break;
                         }
                     }
+
+                    writer.blank();
+                    writer.line("Supplier Purchase Return Summary", null);
+                    writer.header(List.of("Metric", "Value"));
+                    for (SupplierPurchaseReturnReportReturnSummaryRowDto row : returnSummary.getRows()) {
+                        writer.row(Arrays.asList(row.getLabel(), row.getValue()));
+                    }
+                    writer.row(Arrays.asList("Total Purchase Return Amount",
+                            returnSummary.getTotalPurchaseReturnAmount()));
 
                     writer.finish();
                 }
@@ -651,7 +668,10 @@ public class SupplierPurchaseReturnReportServiceImpl implements SupplierPurchase
                        COALESCE(SUM(taxable_amount), 0),
                        COALESCE(SUM(gst_amount), 0),
                        COALESCE(SUM(return_quantity + free_return_quantity), 0),
-                       COALESCE(SUM(free_return_quantity), 0)
+                       COALESCE(SUM(free_return_quantity), 0),
+                       COALESCE(SUM(return_quantity), 0),
+                       COALESCE(SUM(gross_amount), 0),
+                       COALESCE(SUM(discount), 0)
                 FROM report
                 """, params).getSingleResult();
 
@@ -669,8 +689,49 @@ public class SupplierPurchaseReturnReportServiceImpl implements SupplierPurchase
                 : gstAmount.multiply(BigDecimal.valueOf(100)).divide(totalAmount, 2, RoundingMode.HALF_UP));
         summary.setTotalPhysicalReturnQuantity(toLong(row[5]));
         summary.setFreeReturnQuantity(toLong(row[6]));
+        summary.setReturnQuantity(toLong(row[7]));
+        summary.setGrossAmount(toAmount(row[8]));
+        summary.setDiscountAmount(toAmount(row[9]));
 
         return summary;
+    }
+
+
+    // Supplier Purchase Return Summary table, in the design's order. Same
+    // numbers as the KPI cards and the Total row, so no extra query. The
+    // first metric reads "Confirmed Purchase Returns" only when the report is
+    // limited to Confirmed (the default), so the label matches what's counted.
+    private SupplierPurchaseReturnReportReturnSummaryDto buildReturnSummary(
+            SupplierPurchaseReturnReportSummaryDto summary,
+            List<String> requestedStatuses) {
+
+        String count = SupplierPurchaseReturnReportReturnSummaryRowDto.COUNT;
+        String amount = SupplierPurchaseReturnReportReturnSummaryRowDto.AMOUNT;
+
+        boolean confirmedOnly = parseStatuses(requestedStatuses)
+                .equals(List.of(PurchaseReturnStatus.CONFIRMED.name()));
+
+        List<SupplierPurchaseReturnReportReturnSummaryRowDto> rows = List.of(
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("PURCHASE_RETURNS",
+                        confirmedOnly ? "Confirmed Purchase Returns" : "Purchase Returns",
+                        count, BigDecimal.valueOf(summary.getPurchaseReturnCount())),
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("RETURN_PURCHASE_QUANTITY",
+                        "Return Purchase Quantity", count, BigDecimal.valueOf(summary.getReturnQuantity())),
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("RETURN_FREE_QUANTITY",
+                        "Return Free Quantity", count, BigDecimal.valueOf(summary.getFreeReturnQuantity())),
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("TOTAL_PHYSICAL_RETURN_QUANTITY",
+                        "Total Physical Return Quantity", count,
+                        BigDecimal.valueOf(summary.getTotalPhysicalReturnQuantity())),
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("GROSS_RETURN_AMOUNT",
+                        "Gross Return Amount", amount, summary.getGrossAmount()),
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("DISCOUNT_AMOUNT",
+                        "Discount Amount", amount, summary.getDiscountAmount()),
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("TAXABLE_RETURN_AMOUNT",
+                        "Taxable Return Amount", amount, summary.getTaxableAmount()),
+                new SupplierPurchaseReturnReportReturnSummaryRowDto("GST_REVERSAL_AMOUNT",
+                        "GST Reversal Amount", amount, summary.getGstReversalAmount()));
+
+        return new SupplierPurchaseReturnReportReturnSummaryDto(rows, summary.getTotalReturnAmount());
     }
 
 

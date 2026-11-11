@@ -10,7 +10,7 @@ import java.util.List;
 
 @Data
 @JsonPropertyOrder({
-        "summary", "salesReturnTransactions", "settlementSummary",
+        "summary", "salesReturnTransactions", "settlementSummary", "reportSummary",
         "status", "fromDate", "toDate",
         "generatedBy", "generatedOn"})
 public class PharmacySalesReturnReportResponse {
@@ -21,6 +21,10 @@ public class PharmacySalesReturnReportResponse {
 
     // Sales Return Settlement Summary: every matching return, not paged.
     private List<PharmacySalesReturnSettlementRowDto> settlementSummary;
+
+    // Report Summary: Particulars / Value table, in display order; Total
+    // Return Amount is the highlighted row.
+    private List<PharmacySalesReturnReportSummaryRowDto> reportSummary;
 
     // Report header: "Status: Completed".
     private String status;
