@@ -339,6 +339,17 @@ public class ReportExportServiceImpl implements ReportExportService {
                         batch = definition.fetch().apply(filter, user);
                     }
 
+                    // Reports with a summary section (bill summary) end with
+                    // it, below the rows, as on screen.
+                    if (first.getSummary() != null) {
+                        writer.blank();
+                        writer.header(List.of("Summary", "Amount"));
+
+                        for (Map.Entry<String, Object> line : kpiLines(first.getSummary()).entrySet()) {
+                            writer.row(java.util.Arrays.asList(line.getKey(), line.getValue()));
+                        }
+                    }
+
                     writer.finish();
                 }
             }

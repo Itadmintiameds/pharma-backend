@@ -66,11 +66,19 @@ public class BillSummaryServiceImpl implements BillSummaryService {
                 ? List.of()
                 : findBills(pharmacyIds, range, filter, page, size);
 
-        return new FinancialReportResponse<>(
+        BillSummaryKpiDto kpi = buildKpi(pharmacyIds, range, filter);
+
+        FinancialReportResponse<BillSummaryKpiDto, BillSummaryRowDto> response = new FinancialReportResponse<>(
                 FinancialReportSupport.generatedBy(user),
                 LocalDateTime.now(),
-                buildKpi(pharmacyIds, range, filter),
+                kpi,
                 toPage(rows, page, size, totalElements));
+
+        // Summary below the table: the same totals as the KPI cards, over
+        // every matching bill (not just this page).
+        response.setSummary(kpi);
+
+        return response;
     }
 
 
