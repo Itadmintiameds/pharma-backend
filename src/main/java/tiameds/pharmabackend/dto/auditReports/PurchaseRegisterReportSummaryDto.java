@@ -12,7 +12,8 @@ import java.math.BigDecimal;
         "purchaseInvoiceCount", "lineItemCount",
         "totalPurchaseAmount", "taxableAmount",
         "gstAmount", "gstSharePercentage",
-        "purchasedQuantity", "freeQuantity"})
+        "purchasedQuantity", "freeQuantity",
+        "grossAmount", "discountAmount"})
 public class PurchaseRegisterReportSummaryDto {
 
     // Purchase Invoices card: "4", "5 line items purchased".
@@ -30,4 +31,9 @@ public class PurchaseRegisterReportSummaryDto {
     // Purchased Quantity card: "410", "15 units received free".
     private Long purchasedQuantity;
     private Long freeQuantity;
+
+    // Table Total row (Gross Amount, Discount) and the Purchase Summary
+    // table: "₹15,300.00", "₹765.00". grossAmount - discountAmount = taxableAmount.
+    private BigDecimal grossAmount;
+    private BigDecimal discountAmount;
 }

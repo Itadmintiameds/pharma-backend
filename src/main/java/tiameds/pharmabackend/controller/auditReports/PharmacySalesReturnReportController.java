@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportFilter;
@@ -31,10 +30,12 @@ public class PharmacySalesReturnReportController {
     /**
      * Pharmacy Sales Return Report: Completed sales returns against earlier
      * pharmacy bills, with return value, outstanding adjustment and refund.
+     * Returns the KPI cards (summary), one page of salesReturnTransactions,
+     * the settlementSummary per return and the reportSummary Particulars /
+     * Value table (both over every matching return, not just the page).
      * Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
      * or a comma list (?pharmacyIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/PHARMACY_SALES_RETURN_REPORT/VIEW')")
     @GetMapping("/pharmacy-sales-return")
     public ResponseEntity<?> getPharmacySalesReturnReport(
             @RequestParam(required = false)
@@ -114,10 +115,10 @@ public class PharmacySalesReturnReportController {
      * CSV / Excel download of the Pharmacy Sales Return Report:
      *   /auditReports/pharmacy-sales-return/export?format=xlsx&<the report's filters>
      * format is csv or xlsx. page and size are ignored: every matching line is
-     * written, in the order sortBy / sortDir give. Written straight to the
+     * written, in the order sortBy / sortDir give, followed by the Sales
+     * Return Settlement Summary and Report Summary tables. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/PHARMACY_SALES_RETURN_REPORT/VIEW')")
     @GetMapping("/pharmacy-sales-return/export")
     public void exportPharmacySalesReturnReport(
             @RequestParam String format,

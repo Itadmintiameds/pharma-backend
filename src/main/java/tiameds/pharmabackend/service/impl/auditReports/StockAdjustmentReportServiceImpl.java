@@ -10,9 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportFilter;
 import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportPageDto;
+import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportReasonSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportReasonSummaryRowDto;
 import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportResponse;
 import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportRowDto;
 import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportTypeSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportTypeSummaryRowDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
@@ -49,6 +53,9 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
 
     // An .xlsx sheet holds 1,048,576 rows; the title block needs a few.
     private static final long EXCEL_ROW_LIMIT = 1_048_000;
+
+    // Adjustment Reason Summary row for adjustments recorded without a reason.
+    private static final String NO_REASON_LABEL = "Not Specified";
 
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
 
@@ -135,6 +142,10 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
         StockAdjustmentReportResponse response = new StockAdjustmentReportResponse();
         response.setSummary(summary);
         response.setAdjustmentTransactions(details);
+        response.setAdjustmentTypeSummary(buildTypeSummary(summary));
+        response.setAdjustmentReasonSummary(totalRecords == 0
+                ? new StockAdjustmentReportReasonSummaryDto(List.of(), 0L, 0L, 0L)
+                : fetchReasonSummary(report.sql(), report.params(), summary));
         response.setGeneratedBy(report.user().getFullName());
         response.setGeneratedOn(LocalDateTime.now());
 
@@ -161,6 +172,10 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
             throw new IllegalArgumentException(
                     "Too many rows for Excel (" + totalRecords + "). Narrow the filters or download CSV.");
         }
+
+        StockAdjustmentReportTypeSummaryDto typeSummary = buildTypeSummary(summary);
+        StockAdjustmentReportReasonSummaryDto reasonSummary =
+                fetchReasonSummary(report.sql(), report.params(), summary);
 
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
@@ -228,6 +243,24 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
                             break;
                         }
                     }
+
+                    writer.blank();
+                    writer.line("Adjustment Type Summary", null);
+                    writer.header(List.of("Adjustment Type", "Quantity"));
+                    for (StockAdjustmentReportTypeSummaryRowDto row : typeSummary.getRows()) {
+                        writer.row(Arrays.asList(row.getLabel(), row.getQuantity()));
+                    }
+                    writer.row(Arrays.asList("Net Adjustment", typeSummary.getNetAdjustmentQuantity()));
+
+                    writer.blank();
+                    writer.line("Adjustment Reason Summary", null);
+                    writer.header(List.of("Adjustment Reason", "Adjustment In", "Adjustment Out", "Net Adjustment"));
+                    for (StockAdjustmentReportReasonSummaryRowDto row : reasonSummary.getRows()) {
+                        writer.row(Arrays.asList(row.getAdjustmentReason(),
+                                row.getAdjustmentIn(), row.getAdjustmentOut(), row.getNetAdjustment()));
+                    }
+                    writer.row(Arrays.asList("Total", reasonSummary.getTotalAdjustmentIn(),
+                            reasonSummary.getTotalAdjustmentOut(), reasonSummary.getTotalNetAdjustment()));
 
                     writer.finish();
                 }
@@ -525,6 +558,56 @@ public class StockAdjustmentReportServiceImpl implements StockAdjustmentReportSe
         summary.setTotalAdjustments(toLong(row[5]));
 
         return summary;
+    }
+
+
+    // Adjustment Type Summary: both types always (0 when none), then the
+    // Net Adjustment row. Same numbers as the KPI cards, so no extra query.
+    private StockAdjustmentReportTypeSummaryDto buildTypeSummary(StockAdjustmentReportSummaryDto summary) {
+
+        List<StockAdjustmentReportTypeSummaryRowDto> rows = List.of(
+                new StockAdjustmentReportTypeSummaryRowDto(
+                        "INCREASE", ADJUSTMENT_TYPES.get("INCREASE"), summary.getStockIncreaseQuantity()),
+                new StockAdjustmentReportTypeSummaryRowDto(
+                        "DECREASE", ADJUSTMENT_TYPES.get("DECREASE"), summary.getStockDecreaseQuantity()));
+
+        return new StockAdjustmentReportTypeSummaryDto(rows, summary.getNetAdjustmentQuantity());
+    }
+
+
+    // Adjustment Reason Summary: in / out / net per reason, alphabetical.
+    // Reasons differing only in case or spacing are one row ("Damage" and
+    // "damage "), as in the reason dropdown; no reason is "Not Specified",
+    // listed last, so the rows always add up to the Total.
+    @SuppressWarnings("unchecked")
+    private StockAdjustmentReportReasonSummaryDto fetchReasonSummary(
+            String reportSql,
+            Map<String, Object> params,
+            StockAdjustmentReportSummaryDto summary) {
+
+        List<Object[]> results = nativeQuery(reportSql + """
+                SELECT MIN(adjustment_reason) AS reason,
+                       COALESCE(SUM(adjustment_in), 0),
+                       COALESCE(SUM(adjustment_out), 0),
+                       COALESCE(SUM(net_adjustment), 0)
+                FROM report
+                GROUP BY LOWER(adjustment_reason)
+                ORDER BY reason NULLS LAST
+                """, params).getResultList();
+
+        List<StockAdjustmentReportReasonSummaryRowDto> rows = new ArrayList<>(results.size());
+
+        for (Object[] r : results) {
+            rows.add(new StockAdjustmentReportReasonSummaryRowDto(
+                    r[0] == null ? NO_REASON_LABEL : (String) r[0],
+                    toLong(r[1]), toLong(r[2]), toLong(r[3])));
+        }
+
+        return new StockAdjustmentReportReasonSummaryDto(
+                rows,
+                summary.getStockIncreaseQuantity(),
+                summary.getStockDecreaseQuantity(),
+                summary.getNetAdjustmentQuantity());
     }
 
 

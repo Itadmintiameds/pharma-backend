@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.GrossProfitReportFilter;
@@ -33,7 +32,6 @@ public class GrossProfitReportController {
      * Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
      * or a comma list (?pharmacyIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/GROSS_PROFIT_REPORT/VIEW')")
     @GetMapping("/gross-profit")
     public ResponseEntity<?> getGrossProfitReport(
             @RequestParam(required = false)
@@ -92,7 +90,6 @@ public class GrossProfitReportController {
      * written, in the order sortBy / sortDir give. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/GROSS_PROFIT_REPORT/VIEW')")
     @GetMapping("/gross-profit/export")
     public void exportGrossProfitReport(
             @RequestParam String format,

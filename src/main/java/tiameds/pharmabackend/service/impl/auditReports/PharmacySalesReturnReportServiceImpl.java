@@ -13,6 +13,7 @@ import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportPageDto;
 import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportResponse;
 import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportRowDto;
 import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportSummaryDto;
+import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnReportSummaryRowDto;
 import tiameds.pharmabackend.dto.auditReports.PharmacySalesReturnSettlementRowDto;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
@@ -155,9 +156,11 @@ public class PharmacySalesReturnReportServiceImpl implements PharmacySalesReturn
         details.setTotalPages((int) ((totalRecords + size - 1) / size));
 
         PharmacySalesReturnReportResponse response = new PharmacySalesReturnReportResponse();
-        response.setSummary(fetchSummary(report.sql(), report.params()));
+        PharmacySalesReturnReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        response.setSummary(summary);
         response.setSalesReturnTransactions(details);
         response.setSettlementSummary(fetchSettlementSummary(report.sql(), report.params()));
+        response.setReportSummary(buildReportSummary(summary));
         response.setStatus(SalesReturnStatus.COMPLETED.getLabel());
         response.setFromDate(report.fromDate());
         response.setToDate(report.toDate());
@@ -190,6 +193,7 @@ public class PharmacySalesReturnReportServiceImpl implements PharmacySalesReturn
         }
 
         PharmacySalesReturnReportSummaryDto summary = fetchSummary(report.sql(), report.params());
+        List<PharmacySalesReturnReportSummaryRowDto> reportSummary = buildReportSummary(summary);
         String generatedBy = report.user().getFullName();
         LocalDateTime generatedOn = LocalDateTime.now();
         String pharmacies = pharmacyNames(report.pharmacyIds());
@@ -285,6 +289,13 @@ public class PharmacySalesReturnReportServiceImpl implements PharmacySalesReturn
                     writer.row(Arrays.asList(
                             "Total", null, summary.getTotalReturnAmount(),
                             summary.getTotalOutstandingAdjustment(), summary.getTotalRefundAmount()));
+                    writer.blank();
+
+                    writer.title("Report Summary");
+                    writer.header(List.of("Particulars", "Value"));
+                    for (PharmacySalesReturnReportSummaryRowDto row : reportSummary) {
+                        writer.row(Arrays.asList(row.getLabel(), row.getValue()));
+                    }
 
                     writer.finish();
                 }
@@ -631,6 +642,41 @@ public class PharmacySalesReturnReportServiceImpl implements PharmacySalesReturn
                 percentage(summary.getTotalRefundAmount(), summary.getTotalReturnAmount()));
 
         return summary;
+    }
+
+
+    // Report Summary table, in the design's order. Same numbers as the KPI
+    // cards and the Total rows, so no extra query.
+    private static List<PharmacySalesReturnReportSummaryRowDto> buildReportSummary(
+            PharmacySalesReturnReportSummaryDto summary) {
+
+        String count = PharmacySalesReturnReportSummaryRowDto.COUNT;
+        String amount = PharmacySalesReturnReportSummaryRowDto.AMOUNT;
+
+        return List.of(
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_SALES_RETURN_TRANSACTIONS",
+                        "Total Sales Return Transactions", count,
+                        BigDecimal.valueOf(summary.getTotalSalesReturnTransactions()), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_RETURNED_LINES",
+                        "Total Returned Product/Batch Lines", count,
+                        BigDecimal.valueOf(summary.getTotalReturnLines()), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_RETURN_QTY",
+                        "Total Return Qty", count,
+                        BigDecimal.valueOf(summary.getTotalReturnQuantity()), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_HISTORICAL_AMOUNT",
+                        "Total Historical Amount", amount, summary.getTotalHistoricalAmount(), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_DISCOUNT_REVERSED",
+                        "Total Discount Reversed", amount, summary.getTotalDiscountReversed(), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_TAXABLE_AMOUNT_REVERSED",
+                        "Total Taxable Amount Reversed", amount, summary.getTotalTaxableAmountReversed(), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_GST_REVERSED",
+                        "Total GST Reversed", amount, summary.getTotalGstReversed(), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_RETURN_AMOUNT",
+                        "Total Return Amount", amount, summary.getTotalReturnAmount(), true),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_OUTSTANDING_ADJUSTMENT",
+                        "Total Outstanding Adjustment", amount, summary.getTotalOutstandingAdjustment(), false),
+                new PharmacySalesReturnReportSummaryRowDto("TOTAL_REFUND_AMOUNT",
+                        "Total Refund Amount", amount, summary.getTotalRefundAmount(), false));
     }
 
 

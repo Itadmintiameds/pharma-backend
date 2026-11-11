@@ -8,13 +8,15 @@ import tiameds.pharmabackend.service.financialReport.export.ReportExport;
 public interface SupplierPurchaseReturnReportService {
 
     // Line-wise purchase returns to suppliers for the period, one page of rows
-    // plus KPI totals over the whole filtered set.
+    // plus KPI totals and the Supplier Purchase Return Summary table over the
+    // whole filtered set.
     SupplierPurchaseReturnReportResponse getSupplierPurchaseReturnReport(
             SupplierPurchaseReturnReportFilter filter,
             UserDetails user);
 
     // CSV / Excel download of the report with the same filters: a title
-    // block, the KPI totals, then every matching row (page and size ignored).
+    // block, the KPI totals, every matching row (page and size ignored), then
+    // the Supplier Purchase Return Summary table.
     // format is csv or xlsx.
     ReportExport exportSupplierPurchaseReturnReport(
             SupplierPurchaseReturnReportFilter filter,

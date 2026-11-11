@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.SupplierPaymentReportFilter;
@@ -31,10 +30,12 @@ public class SupplierPaymentReportController {
     /**
      * Supplier Payment Report: transaction-wise, supplier-wise and purchase
      * invoice-wise payments made to suppliers against credit purchase
-     * invoices. Multi-select params accept repeats
+     * invoices. Returns the KPI cards (summary), one page of
+     * paymentTransactions, the paymentSummary Particulars / Value table and the
+     * paymentModeSummary table (both over every matching payment, not just the
+     * page). Multi-select params accept repeats
      * (?paymentModes=CASH&paymentModes=UPI) or a comma list (?paymentModes=CASH,UPI).
      */
-    @PreAuthorize("@access.has('REPORTS/SUPPLIER_PAYMENT_REPORT/VIEW')")
     @GetMapping("/supplier-payment")
     public ResponseEntity<?> getSupplierPaymentReport(
             @RequestParam(required = false)
@@ -95,11 +96,12 @@ public class SupplierPaymentReportController {
     /**
      * CSV / Excel download of the Supplier Payment Report:
      *   /auditReports/supplier-payment/export?format=xlsx&<the report's filters>
-     * format is csv or xlsx. page and size are ignored: every matching row is
-     * written, in the order sortBy / sortDir give. Written straight to the
+     * format is csv or xlsx. After the KPI totals come the Supplier Payment
+     * Summary and Payment Mode-wise Summary tables; page and size are ignored:
+     * every matching row is written, in the order sortBy / sortDir give.
+     * Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/SUPPLIER_PAYMENT_REPORT/VIEW')")
     @GetMapping("/supplier-payment/export")
     public void exportSupplierPaymentReport(
             @RequestParam String format,

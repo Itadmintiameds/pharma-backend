@@ -11,7 +11,8 @@ import java.math.BigDecimal;
         "purchaseReturnCount", "purchaseInvoiceCount",
         "totalReturnAmount", "taxableAmount",
         "gstReversalAmount", "gstSharePercentage",
-        "totalPhysicalReturnQuantity", "freeReturnQuantity"})
+        "totalPhysicalReturnQuantity", "freeReturnQuantity",
+        "returnQuantity", "grossAmount", "discountAmount"})
 public class SupplierPurchaseReturnReportSummaryDto {
 
     // Confirmed Purchase Returns card: "5", "5 invoices returned against".
@@ -30,4 +31,11 @@ public class SupplierPurchaseReturnReportSummaryDto {
     // Return quantity + free return quantity.
     private Long totalPhysicalReturnQuantity;
     private Long freeReturnQuantity;
+
+    // Table Total row and the Supplier Purchase Return Summary table:
+    // Return Purchase Qty "65", Gross Return Amount "₹3,160.00", Discount
+    // "₹158.00". grossAmount - discountAmount = taxableAmount.
+    private Long returnQuantity;
+    private BigDecimal grossAmount;
+    private BigDecimal discountAmount;
 }

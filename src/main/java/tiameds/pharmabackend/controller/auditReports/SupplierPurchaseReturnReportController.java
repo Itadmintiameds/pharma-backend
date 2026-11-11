@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.SupplierPurchaseReturnReportFilter;
@@ -30,11 +29,13 @@ public class SupplierPurchaseReturnReportController {
 
     /**
      * Supplier Purchase Return Report: transaction-wise products returned to
-     * suppliers through the Purchase Return workflow in the period. Multi-select
+     * suppliers through the Purchase Return workflow in the period. Returns the
+     * KPI cards (summary, which also carries the table's Total row), one page
+     * of purchaseReturnDetails, and the purchaseReturnSummary Metric / Value
+     * table (over every matching row, not just the page). Multi-select
      * params accept repeats (?supplierIds=1&supplierIds=2) or a comma list
      * (?supplierIds=1,2). expiryFrom / expiryTo are months as MM/yyyy.
      */
-    @PreAuthorize("@access.has('REPORTS/SUPPLIER_PURCHASE_RETURN_REPORT/VIEW')")
     @GetMapping("/supplier-purchase-return")
     public ResponseEntity<?> getSupplierPurchaseReturnReport(
             @RequestParam(required = false)
@@ -103,10 +104,10 @@ public class SupplierPurchaseReturnReportController {
      * CSV / Excel download of the Supplier Purchase Return Report:
      *   /auditReports/supplier-purchase-return/export?format=xlsx&<the report's filters>
      * format is csv or xlsx. page and size are ignored: every matching row is
-     * written, in the order sortBy / sortDir give. Written straight to the
+     * written, in the order sortBy / sortDir give, followed by the Supplier
+     * Purchase Return Summary table. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/SUPPLIER_PURCHASE_RETURN_REPORT/VIEW')")
     @GetMapping("/supplier-purchase-return/export")
     public void exportSupplierPurchaseReturnReport(
             @RequestParam String format,

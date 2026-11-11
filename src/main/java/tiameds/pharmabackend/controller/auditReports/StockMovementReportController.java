@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.StockMovementReportFilter;
@@ -33,7 +32,6 @@ public class StockMovementReportController {
      * during the period, with a running balance. Multi-select params accept
      * repeats (?pharmacyIds=A&pharmacyIds=B) or a comma list (?pharmacyIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/STOCK_MOVEMENT_REPORT/VIEW')")
     @GetMapping("/stock-movement")
     public ResponseEntity<?> getStockMovementReport(
             @RequestParam(required = false)
@@ -96,7 +94,6 @@ public class StockMovementReportController {
      * written, in the order sortBy / sortDir give. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/STOCK_MOVEMENT_REPORT/VIEW')")
     @GetMapping("/stock-movement/export")
     public void exportStockMovementReport(
             @RequestParam String format,

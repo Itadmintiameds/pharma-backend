@@ -10,13 +10,15 @@ import java.util.List;
 public interface StockAdjustmentReportService {
 
     // Stock adjustments (increase / decrease) in the period, one page of rows
-    // plus totals over the whole filtered set.
+    // plus totals, the Adjustment Type Summary and the Adjustment Reason
+    // Summary over the whole filtered set.
     StockAdjustmentReportResponse getStockAdjustmentReport(
             StockAdjustmentReportFilter filter,
             UserDetails user);
 
     // CSV / Excel download of the report with the same filters: a title
-    // block, the KPI totals, then every matching row (page and size ignored).
+    // block, the KPI totals, every matching row (page and size ignored), then
+    // the type and reason summary tables.
     // format is csv or xlsx.
     ReportExport exportStockAdjustmentReport(
             StockAdjustmentReportFilter filter,

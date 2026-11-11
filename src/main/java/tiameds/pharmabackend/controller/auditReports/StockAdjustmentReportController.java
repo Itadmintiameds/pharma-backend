@@ -7,7 +7,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import tiameds.pharmabackend.dto.auditReports.StockAdjustmentReportFilter;
@@ -29,11 +28,13 @@ public class StockAdjustmentReportController {
 
     /**
      * Stock Adjustment Report: transaction-wise inventory quantities increased
-     * or decreased through Stock Adjustment in the period. Multi-select params
+     * or decreased through Stock Adjustment in the period. Returns the KPI
+     * cards (summary), one page of adjustmentTransactions, and the
+     * adjustmentTypeSummary / adjustmentReasonSummary tables (both over every
+     * matching row, not just the page). Multi-select params
      * accept repeats (?pharmacyIds=A&pharmacyIds=B) or a comma list
      * (?pharmacyIds=A,B).
      */
-    @PreAuthorize("@access.has('REPORTS/STOCK_ADJUSTMENT_REPORT/VIEW')")
     @GetMapping("/stock-adjustment")
     public ResponseEntity<?> getStockAdjustmentReport(
             @RequestParam(required = false)
@@ -95,10 +96,10 @@ public class StockAdjustmentReportController {
      * CSV / Excel download of the Stock Adjustment Report:
      *   /auditReports/stock-adjustment/export?format=xlsx&<the report's filters>
      * format is csv or xlsx. page and size are ignored: every matching row is
-     * written, in the order sortBy / sortDir give. Written straight to the
+     * written, in the order sortBy / sortDir give, followed by the Adjustment
+     * Type Summary and Adjustment Reason Summary tables. Written straight to the
      * response, so the file streams out as it is built.
      */
-    @PreAuthorize("@access.has('REPORTS/STOCK_ADJUSTMENT_REPORT/VIEW')")
     @GetMapping("/stock-adjustment/export")
     public void exportStockAdjustmentReport(
             @RequestParam String format,
@@ -125,7 +126,6 @@ public class StockAdjustmentReportController {
      * Options for the Adjustment Reason multi-select: distinct reasons recorded
      * at the given pharmacies (every accessible pharmacy when none sent).
      */
-    @PreAuthorize("@access.has('REPORTS/STOCK_ADJUSTMENT_REPORT/VIEW')")
     @GetMapping("/stock-adjustment/reasons")
     public ResponseEntity<?> getAdjustmentReasons(
             @RequestParam(required = false) List<String> pharmacyIds,

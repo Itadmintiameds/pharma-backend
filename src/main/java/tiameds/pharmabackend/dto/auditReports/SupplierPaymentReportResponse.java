@@ -12,6 +12,7 @@ import java.util.List;
 @Data
 @JsonPropertyOrder({
         "summary", "paymentTransactions",
+        "paymentSummary",
         "paymentModeSummary", "paymentModeTotalCount", "paymentModeTotalAmount",
         "fromDate", "toDate",
         "generatedBy", "generatedOn"})
@@ -20,6 +21,10 @@ public class SupplierPaymentReportResponse {
     private SupplierPaymentReportSummaryDto summary;
 
     private SupplierPaymentReportPageDto paymentTransactions;
+
+    // Supplier Payment Summary: Particulars / Value table; the last
+    // (highlighted) row is Total Payment Amount.
+    private SupplierPaymentReportPaymentSummaryDto paymentSummary;
 
     // Payment Mode-wise Summary table and its Total row.
     private List<SupplierPaymentModeSummaryDto> paymentModeSummary;
