@@ -49,5 +49,14 @@ public class PurchaseReturnDto {
     // counting the items array client-side.
     private Integer itemCount;
 
+    // Read-only, computed on every GET: the parent purchase's current balance
+    // after all its supplier payments and confirmed returns (same rule as the
+    // purchase's outstandingAmount). Not stored; ignored on input.
+    private BigDecimal purchaseNetAmount;
+    private BigDecimal purchasePaidAmount;
+    private BigDecimal purchaseReturnedAmount;
+    private BigDecimal purchaseOutstandingAmount;
+    private BigDecimal supplierCreditAmount;
+
     private List<PurchaseReturnDetailsDto> purchaseReturnDetails;
 }

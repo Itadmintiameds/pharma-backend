@@ -30,6 +30,16 @@ public class PurchaseDto {
     // Server-controlled: ignored on create, always reported on read.
     private ReturnStatus returnStatus;
 
+    // Read-only, computed on every GET from live supplier payments and
+    // confirmed purchase returns (not stored; ignored on create).
+    // Credit purchase: outstanding = totalNetAmount - paid - returned, floored
+    // at 0; the excess below 0 is supplierCreditAmount. Other purchases were
+    // paid upfront: outstanding 0, returns are supplier credit.
+    private BigDecimal paidAmount;
+    private BigDecimal returnedAmount;
+    private BigDecimal outstandingAmount;
+    private BigDecimal supplierCreditAmount;
+
     private String createdBy;
     private LocalDateTime createdAt;
     private String modifiedBy;

@@ -64,6 +64,7 @@ public class PurchaseServiceImpl implements PurchaseService {
     private final InventoryAdjusters adjusters;
     private final WarehouseRepository warehouseRepository;
     private final WarehouseInventoryRepository warehouseInventoryRepository;
+    private final PurchaseOutstandingCalculator purchaseOutstandingCalculator;
 
 
     @Override
@@ -397,6 +398,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                     .collect(Collectors.toList());
 
             applyAvailableStock(purchases, location);
+            purchaseOutstandingCalculator.applyToPurchases(purchases);
 
             return purchases;
         }
@@ -417,6 +419,7 @@ public class PurchaseServiceImpl implements PurchaseService {
                 .collect(Collectors.toList());
 
         applyAvailableStock(purchases, location);
+        purchaseOutstandingCalculator.applyToPurchases(purchases);
 
         return purchases;
     }
@@ -446,6 +449,7 @@ public class PurchaseServiceImpl implements PurchaseService {
             PurchaseDto dto = PurchaseMapper.toDto(purchase);
 
             applyAvailableStock(List.of(dto), location);
+            purchaseOutstandingCalculator.applyToPurchases(List.of(dto));
 
             return dto;
         }
@@ -467,6 +471,7 @@ public class PurchaseServiceImpl implements PurchaseService {
         PurchaseDto dto = PurchaseMapper.toDto(purchase);
 
         applyAvailableStock(List.of(dto), location);
+        purchaseOutstandingCalculator.applyToPurchases(List.of(dto));
 
         return dto;
     }

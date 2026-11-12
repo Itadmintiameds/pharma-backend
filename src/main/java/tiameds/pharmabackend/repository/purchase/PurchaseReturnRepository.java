@@ -85,4 +85,17 @@ public interface PurchaseReturnRepository extends JpaRepository <PurchaseReturn,
     List<Object[]> sumReturnAmountPerPurchaseByWarehouseId(
             @Param("warehouseId") String warehouseId,
             @Param("status") PurchaseReturnStatus status);
+
+    // [purchaseId, total returned] for the given purchases and status, for the
+    // computed outstanding on the purchase / purchase return screens.
+    @Query("""
+        SELECT pr.purchase.purchaseId, COALESCE(SUM(pr.totalNetAmount), 0)
+        FROM PurchaseReturn pr
+        WHERE pr.purchase.purchaseId IN :purchaseIds
+          AND pr.status = :status
+        GROUP BY pr.purchase.purchaseId
+    """)
+    List<Object[]> sumReturnAmountPerPurchaseIds(
+            @Param("purchaseIds") java.util.Collection<Long> purchaseIds,
+            @Param("status") PurchaseReturnStatus status);
 }

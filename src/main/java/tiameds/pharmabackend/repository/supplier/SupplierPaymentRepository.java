@@ -69,4 +69,14 @@ public interface SupplierPaymentRepository extends JpaRepository<SupplierPayment
         GROUP BY sp.purchase.purchaseId
     """)
     List<Object[]> sumPaymentAmountPerPurchaseByWarehouseId(@Param("warehouseId") String warehouseId);
+
+    // [purchaseId, total paid] for the given purchases, for the computed
+    // outstanding on the purchase / purchase return screens.
+    @Query("""
+        SELECT sp.purchase.purchaseId, COALESCE(SUM(sp.paymentAmount), 0)
+        FROM SupplierPayment sp
+        WHERE sp.purchase.purchaseId IN :purchaseIds
+        GROUP BY sp.purchase.purchaseId
+    """)
+    List<Object[]> sumPaymentAmountPerPurchaseIds(@Param("purchaseIds") java.util.Collection<Long> purchaseIds);
 }

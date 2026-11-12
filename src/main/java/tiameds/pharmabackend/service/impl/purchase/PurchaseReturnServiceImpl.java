@@ -60,6 +60,7 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
     private final BatchDetailsRepository pharmaBatchDetailsRepository;
     private final LocationContextResolver locationContextResolver;
     private final InventoryAdjusters adjusters;
+    private final PurchaseOutstandingCalculator purchaseOutstandingCalculator;
 
     @Override
     public PurchaseReturnDto createPurchaseReturn(PurchaseReturnDto purchaseReturnDto, UserDetails user) {
@@ -187,10 +188,14 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         LocationContext location = locationContextResolver.resolve(persistentUser);
 
         if (location.isWarehouse()) {
-            return purchaseReturnRepository.findByWarehouseId(location.getLocationId())
+            List<PurchaseReturnDto> returns = purchaseReturnRepository.findByWarehouseId(location.getLocationId())
                     .stream()
                     .map(PurchaseReturnMapper::toDto)
                     .collect(Collectors.toList());
+
+            purchaseOutstandingCalculator.applyToReturns(returns);
+
+            return returns;
         }
 
         String pharmacyId = location.getLocationId();
@@ -203,10 +208,14 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
             throw new RuntimeException("You are not authorized to use this pharmacy.");
         }
 
-        return purchaseReturnRepository.findByPharmacyId(pharmacyId)
+        List<PurchaseReturnDto> returns = purchaseReturnRepository.findByPharmacyId(pharmacyId)
                 .stream()
                 .map(PurchaseReturnMapper::toDto)
                 .collect(Collectors.toList());
+
+        purchaseOutstandingCalculator.applyToReturns(returns);
+
+        return returns;
     }
 
     @Override
@@ -228,7 +237,11 @@ public class PurchaseReturnServiceImpl implements PurchaseReturnService {
         // A return is only visible from the location it was raised at.
         assertReturnBelongsToLocation(purchaseReturn, location, persistentUser);
 
-        return PurchaseReturnMapper.toDto(purchaseReturn);
+        PurchaseReturnDto dto = PurchaseReturnMapper.toDto(purchaseReturn);
+
+        purchaseOutstandingCalculator.applyToReturns(List.of(dto));
+
+        return dto;
     }
 
     @Override
