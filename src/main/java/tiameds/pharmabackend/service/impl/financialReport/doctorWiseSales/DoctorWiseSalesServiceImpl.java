@@ -12,6 +12,11 @@ import tiameds.pharmabackend.dto.financialReport.common.FinancialReportResponse;
 import tiameds.pharmabackend.dto.financialReport.common.ReportPageDto;
 import tiameds.pharmabackend.dto.financialReport.doctorWiseSales.DoctorWiseSalesKpiDto;
 import tiameds.pharmabackend.dto.financialReport.doctorWiseSales.DoctorWiseSalesRowDto;
+import tiameds.pharmabackend.dto.financialReport.doctorWiseSales.ReportDoctorDto;
+import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.UserDetailsRepository;
+import tiameds.pharmabackend.repository.billing.DoctorDetailsRepository;
+import org.springframework.security.access.AccessDeniedException;
 import tiameds.pharmabackend.entity.PharmacyDetails;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.billing.Billing;
@@ -52,6 +57,9 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
             .thenComparing(DoctorWiseSalesRowDto::getProductId, Comparator.nullsLast(Comparator.naturalOrder()));
 
     private final FinancialReportSupport support;
+    private final UserDetailsRepository userDetailsRepository;
+    private final PharmacyDetailsRepository pharmacyDetailsRepository;
+    private final DoctorDetailsRepository doctorDetailsRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -119,6 +127,56 @@ public class DoctorWiseSalesServiceImpl implements DoctorWiseSalesService {
                 LocalDateTime.now(),
                 buildKpi(sorted),
                 billDetails);
+    }
+
+
+    @Override
+    public List<ReportDoctorDto> getDoctorsByPharmacies(List<String> pharmacyIds, UserDetails user) {
+
+        UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<String> allowed = pharmacyDetailsRepository.findPharmacyIdsByUserId(persistentUser.getUserId());
+
+        // No header needed: the pharmacyIds param, else every pharmacy the
+        // user is mapped to.
+        List<String> requested = pharmacyIds == null ? List.of() : pharmacyIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        if (requested.isEmpty()) {
+            requested = allowed;
+        } else {
+            Set<String> allowedSet = new HashSet<>(allowed);
+            List<String> denied = requested.stream().filter(id -> !allowedSet.contains(id)).toList();
+
+            if (!denied.isEmpty()) {
+                throw new AccessDeniedException(
+                        "You are not authorized to use these pharmacies: " + String.join(", ", denied));
+            }
+        }
+
+        if (requested.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, String> pharmacyNames = new HashMap<>();
+        pharmacyDetailsRepository.findAllById(requested)
+                .forEach(p -> pharmacyNames.put(p.getPharmacyId(), p.getPharmacyName()));
+
+        return doctorDetailsRepository.findByPharmacyIdIn(requested).stream()
+                .map(d -> new ReportDoctorDto(
+                        d.getDoctorId(),
+                        d.getDoctorName(),
+                        d.getPharmacyId(),
+                        pharmacyNames.get(d.getPharmacyId())))
+                .sorted(Comparator
+                        .comparing(ReportDoctorDto::getPharmacyName, byName())
+                        .thenComparing(ReportDoctorDto::getDoctorName, byName())
+                        .thenComparing(ReportDoctorDto::getDoctorId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 
 

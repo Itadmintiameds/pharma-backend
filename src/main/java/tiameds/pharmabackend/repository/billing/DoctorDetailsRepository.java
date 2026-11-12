@@ -15,4 +15,7 @@ public interface DoctorDetailsRepository extends JpaRepository<DoctorDetails, Lo
     Optional<DoctorDetails> findByDoctorIdAndPharmacyId(
             Long doctorId,
             String pharmacyId);
+
+    // Doctors of several pharmacies at once (report doctor dropdown).
+    List<DoctorDetails> findByPharmacyIdIn(java.util.Collection<String> pharmacyIds);
 }
