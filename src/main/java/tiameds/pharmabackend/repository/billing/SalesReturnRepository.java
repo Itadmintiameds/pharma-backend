@@ -29,6 +29,11 @@ public interface SalesReturnRepository extends JpaRepository<SalesReturn, Long> 
 
     Optional<SalesReturn> findBySalesReturnIdAndPharmacyId(Long salesReturnId, String pharmacyId);
 
+    // Returns shown on the bill GET endpoints, oldest first.
+    List<SalesReturn> findAllByPharmacyIdOrderBySalesReturnIdAsc(String pharmacyId);
+
+    List<SalesReturn> findAllByBilling_BillingIdOrderBySalesReturnIdAsc(Long billingId);
+
     long countByPharmacyIdAndSalesReturnStatus(String pharmacyId, SalesReturnStatus status);
 
     @Query("""

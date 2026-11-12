@@ -45,4 +45,15 @@ public class BillingDto {
     private LocalDateTime modifiedAt;
     private List<BillingDetailsDto> billingDetails;
     private List<BillingPaymentDto> billingPayments;
+
+    // Read-only, filled on the GET endpoints; ignored on input.
+    // Sales returns raised against this bill, oldest first.
+    private List<BillingSalesReturnDto> salesReturns;
+    // Sum of the payments received on the bill.
+    private BigDecimal receivedAmount;
+    // Sum of the bill's Completed sales returns.
+    private BigDecimal returnedAmount;
+    // What the customer still owes: totalNetAmountAfterRoundOff (else
+    // totalNetAmount) - receivedAmount - returnedAmount, never below 0.
+    private BigDecimal outstandingAmount;
 }

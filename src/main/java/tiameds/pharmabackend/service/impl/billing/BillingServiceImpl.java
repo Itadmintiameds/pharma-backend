@@ -48,6 +48,9 @@ import tiameds.pharmabackend.repository.billing.BillingRepository;
 import tiameds.pharmabackend.repository.billing.CustomerManagementRepository;
 import tiameds.pharmabackend.repository.billing.DoctorDetailsRepository;
 import tiameds.pharmabackend.repository.billing.SalesReturnDetailsRepository;
+import tiameds.pharmabackend.repository.billing.SalesReturnRepository;
+import tiameds.pharmabackend.entity.billing.SalesReturn;
+import tiameds.pharmabackend.dto.billing.BillingSalesReturnDto;
 import tiameds.pharmabackend.repository.product.BatchDetailsRepository;
 import tiameds.pharmabackend.repository.product.ProductDetailsRepository;
 import tiameds.pharmabackend.repository.purchase.InventoryAuditRepository;
@@ -73,6 +76,7 @@ public class BillingServiceImpl implements BillingService {
     private final InventoryRepository inventoryRepository;
     private final InventoryAuditRepository inventoryAuditRepository;
     private final SalesReturnDetailsRepository salesReturnDetailsRepository;
+    private final SalesReturnRepository salesReturnRepository;
     private final CurrentPharmacyContext pharmacyContext;
     private final S3Service s3Service;
 
@@ -163,6 +167,17 @@ public class BillingServiceImpl implements BillingService {
                     .put(new ReturnKey((String) row[1], (String) row[2]), toLong(row[3]));
         }
 
+        // Sales return documents of the pharmacy, grouped by bill.
+        Map<Long, List<SalesReturn>> salesReturnsByBill = new HashMap<>();
+
+        for (SalesReturn salesReturn : salesReturnRepository.findAllByPharmacyIdOrderBySalesReturnIdAsc(pharmacyId)) {
+            if (salesReturn.getBilling() != null) {
+                salesReturnsByBill
+                        .computeIfAbsent(salesReturn.getBilling().getBillingId(), id -> new ArrayList<>())
+                        .add(salesReturn);
+            }
+        }
+
         return billings
                 .stream()
                 .map(billing -> {
@@ -170,9 +185,51 @@ public class BillingServiceImpl implements BillingService {
                     applyReturnedQuantities(
                             dto,
                             returnedByBill.getOrDefault(billing.getBillingId(), Map.of()));
+                    applySalesReturnSummary(
+                            dto,
+                            billing,
+                            salesReturnsByBill.getOrDefault(billing.getBillingId(), List.of()));
                     return dto;
                 })
                 .collect(Collectors.toList());
+    }
+
+
+    // Read-only: the bill's sales returns, and received / returned /
+    // outstanding amounts. Outstanding = settlement amount - received -
+    // Completed returns, floored at 0 (returns reduce what is owed).
+    private void applySalesReturnSummary(BillingDto dto, Billing billing, List<SalesReturn> salesReturns) {
+
+        BigDecimal returned = BigDecimal.ZERO;
+        List<BillingSalesReturnDto> returnDtos = new ArrayList<>();
+
+        for (SalesReturn salesReturn : salesReturns) {
+
+            BigDecimal amount = salesReturn.getTotalNetAmount() != null
+                    ? salesReturn.getTotalNetAmount()
+                    : BigDecimal.ZERO;
+
+            returnDtos.add(new BillingSalesReturnDto(
+                    salesReturn.getSalesReturnId(),
+                    salesReturn.getSalesReturnNo(),
+                    salesReturn.getSalesReturnDate(),
+                    salesReturn.getSalesReturnStatus(),
+                    amount));
+
+            if (salesReturn.getSalesReturnStatus() == SalesReturnStatus.COMPLETED) {
+                returned = returned.add(amount);
+            }
+        }
+
+        BigDecimal received = totalReceived(billing);
+
+        dto.setSalesReturns(returnDtos);
+        dto.setReceivedAmount(received);
+        dto.setReturnedAmount(returned);
+        dto.setOutstandingAmount(settlementAmount(billing)
+                .subtract(received)
+                .subtract(returned)
+                .max(BigDecimal.ZERO));
     }
 
 
@@ -194,6 +251,11 @@ public class BillingServiceImpl implements BillingService {
         BillingDto dto = BillingMapper.toDto(billing);
 
         applyReturnedQuantities(dto, returned);
+
+        applySalesReturnSummary(
+                dto,
+                billing,
+                salesReturnRepository.findAllByBilling_BillingIdOrderBySalesReturnIdAsc(billingId));
 
         return dto;
     }
