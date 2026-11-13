@@ -64,4 +64,21 @@ public interface SupplierMasterRepository extends JpaRepository<SupplierMaster, 
             @Param("dlno") String dlno,
             @Param("panNo") String panNo,
             @Param("fssaiNo") String fssaiNo);
+
+    // Whether any supplier of the organization (at any of its pharmacies or
+    // warehouses) has this GSTIN. gstinNo must be passed trimmed and upper-cased.
+    @Query("""
+        SELECT COUNT(s) > 0
+        FROM SupplierMaster s
+        WHERE UPPER(TRIM(s.gstinNo)) = :gstinNo
+          AND (s.pharmacyId IN (
+                   SELECT p.pharmacyId FROM PharmacyDetails p
+                   WHERE p.organization.organizationId = :organizationId)
+               OR s.warehouseId IN (
+                   SELECT w.warehouseId FROM Warehouse w
+                   WHERE w.organization.organizationId = :organizationId))
+    """)
+    boolean existsGstinInOrganization(
+            @Param("gstinNo") String gstinNo,
+            @Param("organizationId") Long organizationId);
 }

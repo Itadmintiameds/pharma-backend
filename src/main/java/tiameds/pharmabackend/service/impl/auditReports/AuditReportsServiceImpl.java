@@ -188,6 +188,8 @@ public class AuditReportsServiceImpl implements AuditReportsService {
                     writer.blank();
 
                     writer.line("Total Sale Amount", summary.getTotalSaleAmount());
+                    writer.line("Total Round Off Amount", summary.getTotalRoundOffAmount());
+                    writer.line("Total Sale Amount After Round Off", summary.getTotalSaleAmountAfterRoundOff());
                     writer.line("Total Return Amount", summary.getTotalReturnAmount());
                     writer.line("Total Net Sales", summary.getTotalNetSales());
                     writer.line("Total Net Sale Quantity", summary.getTotalNetSaleQuantity());
@@ -406,7 +408,11 @@ public class AuditReportsServiceImpl implements AuditReportsService {
                     SELECT b.pharmacy_id,
                            bd.product_id,
                            SUM(bd.bill_quantity) AS qty,
-                           SUM(bd.net_amount)    AS amount
+                           SUM(bd.net_amount)    AS amount,
+                           -- Round-off is stored once per bill; each line takes its
+                           -- share by amount so a bill's lines add up to its round-off.
+                           SUM(COALESCE(b.round_off_amount, 0) * bd.net_amount
+                               / NULLIF(b.total_net_amount, 0)) AS round_off
                     FROM pharma_billing_details bd
                     JOIN pharma_billing b ON b.billing_id = bd.billing_id
                     WHERE b.pharmacy_id IN (:pharmacyIds)
@@ -439,6 +445,7 @@ public class AuditReportsServiceImpl implements AuditReportsService {
                            COALESCE(r.qty, 0)                         AS return_quantity,
                            COALESCE(s.qty, 0) - COALESCE(r.qty, 0)       AS net_sale_quantity,
                            COALESCE(s.amount, 0)                      AS sale_amount,
+                           COALESCE(s.round_off, 0)                   AS sale_round_off,
                            COALESCE(r.amount, 0)                      AS return_amount,
                            COALESCE(s.amount, 0) - COALESCE(r.amount, 0) AS net_sales
                     FROM (SELECT pharmacy_id, product_id FROM sales
@@ -463,12 +470,18 @@ public class AuditReportsServiceImpl implements AuditReportsService {
                 SELECT COALESCE(SUM(sale_amount), 0),
                        COALESCE(SUM(return_amount), 0),
                        COALESCE(SUM(net_sales), 0),
-                       COALESCE(SUM(net_sale_quantity), 0)
+                       COALESCE(SUM(net_sale_quantity), 0),
+                       COALESCE(SUM(sale_round_off), 0)
                 FROM report
                 """, params).getSingleResult();
 
+        BigDecimal saleAmount = toAmount(row[0]);
+        BigDecimal roundOff = toAmount(row[4]);
+
         InventorySalesReportSummaryDto summary = new InventorySalesReportSummaryDto();
-        summary.setTotalSaleAmount(toAmount(row[0]));
+        summary.setTotalSaleAmount(saleAmount);
+        summary.setTotalRoundOffAmount(roundOff);
+        summary.setTotalSaleAmountAfterRoundOff(saleAmount.add(roundOff));
         summary.setTotalReturnAmount(toAmount(row[1]));
         summary.setTotalNetSales(toAmount(row[2]));
         summary.setTotalNetSaleQuantity(toLong(row[3]));

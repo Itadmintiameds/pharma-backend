@@ -54,6 +54,11 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
 
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
 
+    // Adjustment reasons / remarks are free text, so a damage write-off is
+    // recognised by wording (case-insensitive POSIX regex) — the same rule the
+    // Stock Damage report uses.
+    private static final String DAMAGE_REASON_PATTERN = "damag|broke|breakage";
+
     private static final List<String> EXPORT_HEADERS = List.of(
             "Product Name", "Pharmacy / Warehouse", "Location Type", "Batch No", "Expiry Date",
             "Closing Stock", "Damaged Stock", "Expired Stock", "Available Stock");
@@ -355,10 +360,15 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
      *   inv     - stock on hand per location / product / batch at the end of
      *             asOfDate: the remaining_stock of the last audit row up to then
      *             for each inventory row (packagings of a batch are summed)
-     *   damaged - damaged units reported when a distribution was received at the
-     *             location on or before asOfDate, and not yet sent back on a
-     *             warehouse return by then. These never enter inventory, so they
-     *             are added on top of it.
+     *   damaged - damaged units held at the location at the end of asOfDate,
+     *             from two sources:
+     *               - units reported damaged when a distribution was received at
+     *                 the location on or before asOfDate, and not yet sent back
+     *                 on a warehouse return by then (these never enter inventory)
+     *               - units written off by a DECREASE stock adjustment on or
+     *                 before asOfDate whose reason or remarks say damage (these
+     *                 left inventory through the adjustment)
+     *             Neither is in on-hand stock, so both are added on top of it.
      *   base    - one row per location / product / batch with the four columns:
      *               closing   = on hand + damaged
      *               expired   = on hand, when the batch expired before asOfDate
@@ -380,6 +390,7 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
         // only included when it has ids.
         List<String> invParts = new ArrayList<>();
         List<String> damagedLocations = new ArrayList<>();
+        List<String> adjustmentLocations = new ArrayList<>();
 
         if (!pharmacyIds.isEmpty()) {
             params.put("pharmacyIds", pharmacyIds);
@@ -399,6 +410,7 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
                     GROUP BY i.pharmacy_id, i.product_id, i.batch_id
                     """);
             damagedLocations.add("(w.destination_type = 'PHARMACY' AND w.destination_id IN (:pharmacyIds))");
+            adjustmentLocations.add("(x.warehouse_id IS NULL AND x.pharmacy_id IN (:pharmacyIds))");
         }
 
         if (!warehouseIds.isEmpty()) {
@@ -419,9 +431,11 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
                     GROUP BY i.warehouse_id, i.product_id, i.batch_id
                     """);
             damagedLocations.add("(w.destination_type = 'WAREHOUSE' AND w.destination_id IN (:warehouseIds))");
+            adjustmentLocations.add("(x.warehouse_id IN (:warehouseIds))");
         }
 
         params.put("draftReturnStatus", StockReturnStatus.DRAFT.getLabel());
+        params.put("damagePattern", DAMAGE_REASON_PATTERN);
 
         // Each fragment starts with a space so it never glues onto the
         // previous one (a text block would drop that leading space).
@@ -477,8 +491,11 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
                 %1$s
                 ),
                 damaged AS (
+                    SELECT dmg.location_type, dmg.location_id, dmg.product_id, dmg.batch_id,
+                           SUM(dmg.qty) AS qty
+                    FROM (
                     SELECT w.destination_type AS location_type, w.destination_id AS location_id,
-                           d.product_id, d.batch_id, SUM(d.damaged_quantity) AS qty
+                           d.product_id, d.batch_id, d.damaged_quantity AS qty
                     FROM pharma_warehouse_distribution_details d
                     JOIN pharma_warehouse_distribution w
                       ON w.warehouse_distribution_id = d.warehouse_distribution_id
@@ -501,7 +518,21 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
                             AND r.stock_return_status <> :draftReturnStatus
                             AND COALESCE(r.stock_return_date, r.created_at) < :asOfEnd
                       )
-                    GROUP BY w.destination_type, w.destination_id, d.product_id, d.batch_id
+
+                    UNION ALL
+
+                    SELECT CASE WHEN x.warehouse_id IS NOT NULL THEN 'WAREHOUSE' ELSE 'PHARMACY' END,
+                           COALESCE(x.warehouse_id, x.pharmacy_id),
+                           x.product_id, x.batch_id, COALESCE(x.adjustment_qty, 0)
+                    FROM pharma_stock_adjustment x
+                    WHERE x.adjustment_type = 'DECREASE'
+                      AND COALESCE(x.adjustment_qty, 0) > 0
+                      AND (x.stock_adjustment_reason ~* :damagePattern
+                        OR x.stock_adjustment_remarks ~* :damagePattern)
+                      AND COALESCE(x.stock_adjustment_date, x.created_at) < :asOfEnd
+                      AND (%5$s)
+                    ) dmg
+                    GROUP BY dmg.location_type, dmg.location_id, dmg.product_id, dmg.batch_id
                 ),
                 stock AS (
                     SELECT k.location_type, k.location_id, k.product_id, k.batch_id,
@@ -547,7 +578,8 @@ public class CurrentStockSummaryServiceImpl implements CurrentStockSummaryServic
                 String.join("UNION ALL\n", invParts),
                 String.join(" OR ", damagedLocations),
                 productFilters,
-                statusCondition);
+                statusCondition,
+                String.join(" OR ", adjustmentLocations));
     }
 
 

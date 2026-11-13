@@ -28,7 +28,10 @@ public class CurrentStockSummaryController {
 
     /**
      * Current Stock Summary: batch-wise stock held at pharmacies and warehouses
-     * as of a date. Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
+     * as of a date. Damaged stock covers units reported damaged on a received
+     * distribution (not yet returned) plus units written off as damaged by a
+     * DECREASE stock adjustment.
+     * Multi-select params accept repeats (?pharmacyIds=A&pharmacyIds=B)
      * or a comma list (?pharmacyIds=A,B).
      */
     @GetMapping("/current-stock-summary")

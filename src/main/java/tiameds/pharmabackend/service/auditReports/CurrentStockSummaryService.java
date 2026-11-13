@@ -8,7 +8,9 @@ import tiameds.pharmabackend.service.financialReport.export.ReportExport;
 public interface CurrentStockSummaryService {
 
     // Batch-wise stock held at pharmacies and warehouses as of a date, one
-    // page of rows plus totals over the whole filtered set.
+    // page of rows plus totals over the whole filtered set. Damaged stock is
+    // distribution-damaged units not yet returned plus units written off as
+    // damaged by a DECREASE stock adjustment.
     CurrentStockSummaryResponse getCurrentStockSummary(
             CurrentStockSummaryFilter filter,
             UserDetails user);

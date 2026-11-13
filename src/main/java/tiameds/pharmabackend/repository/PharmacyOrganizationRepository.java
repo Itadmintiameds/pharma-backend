@@ -46,4 +46,33 @@ public interface PharmacyOrganizationRepository extends JpaRepository <PharmacyO
                       OR LOWER(COALESCE(w.warehouseName, '')) LIKE :pattern))
        """)
     Page<PharmacyOrganization> searchDirectory(@Param("pattern") String pattern, Pageable pageable);
+
+    // Whether another (non-rejected) organization already holds this GSTIN.
+    // gstNumber must be passed trimmed and upper-cased; pass -1 to exclude nothing.
+    @Query("""
+       SELECT COUNT(o) > 0
+       FROM PharmacyOrganization o
+       WHERE UPPER(TRIM(o.gstNumber)) = :gstNumber
+         AND o.organizationId <> :excludeOrganizationId
+         AND COALESCE(o.isRejected, false) = false
+       """)
+    boolean existsGstNumberInOtherOrganization(
+            @Param("gstNumber") String gstNumber,
+            @Param("excludeOrganizationId") Long excludeOrganizationId);
+
+    // Whether this GSTIN is the organization's own, or that of one of its
+    // pharmacies. gstNumber must be passed trimmed and upper-cased.
+    @Query("""
+       SELECT COUNT(o) > 0
+       FROM PharmacyOrganization o
+       WHERE o.organizationId = :organizationId
+         AND (UPPER(TRIM(o.gstNumber)) = :gstNumber
+              OR EXISTS (
+                   SELECT 1 FROM PharmacyDetails p
+                   WHERE p.organization = o
+                     AND UPPER(TRIM(p.gstNumber)) = :gstNumber))
+       """)
+    boolean existsGstNumberWithinOrganization(
+            @Param("gstNumber") String gstNumber,
+            @Param("organizationId") Long organizationId);
 }

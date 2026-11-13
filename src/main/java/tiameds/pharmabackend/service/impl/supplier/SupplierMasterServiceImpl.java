@@ -7,17 +7,23 @@ import tiameds.pharmabackend.context.LocationContext;
 import tiameds.pharmabackend.context.LocationContextResolver;
 import tiameds.pharmabackend.dto.supplier.SupplierDuplicateCheckResponse;
 import tiameds.pharmabackend.dto.supplier.SupplierMasterDto;
+import tiameds.pharmabackend.entity.PharmacyDetails;
+import tiameds.pharmabackend.entity.PharmacyOrganization;
 import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.supplier.SupplierMaster;
+import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.enums.SupplierStatus;
 import tiameds.pharmabackend.mapper.supplier.SupplierMasterMapper;
 import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
+import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
 import tiameds.pharmabackend.repository.supplier.SupplierMasterRepository;
+import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.supplier.SupplierMasterService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +35,8 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
     private final SupplierMasterMapper supplierMasterMapper;
     private final UserDetailsRepository userDetailsRepository;
     private final PharmacyDetailsRepository pharmacyDetailsRepository;
+    private final PharmacyOrganizationRepository organizationRepository;
+    private final WarehouseRepository warehouseRepository;
     private final LocationContextResolver locationContextResolver;
 
     @Override
@@ -302,9 +310,47 @@ public class SupplierMasterServiceImpl implements SupplierMasterService {
             }
         }
 
+        // A supplier can't carry the GSTIN of its own business: neither the
+        // business GSTIN nor that of any of the business's pharmacies.
+        if (gstinNo != null
+                && isGstinChanged(gstinNo, excludeSupplierId)
+                && isOwnBusinessGstin(gstinNo, location)) {
+            response.setGstinNoExists(true);
+            // Starts with "GST number" so the frontend shows it under the GST field
+            response.getMessages().add(
+                    "GST number belongs to your own business or one of its pharmacies; a supplier cannot use it");
+        }
+
         response.setDuplicate(!response.getMessages().isEmpty());
 
         return response;
+    }
+
+    // An existing supplier keeping its saved GSTIN isn't re-checked, so legacy
+    // suppliers stay editable.
+    private boolean isGstinChanged(String gstinNo, Long supplierId) {
+
+        if (supplierId == null) {
+            return true;
+        }
+
+        return supplierMasterRepository.findById(supplierId)
+                .map(existing -> !gstinNo.equals(normalize(existing.getGstinNo())))
+                .orElse(true);
+    }
+
+    private boolean isOwnBusinessGstin(String gstinNo, LocationContext location) {
+
+        Optional<PharmacyOrganization> organization = location.isWarehouse()
+                ? warehouseRepository.findById(location.getLocationId())
+                        .map(Warehouse::getOrganization)
+                : pharmacyDetailsRepository.findById(location.getLocationId())
+                        .map(PharmacyDetails::getOrganization);
+
+        return organization
+                .map(PharmacyOrganization::getOrganizationId)
+                .map(orgId -> organizationRepository.existsGstNumberWithinOrganization(gstinNo, orgId))
+                .orElse(false);
     }
 
     // Trimmed and upper-cased so "29abcde1234f1z5 " and "29ABCDE1234F1Z5" match;
