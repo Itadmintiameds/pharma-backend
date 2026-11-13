@@ -41,6 +41,24 @@ public class PharmacyOrganizationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    // Whether this GSTIN is already in use. forPharmacy=true checks a pharmacy's
+    // GSTIN (must not match any other pharmacy, even in the caller's own
+    // organization); false checks a business GSTIN.
+    @GetMapping("/checkGst")
+    public ResponseEntity<Boolean> checkGstNumber(
+            @RequestParam String gstNumber,
+            @RequestParam(defaultValue = "false") boolean forPharmacy,
+            @AuthenticationPrincipal CustomUserDetails currentUser) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(
+                organizationService.isGstNumberTaken(
+                        gstNumber, currentUser.getUserId(), forPharmacy));
+    }
+
     @PutMapping("/reject/{userId}")
     public ResponseEntity<?> rejectRequest(
             @PathVariable String userId) {

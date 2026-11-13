@@ -12,8 +12,10 @@ import tiameds.pharmabackend.entity.UserDetails;
 import tiameds.pharmabackend.entity.warehouse.Warehouse;
 import tiameds.pharmabackend.mapper.PharmacyOrganizationMapper;
 import tiameds.pharmabackend.mapper.warehouse.WarehouseMapper;
+import tiameds.pharmabackend.repository.PharmacyDetailsRepository;
 import tiameds.pharmabackend.repository.PharmacyOrganizationRepository;
 import tiameds.pharmabackend.repository.UserDetailsRepository;
+import tiameds.pharmabackend.repository.supplier.SupplierMasterRepository;
 import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import tiameds.pharmabackend.service.impl.warehouse.WarehouseIdGenerator;
 import tiameds.pharmabackend.service.PharmacyOrganizationService;
@@ -32,6 +34,8 @@ import java.util.List;
 public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationService {
 
     private final PharmacyOrganizationRepository organizationRepository;
+    private final PharmacyDetailsRepository pharmacyDetailsRepository;
+    private final SupplierMasterRepository supplierMasterRepository;
     private final PharmacyOrganizationMapper organizationMapper;
     private final UserDetailsRepository userDetailsRepository;
     private final WarehouseRepository warehouseRepository;
@@ -51,6 +55,13 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
 
         UserDetails persistentUser = userDetailsRepository.findById(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // A GSTIN belongs to exactly one business across the whole platform.
+        if (isGstNumberTaken(organizationDto.getGstNumber(), persistentUser.getUserId(), false)) {
+            // Mapped to 409 Conflict by GlobalExceptionHandler
+            throw new IllegalStateException(
+                    "This GST number is already registered with another business.");
+        }
 
         PharmacyOrganization organization =
                 organizationMapper.toEntity(organizationDto);
@@ -162,6 +173,35 @@ public class PharmacyOrganizationServiceImpl implements PharmacyOrganizationServ
             organization.setIsRejected(Boolean.TRUE);
             organizationRepository.save(organization);
         }
+    }
+
+    @Override
+    public boolean isGstNumberTaken(String gstNumber, String userId, boolean forPharmacy) {
+
+        if (gstNumber == null || gstNumber.isBlank()) {
+            return false;
+        }
+
+        String normalized = gstNumber.trim().toUpperCase();
+
+        // -1 never matches a real id, so nothing is excluded for a user without an org
+        Long ownOrganizationId = userDetailsRepository.findByUserIdWithOrganization(userId)
+                .map(UserDetails::getOrganization)
+                .map(PharmacyOrganization::getOrganizationId)
+                .orElse(-1L);
+
+        if (organizationRepository.existsGstNumberInOtherOrganization(normalized, ownOrganizationId)) {
+            return true;
+        }
+
+        if (!forPharmacy) {
+            return pharmacyDetailsRepository.existsGstNumberInOtherOrganization(normalized, ownOrganizationId);
+        }
+
+        // No two pharmacies may share a GSTIN, even within one organization, and
+        // a pharmacy can't take a GSTIN its own business has saved as a supplier
+        return pharmacyDetailsRepository.existsGstNumber(normalized)
+                || supplierMasterRepository.existsGstinInOrganization(normalized, ownOrganizationId);
     }
 
     @Override

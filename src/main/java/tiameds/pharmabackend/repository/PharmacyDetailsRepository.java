@@ -43,4 +43,27 @@ public interface PharmacyDetailsRepository extends JpaRepository<PharmacyDetails
     WHERE u.userId = :userId
 """)
     List<String> findPharmacyIdsByUserId(@Param("userId") String userId);
+
+    // Whether a pharmacy belonging to a different organization already holds
+    // this GSTIN. gstNumber must be passed trimmed and upper-cased; pass -1 to
+    // exclude nothing.
+    @Query("""
+    SELECT COUNT(p) > 0
+    FROM PharmacyDetails p
+    LEFT JOIN p.organization o
+    WHERE UPPER(TRIM(p.gstNumber)) = :gstNumber
+      AND (o IS NULL OR o.organizationId <> :excludeOrganizationId)
+""")
+    boolean existsGstNumberInOtherOrganization(
+            @Param("gstNumber") String gstNumber,
+            @Param("excludeOrganizationId") Long excludeOrganizationId);
+
+    // Whether any pharmacy, in any organization, already holds this GSTIN.
+    // gstNumber must be passed trimmed and upper-cased.
+    @Query("""
+    SELECT COUNT(p) > 0
+    FROM PharmacyDetails p
+    WHERE UPPER(TRIM(p.gstNumber)) = :gstNumber
+""")
+    boolean existsGstNumber(@Param("gstNumber") String gstNumber);
 }
