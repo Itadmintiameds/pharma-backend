@@ -205,6 +205,6 @@ public class WarehouseDistributionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        return ResponseEntity.ok(distributionService.getDamagedStockNotReturned());
+        return ResponseEntity.ok(distributionService.getDamagedStockNotReturned(currentUser.getUser()));
     }
 }
