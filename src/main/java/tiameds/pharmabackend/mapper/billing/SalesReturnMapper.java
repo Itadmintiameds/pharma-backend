@@ -48,6 +48,9 @@ public class SalesReturnMapper {
         dto.setTotalGrossAmount(entity.getTotalGrossAmount());
         dto.setTotalGstAmount(entity.getTotalGstAmount());
         dto.setTotalNetAmount(entity.getTotalNetAmount());
+        dto.setReturnAuthorizedBy(entity.getReturnAuthorizedBy());
+        dto.setReturnPaymentMode(entity.getReturnPaymentMode());
+        dto.setReturnTransactionId(entity.getReturnTransactionId());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setModifiedBy(entity.getModifiedBy());

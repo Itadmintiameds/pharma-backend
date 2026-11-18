@@ -22,4 +22,5 @@ public class BatchDetailsDto {
     private Double mrpPerUnit;
     private Double sellingPricePerUnit;
     private String rackLocation;
+    private Long minimumStockLevel;
 }

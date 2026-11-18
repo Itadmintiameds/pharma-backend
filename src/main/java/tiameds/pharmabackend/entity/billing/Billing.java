@@ -102,6 +102,12 @@ public class Billing {
     @Column(name = "selling_type")
     private String sellingType;
 
+    @Column(name = "discount_reason")
+    private String discountReason;
+
+    @Column(name = "discount_authorized_by")
+    private String discountAuthorizedBy;
+
     @Column(name = "created_by")
     private String createdBy;
 

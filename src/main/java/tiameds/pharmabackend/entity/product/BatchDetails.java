@@ -78,6 +78,9 @@ public class BatchDetails {
     @Column(name = "rack_location", length = 100)
     private String rackLocation;
 
+    @Column(name = "minimum_stock_level")
+    private Long minimumStockLevel;
+
     @Column(name = "created_by", length = 30)
     private String createdBy;
 

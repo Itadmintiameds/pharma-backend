@@ -39,6 +39,9 @@ public class SalesReturnDto {
     private BigDecimal totalGrossAmount;
     private BigDecimal totalGstAmount;
     private BigDecimal totalNetAmount;
+    private String returnAuthorizedBy;
+    private String returnPaymentMode;
+    private String returnTransactionId;
 
     private String createdBy;
     private LocalDateTime createdAt;

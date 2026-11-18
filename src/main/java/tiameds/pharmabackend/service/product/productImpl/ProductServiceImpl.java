@@ -473,6 +473,7 @@ public class ProductServiceImpl implements ProductService {
                 if (bDto.getMrpPerUnit() != null) batch.setMrpPerUnit(bDto.getMrpPerUnit());
                 if (bDto.getSellingPricePerUnit() != null) batch.setSellingPricePerUnit(bDto.getSellingPricePerUnit());
                 if (bDto.getRackLocation() != null) batch.setRackLocation(bDto.getRackLocation());
+                if (bDto.getMinimumStockLevel() != null) batch.setMinimumStockLevel(bDto.getMinimumStockLevel());
                 batch.setModifiedBy(modifiedBy);
                 batch.setModifiedAt(now);
             }

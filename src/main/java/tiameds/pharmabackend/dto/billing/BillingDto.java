@@ -37,6 +37,8 @@ public class BillingDto {
     // totalNetAmount + roundOffAmount — the whole-rupee amount collected
     private BigDecimal totalNetAmountAfterRoundOff;
     private String sellingType;
+    private String discountReason;
+    private String discountAuthorizedBy;
     // Read-only: re-derived by the sales return service, ignored on input.
     private BillReturnStatus salesReturnStatus;
     private String createdBy;

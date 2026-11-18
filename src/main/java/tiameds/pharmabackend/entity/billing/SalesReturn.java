@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tiameds.pharmabackend.enums.PaymentMode;
 import tiameds.pharmabackend.enums.SalesReturnStatus;
 import tiameds.pharmabackend.enums.SalesReturnStatusConverter;
 
@@ -56,6 +57,15 @@ public class SalesReturn {
 
     @Column(name = "total_net_amount")
     private BigDecimal totalNetAmount;
+
+    @Column(name = "return_authorized_by")
+    private String returnAuthorizedBy;
+
+    @Column(name = "return_payment_mode")
+    private String returnPaymentMode;
+
+    @Column(name = "return_transaction_id")
+    private String returnTransactionId;
 
     @Column(name = "created_by")
     private String createdBy;
