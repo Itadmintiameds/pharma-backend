@@ -77,16 +77,24 @@ public interface WarehouseDistributionDetailsRepository
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
-    // Lines with damaged_qty > 0 whose damaged stock return status is one of the given statuses
+    // Lines with damaged_qty > 0 whose damaged stock return status is one of the given
+    // statuses, received by the given destination (the location that holds the damaged
+    // stock and is the only one allowed to return it).
     @Query("""
         SELECT d FROM WarehouseDistributionDetails d
+        JOIN FETCH d.warehouseDistribution wd
         LEFT JOIN FETCH d.product
         LEFT JOIN FETCH d.packaging
         LEFT JOIN FETCH d.batch
-        LEFT JOIN FETCH d.warehouseDistribution wd
-        WHERE d.damagedQuantity > 0 AND d.stockReturnStatus IN :statuses
+        WHERE d.damagedQuantity > 0
+          AND d.stockReturnStatus IN :statuses
+          AND wd.destinationType = :destinationType
+          AND wd.destinationId = :destinationId
+        ORDER BY wd.allocationDate DESC
     """)
-    List<WarehouseDistributionDetails> findDamagedStockByReturnStatus(
+    List<WarehouseDistributionDetails> findDamagedStockByDestinationAndReturnStatus(
+            @Param("destinationType") LocationType destinationType,
+            @Param("destinationId") String destinationId,
             @Param("statuses") Collection<DamagedReturnStatus> statuses);
 
     // Projection for aggregateLinesByDistribution()

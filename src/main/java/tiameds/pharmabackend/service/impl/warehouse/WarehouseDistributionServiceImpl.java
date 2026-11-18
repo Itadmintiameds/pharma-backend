@@ -479,10 +479,16 @@ public class WarehouseDistributionServiceImpl implements WarehouseDistributionSe
 
     @Override
     @Transactional(readOnly = true)
-    public List<DamagedStockResponse> getDamagedStockNotReturned() {
+    public List<DamagedStockResponse> getDamagedStockNotReturned(UserDetails user) {
+        // Scope to the acting location (X-Pharmacy-Id / X-Warehouse-Id or the user's only
+        // location) as the DESTINATION: damaged stock is recorded by the receiver, and only
+        // the receiver may return it. Without this the list spanned every organization.
+        LocationContext ctx = locationContextResolver.resolve(user);
         // Partially returned lines still have damaged stock outstanding, so they stay on the list.
-        List<WarehouseDistributionDetails> lines = detailsRepository.findDamagedStockByReturnStatus(
-                List.of(DamagedReturnStatus.NOT_RETURNED, DamagedReturnStatus.PARTIALLY_RETURNED));
+        List<WarehouseDistributionDetails> lines =
+                detailsRepository.findDamagedStockByDestinationAndReturnStatus(
+                        ctx.getType(), ctx.getLocationId(),
+                        List.of(DamagedReturnStatus.NOT_RETURNED, DamagedReturnStatus.PARTIALLY_RETURNED));
         return lines.stream().map(this::toDamagedStockResponse).toList();
     }
 

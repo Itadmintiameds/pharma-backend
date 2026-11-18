@@ -94,6 +94,9 @@ public interface WarehouseDistributionService {
      */
     String peekNextAllocationNo(UserDetails user);
 
-    /** Get product details for distribution lines with damaged quantity > 0 that are Not Returned or Partially Returned */
-    List<DamagedStockResponse> getDamagedStockNotReturned();
+    /**
+     * Get product details for distribution lines with damaged quantity > 0 that are Not
+     * Returned or Partially Returned, received by the acting location (destination).
+     */
+    List<DamagedStockResponse> getDamagedStockNotReturned(UserDetails user);
 }
