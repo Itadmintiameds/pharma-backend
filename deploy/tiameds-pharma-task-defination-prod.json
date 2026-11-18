@@ -1,0 +1,186 @@
+{
+  "taskDefinitionArn": "arn:aws:ecs:ap-south-1:977098986605:task-definition/tiameds-prod-pharma-task:1",
+  "containerDefinitions": [
+    {
+      "name": "tiameds-pharma-prod",
+      "image": "977098986605.dkr.ecr.ap-south-1.amazonaws.com/tiameds-pharma-prod",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "name": "tiameds-pharma-prod-80",
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "TZ",
+          "value": "Asia/Kolkata"
+        },
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "prod"
+        },
+        {
+          "name": "COOKIE_DOMAIN",
+          "value": ".tiameds.ai"
+        },
+        {
+          "name": "FRONTEND_RESET_PASSWORD_URL",
+          "value": "https://pharma-test.tiameds.ai/resetPassword"
+        }
+      ],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "DB_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:DB_URL::"
+        },
+        {
+          "name": "DB_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:DB_NAME::"
+        },
+        {
+          "name": "DB_USERNAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:DB_USERNAME::"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:DB_PASSWORD::"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:JWT_SECRET::"
+        },
+        {
+          "name": "SPRING_MAIL_HOST",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:SPRING_MAIL_HOST::"
+        },
+        {
+          "name": "SPRING_MAIL_PORT",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:SPRING_MAIL_PORT::"
+        },
+        {
+          "name": "SPRING_MAIL_USERNAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:SPRING_MAIL_USERNAME::"
+        },
+        {
+          "name": "SPRING_MAIL_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:SPRING_MAIL_PASSWORD::"
+        },
+        {
+          "name": "SPRING_MAIL_SMTP_AUTH",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:SPRING_MAIL_SMTP_AUTH::"
+        },
+        {
+          "name": "SPRING_MAIL_SMTP_STARTTLS_ENABLE",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:SPRING_MAIL_SMTP_STARTTLS_ENABLE::"
+        },
+        {
+          "name": "JWT_PRIVATE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:JWT_PRIVATE_KEY::"
+        },
+        {
+          "name": "JWT_PUBLIC_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:JWT_PUBLIC_KEY::"
+        },
+        {
+          "name": "AWS_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:AWS_ACCESS_KEY::"
+        },
+        {
+          "name": "AWS_SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:AWS_SECRET_KEY::"
+        },
+        {
+          "name": "AWS_REGION",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:AWS_REGION::"
+        },
+        {
+          "name": "AWS_BUCKET_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:AWS_BUCKET_NAME::"
+        },
+        {
+          "name": "INTERNAL_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:977098986605:secret:pharma-prod-secret-YZmucT:INTERNAL_API_KEY::"
+        }
+      ],
+      "ulimits": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/tiameds-prod-pharma-task",
+          "mode": "non-blocking",
+          "awslogs-create-group": "true",
+          "max-buffer-size": "25m",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        },
+        "secretOptions": []
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "tiameds-prod-pharma-task",
+  "taskRoleArn": "arn:aws:iam::977098986605:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::977098986605:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "revision": 1,
+  "volumes": [],
+  "status": "ACTIVE",
+  "requiresAttributes": [
+    {
+      "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+    },
+    {
+      "name": "ecs.capability.execution-role-awslogs"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.ecr-auth"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-api.1.28"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.task-iam-role"
+    },
+    {
+      "name": "ecs.capability.execution-role-ecr-pull"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+    },
+    {
+      "name": "ecs.capability.task-eni"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-api.1.29"
+    }
+  ],
+  "placementConstraints": [],
+  "compatibilities": [
+    "EC2",
+    "FARGATE"
+  ],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "3072",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "registeredAt": "2025-02-04T15:27:58.350Z",
+  "registeredBy": "arn:aws:iam::977098986605:root",
+  "enableFaultInjection": false,
+  "tags": []
+}
