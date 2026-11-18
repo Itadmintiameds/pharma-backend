@@ -51,6 +51,7 @@ public class ProductInventoryMapper {
         entity.setMrpPerUnit(dto.getMrpPerUnit());
         entity.setSellingPricePerUnit(dto.getSellingPricePerUnit());
         entity.setRackLocation(dto.getRackLocation());
+        entity.setMinimumStockLevel(dto.getMinimumStockLevel());
         entity.setCreatedBy(createdBy);
         entity.setCreatedAt(createdAt);
         return entity;
@@ -88,6 +89,7 @@ public class ProductInventoryMapper {
         dto.setMrpPerUnit(entity.getMrpPerUnit());
         dto.setSellingPricePerUnit(entity.getSellingPricePerUnit());
         dto.setRackLocation(entity.getRackLocation());
+        dto.setMinimumStockLevel(entity.getMinimumStockLevel());
         return dto;
     }
 

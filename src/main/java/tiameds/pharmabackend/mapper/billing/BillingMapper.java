@@ -54,6 +54,8 @@ public class BillingMapper {
         dto.setRoundOffAmount(entity.getRoundOffAmount());
         dto.setTotalNetAmountAfterRoundOff(entity.getTotalNetAmountAfterRoundOff());
         dto.setSellingType(entity.getSellingType());
+        dto.setDiscountReason(entity.getDiscountReason());
+        dto.setDiscountAuthorizedBy(entity.getDiscountAuthorizedBy());
 
         // Bills raised before the column existed carry a null.
         dto.setSalesReturnStatus(entity.getSalesReturnStatus() != null
@@ -111,6 +113,8 @@ public class BillingMapper {
         entity.setRoundOffAmount(dto.getRoundOffAmount());
         entity.setTotalNetAmountAfterRoundOff(dto.getTotalNetAmountAfterRoundOff());
         entity.setSellingType(dto.getSellingType());
+        entity.setDiscountReason(dto.getDiscountReason());
+        entity.setDiscountAuthorizedBy(dto.getDiscountAuthorizedBy());
         entity.setCreatedBy(dto.getCreatedBy());
         entity.setCreatedAt(dto.getCreatedAt());
         entity.setModifiedBy(dto.getModifiedBy());

@@ -328,6 +328,8 @@ public class BillingServiceImpl implements BillingService {
         billing.setTotalGrossAmount(billingDto.getTotalGrossAmount());
         billing.setTotalDiscountPercentage(billingDto.getTotalDiscountPercentage());
         billing.setTotalDiscountAmount(billingDto.getTotalDiscountAmount());
+        billing.setDiscountReason(billingDto.getDiscountReason());
+        billing.setDiscountAuthorizedBy(billingDto.getDiscountAuthorizedBy());
         billing.setTotalGstAmount(billingDto.getTotalGstAmount());
         billing.setTotalMrpAmount(billingDto.getTotalMrpAmount());
         billing.setTotalNetAmount(billingDto.getTotalNetAmount());

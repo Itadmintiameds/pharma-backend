@@ -101,6 +101,9 @@ public class SalesReturnServiceImpl implements SalesReturnService {
         salesReturn.setTotalGrossAmount(salesReturnDto.getTotalGrossAmount());
         salesReturn.setTotalGstAmount(salesReturnDto.getTotalGstAmount());
         salesReturn.setTotalNetAmount(salesReturnDto.getTotalNetAmount());
+        salesReturn.setReturnAuthorizedBy(salesReturnDto.getReturnAuthorizedBy());
+        salesReturn.setReturnPaymentMode(salesReturnDto.getReturnPaymentMode());
+        salesReturn.setReturnTransactionId(salesReturnDto.getReturnTransactionId());
 
         salesReturn.setCreatedBy(actor);
         salesReturn.setCreatedAt(now);
