@@ -1,4 +1,4 @@
-git name: CI/CD Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
 
       # Step 3: Build and Test with Maven
       - name: Build with Maven
-        run: mvn -DskipTests clean install
+        run: mvn -U -DskipTests clean install
 
       # Step 4: Configure AWS credentials
       - name: Configure AWS credentials
