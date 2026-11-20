@@ -20,6 +20,7 @@ public class WarehouseController {
 
     private final WarehouseService warehouseService;
 
+
     @PostMapping("/create")
     public ResponseEntity<?> createWarehouse(
             @RequestBody WarehouseDto dto,
