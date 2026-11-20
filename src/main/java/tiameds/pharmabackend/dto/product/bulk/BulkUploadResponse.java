@@ -27,11 +27,19 @@ public class BulkUploadResponse {
     private int productsCreated;
     private int productsUpdated;
     private int batchesCreated;
+
+    /**
+     * Lines that reused a batch already on record and changed this location's stock
+     * for it — its first stock here, or a correction to match the file.
+     */
+    private int batchesStockUpdated;
+
     private int rowsSkipped;
     private int rowsFailed;
 
     /**
-     * Total stock written into inventory, in smallest units.
+     * Net change to this location's stock across the upload, in smallest units.
+     * Corrections downwards count against it.
      */
     private long stockAdded;
 

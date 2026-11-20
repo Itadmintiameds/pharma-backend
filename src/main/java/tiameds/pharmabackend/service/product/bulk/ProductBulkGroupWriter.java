@@ -40,10 +40,15 @@ import java.util.Map;
  * this sits in its own bean, so the orchestrator's call goes through the transactional
  * proxy.
  * <p>
- * The write is idempotent at batch level. A product the organization already has is
- * reused rather than duplicated, a package with the same unit and pack size is reused,
- * and a batch already on record is skipped — including its stock, so re-running the
- * same file does not inflate inventory.
+ * Products, packages and batches belong to the organization; stock belongs to each
+ * location. A product the organization already has is reused rather than duplicated,
+ * a package with the same unit and pack size is reused, and a batch already on record
+ * is reused. Its stock at the target location is then set to the file's value: added
+ * when the location has no stock row for the batch yet (a second pharmacy of the same
+ * organization), corrected up or down when it has one. Re-running the same file is
+ * therefore safe — stock already matching the file is left alone.
+ * <p>
+ * Only real uploads come here; a dry run never reaches this class.
  */
 @Service
 @RequiredArgsConstructor
@@ -59,7 +64,8 @@ public class ProductBulkGroupWriter {
     private final List<InventoryAdjuster> adjusters;
 
     /**
-     * @param group every line sharing one product code, in file order
+     * @param group  every line sharing one product code, in file order; no two lines
+     *               may name the same package and batch (the orchestrator removes repeats)
      * @return one result per line of the group
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -111,6 +117,7 @@ public class ProductBulkGroupWriter {
         List<String> batchIds = nextBatchIds(target.locationName(), group.size());
         int nextBatchId = 0;
 
+        InventoryAdjuster adjuster = adjusterFor(target);
         List<BulkUploadRowResult> results = new ArrayList<>();
         List<PendingStock> pendingStock = new ArrayList<>();
 
@@ -134,14 +141,13 @@ public class ProductBulkGroupWriter {
             BatchDetails batch = findExistingBatch(product, packaging, row.getBatch().getBatchNumber());
             if (batch != null) {
                 result.setBatchId(batch.getBatchId());
-                result.setStatus(BulkUploadRowResult.Status.SKIPPED);
-                result.setError("Batch \"" + batch.getBatchNumber()
-                        + "\" is already on this package — left unchanged, stock not re-added");
+                reconcileStock(row, product, packaging, batch, target, adjuster, result, pendingStock);
                 continue;
             }
 
             batch = createBatch(row.getBatch(), product, packaging, batchIds.get(nextBatchId++), actor, now);
             result.setBatchId(batch.getBatchId());
+            result.setBatchCreated(true);
             result.setStatus(created
                     ? BulkUploadRowResult.Status.CREATED
                     : BulkUploadRowResult.Status.UPDATED);
@@ -155,15 +161,65 @@ public class ProductBulkGroupWriter {
         // One save cascades the product, its packages and their batches.
         productRepo.saveAndFlush(product);
 
-        InventoryAdjuster adjuster = adjusterFor(target);
         for (PendingStock stock : pendingStock) {
-            adjuster.increment(new StockAdjustment(
-                    target.locationId(), product, stock.packaging(), stock.batch(), stock.quantity(),
-                    TransactionType.STOCK_ADJUSTMENT, null, null, actor, now));
-            stock.result().setStockAdded(stock.quantity());
+            StockAdjustment adjustment = new StockAdjustment(
+                    target.locationId(), product, stock.packaging(), stock.batch(), Math.abs(stock.change()),
+                    TransactionType.STOCK_ADJUSTMENT, null, null, actor, now);
+            if (stock.change() > 0) {
+                adjuster.increment(adjustment);
+            } else {
+                adjuster.decrement(adjustment);
+            }
+            stock.result().setStockAdded(stock.change());
         }
 
         return results;
+    }
+
+    /**
+     * A batch already on record for the organization: make this location's stock for it
+     * match the file. The file is the source of truth, so an existing stock row is moved
+     * up or down to the file's figure; a blank stock cell leaves it as it is.
+     */
+    private void reconcileStock(MappedRow row, ProductDetails product, PackagingDetails packaging,
+                                BatchDetails batch, BulkUploadTarget target, InventoryAdjuster adjuster,
+                                BulkUploadRowResult result, List<PendingStock> pendingStock) {
+        String batchLabel = "Batch \"" + batch.getBatchNumber() + "\"";
+        Long wanted = row.getStockInSmallestUnits();
+        Long current = adjuster.currentStock(target.locationId(), product, packaging, batch).orElse(null);
+        result.setPreviousStock(current);
+
+        if (current == null) {
+            if (wanted == null || wanted == 0) {
+                result.setStatus(BulkUploadRowResult.Status.SKIPPED);
+                result.setError(batchLabel + " is already on record and the file gives it no stock"
+                        + " — nothing to add here");
+                return;
+            }
+            result.setStatus(BulkUploadRowResult.Status.UPDATED);
+            result.addWarning(batchLabel + " was already on record for the organization; reused it and"
+                    + " added its stock for this location");
+            pendingStock.add(new PendingStock(packaging, batch, wanted, result));
+            return;
+        }
+
+        if (wanted == null) {
+            result.setStatus(BulkUploadRowResult.Status.SKIPPED);
+            result.setError(batchLabel + " already has " + current + " in stock here and the stock cell"
+                    + " is blank — left unchanged");
+            return;
+        }
+        if (wanted.equals(current)) {
+            result.setStatus(BulkUploadRowResult.Status.SKIPPED);
+            result.setError(batchLabel + " already has " + current + " in stock here, matching the file"
+                    + " — left unchanged");
+            return;
+        }
+
+        result.setStatus(BulkUploadRowResult.Status.UPDATED);
+        result.addWarning(batchLabel + " stock here set from " + current + " to " + wanted
+                + " to match the file");
+        pendingStock.add(new PendingStock(packaging, batch, wanted - current, result));
     }
 
     // ===== product =====
@@ -316,9 +372,10 @@ public class ProductBulkGroupWriter {
     }
 
     /**
-     * A batch whose opening stock is applied once the product has been flushed.
+     * A stock change applied once the product has been flushed. {@code change} is signed:
+     * positive raises this location's stock, negative lowers it. Never zero.
      */
-    private record PendingStock(PackagingDetails packaging, BatchDetails batch, long quantity,
+    private record PendingStock(PackagingDetails packaging, BatchDetails batch, long change,
                                 BulkUploadRowResult result) {
     }
 

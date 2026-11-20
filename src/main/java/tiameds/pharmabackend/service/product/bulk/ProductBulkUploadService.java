@@ -13,7 +13,7 @@ public interface ProductBulkUploadService {
      * another service holding the operator passcode, not a logged-in user, so no
      * header or user context is consulted.
      *
-     * @param dryRun validate and report without writing anything
+     * @param dryRun validate the file and report without writing anything
      */
     BulkUploadResponse upload(MultipartFile file, boolean dryRun, String pharmacyId, String warehouseId);
 

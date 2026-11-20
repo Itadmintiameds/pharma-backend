@@ -42,11 +42,14 @@ public class ProductController {
     //
     // Rows are grouped by "Product Code": all the lines sharing one code become one
     // product, each line becoming a batch under the package its unit/pack-size
-    // describes. The import is per-product transactional and idempotent at batch
-    // level, so a file can be corrected and re-uploaded without duplicating anything.
+    // describes. The import is per-product transactional. Products and batches are
+    // shared across the organization, stock is per location: a batch already on record
+    // is reused and this location's stock for it is set to the file's figure (added if
+    // the location has none, corrected up or down if it does). Re-uploading the same
+    // file changes nothing; a corrected file changes only what differs.
     //
-    // Pass dryRun=true to validate a file and see exactly what it would do without
-    // writing. Always returns 200: outcomes are reported per row, not as an HTTP error.
+    // Pass dryRun=true to validate a file without writing anything (file checks only).
+    // Always returns 200: outcomes are reported per row, not as an HTTP error.
     @PostMapping(value = "/bulk-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> bulkUploadProducts(
             @RequestHeader(value = OperatorPasscode.HEADER, required = false) String passcode,
@@ -92,6 +95,7 @@ public class ProductController {
         return result.getProductsCreated() + " product(s) created, "
                 + result.getProductsUpdated() + " updated, "
                 + result.getBatchesCreated() + " batch(es) added, "
+                + result.getBatchesStockUpdated() + " existing batch(es) stock set, "
                 + result.getRowsSkipped() + " row(s) skipped, "
                 + result.getRowsFailed() + " row(s) failed";
     }

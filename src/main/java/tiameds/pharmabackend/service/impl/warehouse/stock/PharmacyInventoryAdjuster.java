@@ -2,6 +2,8 @@ package tiameds.pharmabackend.service.impl.warehouse.stock;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
 import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.entity.purchase.Inventory;
 import tiameds.pharmabackend.entity.purchase.InventoryAudit;
@@ -12,6 +14,8 @@ import tiameds.pharmabackend.repository.purchase.InventoryAuditRepository;
 import tiameds.pharmabackend.repository.purchase.InventoryRepository;
 import tiameds.pharmabackend.service.warehouse.stock.InventoryAdjuster;
 import tiameds.pharmabackend.service.warehouse.stock.StockAdjustment;
+
+import java.util.Optional;
 
 // Adjusts pharmacy stock (pharma_inventory + pharma_inventory_audit).
 // Used for the destination leg of warehouse->pharmacy, and both legs of pharmacy->pharmacy.
@@ -62,6 +66,14 @@ public class PharmacyInventoryAdjuster implements InventoryAdjuster {
         inventoryRepository.save(inv);          // insert for a new row; managed rows flush on commit
         mapProductToPharmacy(adj);              // stock arriving here also maps the product to this pharmacy
         writeAudit(inv, adj, StockMovement.IN, remaining);
+    }
+
+    @Override
+    public Optional<Long> currentStock(String locationId, ProductDetails product,
+                                       PackagingDetails packaging, BatchDetails batch) {
+        return inventoryRepository
+                .findByPharmacy_PharmacyIdAndProductAndPackagingAndBatch(locationId, product, packaging, batch)
+                .map(inv -> inv.getTotalStock() == null ? 0L : inv.getTotalStock());
     }
 
     // Ensures the product is listed under this pharmacy so it shows in the pharmacy's

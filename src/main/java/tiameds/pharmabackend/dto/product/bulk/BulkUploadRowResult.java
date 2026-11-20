@@ -31,7 +31,20 @@ public class BulkUploadRowResult {
     private String batchId;
 
     /**
-     * Stock written into inventory for this line, in smallest units.
+     * True when this line created a new batch; false when it reused one already on
+     * record for the organization (another location may have imported it first).
+     */
+    private boolean batchCreated;
+
+    /**
+     * This location's stock for the batch before the line was applied, in smallest
+     * units. Null when the location had no stock row for the batch.
+     */
+    private Long previousStock;
+
+    /**
+     * Change this line made to this location's stock, in smallest units. Negative when
+     * the file corrected the stock downwards.
      */
     private Long stockAdded;
 
@@ -52,12 +65,14 @@ public class BulkUploadRowResult {
          */
         CREATED,
         /**
-         * The product already existed; this line added a batch (and possibly a package) to it.
+         * The product already existed; this line added a batch (and possibly a package)
+         * to it, or set this location's stock for a batch already on record to the
+         * file's value (see {@link #batchCreated} and {@link #previousStock}).
          */
         UPDATED,
         /**
-         * Nothing to do — the batch is already on record. Stock is deliberately not
-         * re-added, so re-uploading the same file does not inflate inventory.
+         * Nothing to do — the batch is on record and this location's stock already
+         * matches the file (or the file gives no stock for it).
          */
         SKIPPED,
         /**

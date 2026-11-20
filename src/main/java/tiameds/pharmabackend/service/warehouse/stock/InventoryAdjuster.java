@@ -1,6 +1,11 @@
 package tiameds.pharmabackend.service.warehouse.stock;
 
+import tiameds.pharmabackend.entity.product.BatchDetails;
+import tiameds.pharmabackend.entity.product.PackagingDetails;
+import tiameds.pharmabackend.entity.product.ProductDetails;
 import tiameds.pharmabackend.enums.LocationType;
+
+import java.util.Optional;
 
 /**
  * Applies one leg of a stock transfer against a specific inventory backing
@@ -27,4 +32,11 @@ public interface InventoryAdjuster {
      * IN leg (destination): finds or creates the stock row, raises it, writes an IN audit row.
      */
     void increment(StockAdjustment adj);
+
+    /**
+     * Stock this location holds for the batch, in smallest units — or empty when the
+     * location has no stock row for it at all (as opposed to a row that has run down to 0).
+     */
+    Optional<Long> currentStock(String locationId, ProductDetails product,
+                                PackagingDetails packaging, BatchDetails batch);
 }

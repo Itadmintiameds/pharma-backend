@@ -14,6 +14,7 @@ import tiameds.pharmabackend.repository.warehouse.WarehouseRepository;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,8 +26,12 @@ import java.util.Map;
  * Deliberately not transactional. A file of a few thousand rows will contain a
  * handful of bad ones, and failing the whole import over them forces the operator
  * into a guess-and-retry loop. Instead every line reports its own outcome and the
- * good ones land, so a second upload of the corrected file only adds what is missing
- * (batches already imported are skipped, stock included).
+ * good ones land. Batches already on record are reused and the location's stock is set
+ * to the file's figure, so a second upload of a corrected file only changes what differs.
+ * <p>
+ * A dry run checks the file only — columns, values, master names, repeated batches —
+ * and writes nothing. It does not look at what is already on record, so it cannot say
+ * whether a line will create a batch or set the stock of an existing one.
  */
 @Service
 @RequiredArgsConstructor
@@ -84,11 +89,25 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
         // takes down the product group it happens to sit in.
         List<BulkUploadRowResult> results = new ArrayList<>();
         Map<String, List<MappedRow>> groups = new LinkedHashMap<>();
+        // product + package + batch -> first line naming it. The file sets each batch's
+        // stock outright, so two lines for one batch contradict each other.
+        Map<String, Integer> batchLines = new HashMap<>();
 
         for (CsvFile.Row row : csv.getRows()) {
             try {
                 MappedRow mapped = rowMapper.map(row, masters);
-                groups.computeIfAbsent(groupKey(mapped), k -> new ArrayList<>()).add(mapped);
+                String key = groupKey(mapped);
+                List<MappedRow> group = groups.get(key);
+                // The writer resolves a group's product from its first line.
+                MappedRow head = group == null ? mapped : group.get(0);
+                Integer firstLine = batchLines.putIfAbsent(batchKey(head, mapped), mapped.getLine());
+                if (firstLine != null) {
+                    results.add(failed(row.getLineNumber(), row, "Same product, pack size and batch as line "
+                            + firstLine + " — only line " + firstLine + " is applied. If both lines are"
+                            + " real stock, merge them into one line with the stock added together."));
+                    continue;
+                }
+                groups.computeIfAbsent(key, k -> new ArrayList<>()).add(mapped);
             } catch (ProductRowMapper.RowRejectedException | CellCoercion.BulkValueException e) {
                 results.add(failed(row.getLineNumber(), row, e.getMessage()));
             } catch (RuntimeException e) {
@@ -147,6 +166,17 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
         return "name:" + lower(row.getProductName()) + "|" + lower(row.getBrandName()) + "|" + lower(row.getHsnNo());
     }
 
+    /**
+     * Identifies the batch a line writes to: the product its group resolves to (by the
+     * group's first line, the same natural key the writer looks the product up by), the
+     * package, and the batch number. Matching ignores case, as the writer's does.
+     */
+    private String batchKey(MappedRow groupHead, MappedRow row) {
+        return lower(groupHead.getProductName()) + "|" + lower(groupHead.getBrandName()) + "|"
+                + lower(groupHead.getHsnNo()) + "|" + row.packagingKey() + "|"
+                + lower(row.getBatch().getBatchNumber());
+    }
+
     private String lower(String value) {
         return value == null ? "" : value.trim().toLowerCase();
     }
@@ -163,7 +193,7 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
     }
 
     /**
-     * A dry-run line: it mapped cleanly, but nothing was written.
+     * A dry-run line: it mapped cleanly, but nothing was written or looked up.
      */
     private BulkUploadRowResult validated(MappedRow row) {
         BulkUploadRowResult result = new BulkUploadRowResult();
@@ -192,7 +222,11 @@ public class ProductBulkUploadServiceImpl implements ProductBulkUploadService {
                     }
                 }
                 case UPDATED -> {
-                    response.setBatchesCreated(response.getBatchesCreated() + 1);
+                    if (row.isBatchCreated()) {
+                        response.setBatchesCreated(response.getBatchesCreated() + 1);
+                    } else {
+                        response.setBatchesStockUpdated(response.getBatchesStockUpdated() + 1);
+                    }
                     if (row.getProductId() != null && !updatedProducts.contains(row.getProductId())) {
                         updatedProducts.add(row.getProductId());
                     }
