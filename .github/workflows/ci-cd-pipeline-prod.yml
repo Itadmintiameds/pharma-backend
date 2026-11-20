@@ -50,9 +50,9 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_PROD }}
         run: |
-          echo "Building Docker image $ECR_REGISTRY/ECR_REPOSITORY_PROD:$IMAGE_TAG"
-          docker build -t $ECR_REGISTRY/ECR_REPOSITORY_PROD:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/ECR_REPOSITORY_PROD:$IMAGE_TAG
+          echo "Building Docker image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
       
 
       # Step to list files in the deploy directory
