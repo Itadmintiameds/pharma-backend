@@ -48,11 +48,11 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_PROD }}
         run: |
-          echo "Building Docker image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "Building Docker image $ECR_REGISTRY/ECR_REPOSITORY_PROD:$IMAGE_TAG"
+          docker build -t $ECR_REGISTRY/ECR_REPOSITORY_PROD:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/ECR_REPOSITORY_PROD:$IMAGE_TAG
       
 
       # Step to list files in the deploy directory
@@ -64,9 +64,9 @@ jobs:
         id: update-task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: deploy/tiameds-pharma-task-defination.json
-          container-name: tiamed-pharma-test
-          image: ${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+          task-definition: deploy/tiameds-prod-pharma-task.json
+          container-name: tiameds-pharma-prod
+          image: ${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_REPOSITORY_PROD }}:${{ github.sha }}
 
 
       # Step 8: Deploy to ECS
@@ -74,8 +74,8 @@ jobs:
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.update-task-def.outputs.task-definition }}
-          service: ${{ secrets.ECS_SERVICE }}
-          cluster: ${{ secrets.ECS_CLUSTER }}
+          service: ${{ secrets.ECS_SERVICE_PROD }}
+          cluster: ${{ secrets.ECS_CLUSTER_PROD }}
           wait-for-service-stability: true
       #
       # Step 9: Post-deployment Health Check
