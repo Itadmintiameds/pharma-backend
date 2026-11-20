@@ -24,8 +24,9 @@ import tiameds.pharmabackend.service.TermsPolicyService;
 /**
  * Publishing side of the terms &amp; privacy policy.
  * <p>
- * No @PreAuthorize: any authenticated user can publish a version. SecurityConfig's
- * anyRequest().authenticated() is the only gate here.
+ * TEMPORARY: open API, no authentication. /admin/terms and /admin/terms/** are
+ * whitelisted (permitAll) in SecurityConfig. Without a JWT, currentUser is null
+ * and the upload is stored with no uploader id.
  */
 @RestController
 @RequestMapping("/admin/terms")
