@@ -21,7 +21,8 @@ public class CorsConfig {
                 "https://*.vercel.app",
                 "https://pharma-test.tiameds.ai",
                 "https://tiameds.ai",
-                "https://admin-test.tiameds.ai/"
+                "https://admin-test.tiameds.ai/",
+                "https://pharma.tiameds.ai"
         ));
 
         configuration.setAllowedMethods(List.of(
