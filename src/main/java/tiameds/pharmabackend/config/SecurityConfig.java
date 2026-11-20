@@ -59,6 +59,9 @@ public class SecurityConfig {
                                 "/user/check-email",
                                 // the registration screen renders the terms before any account exists
                                 "/terms/**",
+                                // TEMPORARY: terms admin (list / upload draft / publish) is open for now
+                                "/admin/terms",
+                                "/admin/terms/**",
                                 "/error",
                                 "/pharmacyDocuments"
 //                                "/pharmacy/**",
