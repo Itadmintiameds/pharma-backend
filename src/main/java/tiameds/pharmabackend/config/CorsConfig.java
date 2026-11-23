@@ -22,7 +22,9 @@ public class CorsConfig {
                 "https://pharma-test.tiameds.ai",
                 "https://tiameds.ai",
                 "https://admin-test.tiameds.ai/",
-                "https://pharma.tiameds.ai"
+                "https://pharma.tiameds.ai",
+                "https://admin.tiameds.ai/"
+
         ));
 
         configuration.setAllowedMethods(List.of(
