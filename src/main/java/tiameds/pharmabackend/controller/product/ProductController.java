@@ -5,6 +5,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -116,6 +117,23 @@ public class ProductController {
     // X-Pharmacy-Id / X-Warehouse-Id header as onboarding.
     @PutMapping("/{productId}")
     public ResponseEntity<Map<String, Object>> updateProduct(
+            @PathVariable String productId,
+            @RequestBody ProductDetailsDto dto) {
+        ProductDetailsDto updated = pharmaProductService.updateProduct(productId, dto);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Product successfully updated with ID: " + updated.getProductId());
+        response.put("data", updated);
+
+        return ResponseEntity.ok(response);
+    }
+
+    // Same partial update as PUT /{productId}, but gated by the PRODUCTS/EDIT permission.
+    // PUT /{productId} stays open to any authenticated user because the purchase flow
+    // edits a freshly created product through it; this one is for editing products later.
+    @PutMapping("/{productId}/edit")
+    @PreAuthorize("@access.has('PRODUCTS/PRODUCTS/EDIT')")
+    public ResponseEntity<Map<String, Object>> editProduct(
             @PathVariable String productId,
             @RequestBody ProductDetailsDto dto) {
         ProductDetailsDto updated = pharmaProductService.updateProduct(productId, dto);

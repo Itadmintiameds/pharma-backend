@@ -1,5 +1,7 @@
 package tiameds.pharmabackend.service.product.bulk;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -62,6 +64,9 @@ public class ProductBulkGroupWriter {
     private final ProductMapper productMapper;
     private final ProductInventoryMapper inventoryMapper;
     private final List<InventoryAdjuster> adjusters;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * @param group  every line sharing one product code, in file order; no two lines
@@ -135,6 +140,11 @@ public class ProductBulkGroupWriter {
             if (packaging == null) {
                 packaging = createPackage(row, product, packagingIds.get(nextPackagingId++), actor, now);
                 packagesByKey.put(row.packagingKey(), packaging);
+                if (!created) {
+                    // Existing product: insert the new package directly rather than via
+                    // the product save below (see the note at the save).
+                    entityManager.persist(packaging);
+                }
             }
             result.setPackagingId(packaging.getPackagingId());
 
@@ -146,6 +156,10 @@ public class ProductBulkGroupWriter {
             }
 
             batch = createBatch(row.getBatch(), product, packaging, batchIds.get(nextBatchId++), actor, now);
+            if (!created) {
+                // Existing product: insert the new batch directly (see the note at the save).
+                entityManager.persist(batch);
+            }
             result.setBatchId(batch.getBatchId());
             result.setBatchCreated(true);
             result.setStatus(created
@@ -158,8 +172,17 @@ public class ProductBulkGroupWriter {
             }
         }
 
-        // One save cascades the product, its packages and their batches.
-        productRepo.saveAndFlush(product);
+        if (created) {
+            // New product: one save cascades the product, its packages and their batches.
+            productRepo.saveAndFlush(product);
+        } else {
+            // Existing product: it is already managed and its new packages/batches were
+            // persisted above. Saving it through the repository would merge() it, and
+            // merging an existing product that carries new batches with pre-assigned ids
+            // failed with "No row with the given identifier exists" for the new batch id.
+            // A flush writes the new rows and any change to the product's location mapping.
+            entityManager.flush();
+        }
 
         for (PendingStock stock : pendingStock) {
             StockAdjustment adjustment = new StockAdjustment(
