@@ -40,7 +40,6 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         try {
-            System.out.println("===== CurrentPharmacyFilter =====");
             Authentication authentication =
                     SecurityContextHolder.getContext().getAuthentication();
 
@@ -53,7 +52,6 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
 
                     String warehouseId = request.getHeader("X-Warehouse-Id");
 
-                    System.out.println("Header Warehouse : " + warehouseId);
 
                     if (warehouseId != null && !warehouseId.isBlank()) {
 
@@ -72,7 +70,6 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
                         }
 
                         warehouseContext.setCurrentWarehouse(warehouseId);
-                        System.out.println("Logged in User : " + currentUser.getUserId());
                     }
                 } else {
 
@@ -86,7 +83,6 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
                     // mirroring how pharmacy access is checked below.
                     String warehouseId = request.getHeader("X-Warehouse-Id");
 
-                    System.out.println("Header Warehouse : " + warehouseId);
 
                     if (warehouseId != null && !warehouseId.isBlank()) {
 
@@ -111,13 +107,11 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
                         }
 
                         warehouseContext.setCurrentWarehouse(warehouseId);
-                        System.out.println("Logged in User : " + currentUser.getUserId());
 
                     } else {
 
                         String pharmacyId = request.getHeader("X-Pharmacy-Id");
 
-                        System.out.println("Header Pharmacy : " + pharmacyId);
 
                         if (pharmacyId != null && !pharmacyId.isBlank()) {
 
@@ -136,20 +130,17 @@ public class CurrentPharmacyFilter extends OncePerRequestFilter {
                             }
 
                             pharmacyContext.setCurrentPharmacy(pharmacyId);
-                            System.out.println("Logged in User : " + currentUser.getUserId());
                         }
                     }
                 }
             }
 
             filterChain.doFilter(request, response);
-            System.out.println("Validation Passed");
 
         } finally {
 
             pharmacyContext.clear();
             warehouseContext.clear();
-            System.out.println("Context Cleared");
         }
     }
 }
