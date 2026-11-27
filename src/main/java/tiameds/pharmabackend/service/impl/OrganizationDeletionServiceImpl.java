@@ -152,6 +152,9 @@ public class OrganizationDeletionServiceImpl implements OrganizationDeletionServ
         // consent ledger: FK -> pharma_user_details, so it must go before the users
         deleted.put("pharma_user_policy_acceptance", execOrg(
                 "DELETE FROM pharma_user_policy_acceptance WHERE user_id IN (" + ORG_USERS + ")", organizationId));
+        // Reports hub favourites: FK -> pharma_user_details, so they must go before the users
+        deleted.put("pharma_user_report_favourite", execOrg(
+                "DELETE FROM pharma_user_report_favourite WHERE user_id IN (" + ORG_USERS + ")", organizationId));
         // user<->pharmacy join: clear rows for this org's users OR this org's pharmacies
         deleted.put("pharma_user_pharmacy", execOrg(
                 "DELETE FROM pharma_user_pharmacy WHERE user_id IN (" + ORG_USERS + ") " +
