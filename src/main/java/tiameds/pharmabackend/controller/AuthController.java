@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 import tiameds.pharmabackend.dto.LoginRequestDto;
 import tiameds.pharmabackend.dto.LoginResponse;
 import tiameds.pharmabackend.dto.OtpVerifyRequestDto;
+import tiameds.pharmabackend.dto.ForgotPasswordRequestDto;
+import tiameds.pharmabackend.dto.ResetPasswordRequestDto;
+import tiameds.pharmabackend.service.PasswordService;
 import tiameds.pharmabackend.service.impl.AuthService;
 import jakarta.servlet.http.Cookie;
 
@@ -24,6 +27,25 @@ import jakarta.servlet.http.Cookie;
 public class AuthController {
 
     private final AuthService authService;
+
+    private final PasswordService passwordService;
+
+    // Always 200 with the same message, whether or not the email is registered.
+    @PostMapping("/forgot-password")
+    public ResponseEntity<String> forgotPassword(
+            @RequestBody ForgotPasswordRequestDto request) {
+
+        return ResponseEntity.ok(
+                passwordService.forgotPassword(request));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<String> resetPassword(
+            @RequestBody ResetPasswordRequestDto request) {
+
+        return ResponseEntity.ok(
+                passwordService.resetPassword(request));
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(

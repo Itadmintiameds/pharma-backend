@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import tiameds.pharmabackend.dto.AssignPermissionsRequestDto;
+import tiameds.pharmabackend.dto.ChangePasswordRequestDto;
 import tiameds.pharmabackend.dto.CreateUserRequestDto;
 import tiameds.pharmabackend.dto.CreateUserResponseDto;
 import tiameds.pharmabackend.dto.CurrentUserPermissionsDto;
@@ -31,6 +33,7 @@ import tiameds.pharmabackend.dto.UserImageDto;
 import tiameds.pharmabackend.dto.UserStatusDto;
 import tiameds.pharmabackend.dto.UserSummaryDto;
 import tiameds.pharmabackend.security.CustomUserDetails;
+import tiameds.pharmabackend.service.PasswordService;
 import tiameds.pharmabackend.service.UserDetailsService;
 
 @RestController
@@ -39,6 +42,8 @@ import tiameds.pharmabackend.service.UserDetailsService;
 public class UserDetailsController {
 
     private final UserDetailsService userDetailsService;
+
+    private final PasswordService passwordService;
 
     @PostMapping("/registration")
     public ResponseEntity<UserDetailsDto> registerUser(
@@ -117,6 +122,25 @@ public class UserDetailsController {
 
         return ResponseEntity.ok(
                 userDetailsService.getUserNames(currentUser.getUserId(), pharmacyIds));
+    }
+
+    // Signed-in user changes their own password. Other sessions are signed out;
+    // the one making this call keeps its refresh token.
+    @PostMapping("/change-password")
+    public ResponseEntity<String> changePassword(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @RequestBody ChangePasswordRequestDto request,
+            @CookieValue(name = "refresh_token", required = false) String refreshToken) {
+
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(
+                passwordService.changePassword(
+                        currentUser.getUserId(),
+                        request,
+                        refreshToken));
     }
 
     @GetMapping("/me/permissions")
